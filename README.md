@@ -36,6 +36,25 @@ pt1000_temperature_c = pt1000.resistance_to_celsius(1193.971)
 pt1000_resistance_ohms = pt1000.celsius_to_resistance(50.0)
 ```
 
+## Configurable IEC 60751 models
+
+For an individual Pt100, Pt1000, or other IEC 60751 PT-385 sensor with a characterized resistance at 0 °C, use `IEC60751RTDModel`:
+
+```python
+from rtd.models import IEC60751RTDModel
+
+probe = IEC60751RTDModel(
+    r0_ohms=100.017,
+    name="Calibrated probe A",
+    minimum_temperature_c=-50.0,
+    maximum_temperature_c=250.0,
+)
+
+temperature_c = probe.resistance_to_celsius(119.42)
+```
+
+The configurable model retains the standard IEC 60751 PT-385 curve while allowing an individually characterized `R0` and a narrower declared or calibrated temperature range. User-supplied Callendar–Van Dusen coefficient sets are a separate planned capability and are not yet part of the public API.
+
 ## Simulation
 
 Simulation readers support both Pt100 and Pt1000. Pt100 remains the default for backward compatibility.
@@ -82,6 +101,7 @@ uv run --locked mypy
 src/rtd/
     _curves.py
     _models.py
+    models.py
     pt100.py
     pt1000.py
     simulation.py
@@ -103,6 +123,7 @@ Version 0.2.0 provides:
 - independently sourced reference-value tests for both supported RTD types
 - shared internal RTD curve and model infrastructure
 - model-aware Pt100/Pt1000 simulation while preserving Pt100 defaults
+- public configurable IEC 60751 models for individually characterized `R0` values and declared temperature ranges
 
 Potential future RTD types are not considered supported until their equations, ranges, independent reference values, tests, and documentation are complete.
 

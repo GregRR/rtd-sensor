@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-from rtd import pt100, pt1000, simulation
+from rtd import models, pt100, pt1000, simulation
 
 
 def test_package_exports_pt100_module() -> None:
@@ -17,6 +17,12 @@ def test_package_exports_pt1000_module() -> None:
     assert imported_pt1000 is pt1000
 
 
+def test_package_exports_models_module() -> None:
+    from rtd import models as imported_models
+
+    assert imported_models is models
+
+
 def test_package_exports_simulation_module() -> None:
     from rtd import simulation as imported_simulation
 
@@ -27,10 +33,15 @@ def test_package_public_api() -> None:
     import rtd
 
     assert set(rtd.__all__) == {
+        "models",
         "pt100",
         "pt1000",
         "simulation",
     }
+
+
+def test_models_public_api() -> None:
+    assert set(models.__all__) == {"IEC60751RTDModel"}
 
 
 def test_pt100_public_api() -> None:

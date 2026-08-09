@@ -220,6 +220,7 @@ src/rtd/
 ├── __init__.py
 ├── _curves.py
 ├── _models.py
+├── models.py
 ├── pt100.py
 ├── pt1000.py
 └── simulation.py
@@ -271,6 +272,21 @@ The implementation defines the IEC 60751 PT-385 Callendar–Van Dusen curve once
 
 The curve and model infrastructure remains internal until the public API for user-defined and calibrated models has been deliberately designed.
 
+
+### Public configurable IEC 60751 model
+
+The first public advanced-model API is intentionally narrower than the internal curve/model architecture. `rtd.models.IEC60751RTDModel` represents an RTD that retains the standardized IEC 60751 PT-385 curve while allowing:
+
+* an individually characterized or calibrated `R0`;
+* a human-readable model or probe name; and
+* a declared valid temperature range that may be narrower than the full IEC curve.
+
+The built-in `rtd.pt100` and `rtd.pt1000` modules remain the preferred APIs for nominal standard sensors. The public configurable model is for cases where an individual probe's `R0` is known more precisely or its usable/calibrated range should be enforced.
+
+A declared temperature range constrains use of the model; it does not modify the underlying IEC curve. It may therefore represent a manufacturer operating range, a calibration range, or another application-specific validity interval.
+
+User-supplied Callendar–Van Dusen coefficients are deliberately not exposed in this first public-model batch. A custom coefficient set changes the curve itself and requires explicit validation rules and provenance expectations before becoming a stable public API.
+
 ### Measurement boundary
 
 The core library begins with the best available estimate of the RTD sensing element's resistance in ohms.
@@ -286,7 +302,6 @@ Potential future additions include:
 * Pt500
 * alternate standardized platinum curves
 * user-supplied Callendar–Van Dusen coefficients
-* individually calibrated R0 values
 * calibrated coefficient sets
 * tolerance-class calculations
 * uncertainty propagation
@@ -377,14 +392,13 @@ Version 1 will not include:
 
 The following decisions remain intentionally deferred:
 
-1. The eventual public API for user-defined RTD curves and models.
-2. The public representation of individually calibrated R0 values.
-3. The public representation of calibrated coefficient sets.
-4. Tolerance-class calculation APIs.
-5. Uncertainty-propagation APIs and result types.
-6. Optional vectorized conversion support.
-7. Lookup-table generation and interpolation APIs.
-8. Whether the distribution and repository should eventually be renamed
+1. The public API for user-supplied Callendar–Van Dusen coefficients and alternate RTD curves.
+2. The public representation of calibrated coefficient sets and their provenance/validity requirements.
+3. Tolerance-class calculation APIs.
+4. Uncertainty-propagation APIs and result types.
+5. Optional vectorized conversion support.
+6. Lookup-table generation and interpolation APIs.
+7. Whether the distribution and repository should eventually be renamed
    after multiple RTD families are genuinely supported.
 
 

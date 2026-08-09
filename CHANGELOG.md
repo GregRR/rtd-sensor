@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+* Public `IEC60751RTDModel` for individually characterized `R0` values and declared temperature ranges on the standard IEC 60751 PT-385 curve.
+
 ## 0.2.0 — 2026-08-09
 
 ### Added
