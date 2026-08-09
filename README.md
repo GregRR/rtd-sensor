@@ -155,7 +155,68 @@ d_r_d_t = pt100.resistance_sensitivity_ohms_per_celsius(100.0)
 d_t_d_r = pt100.temperature_sensitivity_celsius_per_ohm(100.0)
 ```
 
-These derivatives are evaluated analytically from the active RTD model rather than estimated by finite differences. They form the basis for propagating resistance uncertainty into temperature uncertainty in the next uncertainty layer.
+These derivatives are evaluated analytically from the active RTD model rather than estimated by finite differences. They are also used by the RTD-specific propagation helpers.
+
+### RTD uncertainty propagation and budgets
+
+Propagate a resistance standard uncertainty through the same RTD model used for the nominal conversion:
+
+```python
+from rtd import pt100, uncertainty
+
+propagated = uncertainty.propagate_resistance_uncertainty(
+    100.0,
+    0.01,
+    model=pt100,
+)
+
+print(propagated.temperature_c)
+print(propagated.temperature_sensitivity_celsius_per_ohm)
+print(propagated.temperature_standard_uncertainty_c)
+```
+
+The result retains the measured resistance, converted temperature, resistance standard uncertainty, local `dT/dR` sensitivity, and the propagated temperature contribution. The propagation is first-order (local linearization); sufficiently large uncertainties or strongly nonlinear cases may require a higher-order or Monte Carlo treatment.
+
+Additional independent contributions that are already expressed as standard uncertainties in °C can be kept as named, inspectable components:
+
+```python
+from rtd import pt100, tolerance, uncertainty
+
+class_a_limit = tolerance.thermometer_tolerance_c(
+    100.0,
+    tolerance_class="A",
+    construction="wire_wound",
+)
+
+# This rectangular model is an explicit user assumption. IEC 60751 does not
+# state that values inside the tolerance band follow this distribution.
+sensor_u = uncertainty.standard_uncertainty_from_bound(
+    class_a_limit,
+    distribution="rectangular",
+)
+
+sensor_component = uncertainty.TemperatureUncertaintyComponent(
+    name="Sensor class limit",
+    standard_uncertainty_c=sensor_u,
+    evaluation_method="B",
+    source="IEC 60751 Class A tolerance modeled as rectangular",
+)
+
+budget = uncertainty.temperature_uncertainty_budget(
+    pt100.celsius_to_resistance(100.0),
+    0.01,
+    model=pt100,
+    additional_components=(sensor_component,),
+    coverage_factor=2.0,
+)
+
+print(budget.combined_standard_uncertainty_c)
+print(budget.expanded_uncertainty_c)
+```
+
+`TemperatureUncertaintyComponent` can optionally retain a Type A/Type B evaluation-method label, source, and note. Those fields are provenance only; all supplied components must already be standard uncertainties in °C. The current budget combines the resistance contribution and additional components as **uncorrelated** terms. It does not yet support covariance matrices, coefficient covariance, effective degrees of freedom, or Monte Carlo propagation.
+
+The built-in `pt100` and `pt1000` modules and both public configurable-model classes can be passed as the `model`. Third-party models may also participate if they provide compatible resistance-to-temperature conversion and local `dT/dR` sensitivity methods.
 
 ## Simulation
 
@@ -230,7 +291,7 @@ The current development branch provides:
 - public configurable IEC 60751 models for individually characterized `R0` values and declared temperature ranges
 - public Callendar–Van Dusen models for traceable user-supplied `R0`, `A`, `B`, and optional `C` coefficient sets
 - IEC 60751:2022 tolerance calculations for standard thermometer and platinum-resistor classes
-- GUM-style uncertainty primitives for bound conversion, independent root-sum-square combination, expanded uncertainty, and exact RTD sensitivity
+- GUM-style uncertainty primitives, exact RTD sensitivity, first-order resistance-to-temperature propagation, and structured independent-component temperature uncertainty budgets
 
 Potential future RTD types are not considered supported until their equations, ranges, independent reference values, tests, and documentation are complete.
 

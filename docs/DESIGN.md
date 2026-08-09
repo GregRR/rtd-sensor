@@ -213,6 +213,24 @@ Effects that remain outside nominal curve conversion include:
 
 Hardware-facing acquisition code should correct applicable electrical effects before passing resistance into this package. Characterized or calibrated curve parameters may be represented with the public model APIs. Statistical combination of remaining uncertainty contributions belongs to the separate uncertainty layer.
 
+### RTD uncertainty-budget model
+
+The uncertainty layer uses the same RTD model for both the nominal resistance-to-temperature conversion and the exact local inverse sensitivity `dT/dR`. A resistance standard uncertainty `u(R)` is propagated with the first-order relationship:
+
+```text
+u(T)_R = |dT/dR| × u(R)
+```
+
+The resulting resistance contribution remains visible in the returned result rather than being collapsed into an anonymous total. Additional uncertainty contributions may be supplied only after the caller has expressed them as standard uncertainties in °C. Each such component may retain a name, Type A/Type B evaluation-method label, source, and note for auditability.
+
+The current structured budget combines the resistance contribution and additional temperature-domain components as uncorrelated terms by root-sum-square. This is intentionally narrower than the full GUM law of propagation: covariance and correlation terms are not silently assumed to be zero when they are known to matter. Instead, covariance-aware propagation remains a deferred capability.
+
+IEC tolerance values remain separate from uncertainty. A caller may choose to model a tolerance bound as an uncertainty component only after explicitly selecting and documenting a probability-distribution assumption. The library must not infer such a distribution from the tolerance class itself.
+
+Expanded uncertainty is optional and requires an explicit coverage factor. The result retains that factor and does not infer a confidence level from it.
+
+First-order propagation is a local linearization. For sufficiently large input uncertainties, strongly nonlinear regions, or uncertainty in correlated calibration coefficients, a distribution-propagation method such as Monte Carlo analysis may be more appropriate and remains future work.
+
 ## 10. Package structure
 
 Current structure:
@@ -238,7 +256,8 @@ tests/
 ├── test_public_models.py
 ├── test_simulation.py
 ├── test_tolerance.py
-└── test_uncertainty.py
+├── test_uncertainty.py
+└── test_uncertainty_budget.py
 ```
 
 The `rtd` namespace is intentionally broader than the initial repository name.
@@ -476,7 +495,7 @@ The following decisions remain intentionally deferred:
 
 1. Alternate standardized platinum curves and historical `R0`, alpha, delta, beta coefficient notation.
 2. ITS-90 interpolation support for reference-grade calibrated PRTs.
-3. Structured RTD uncertainty-budget result types and covariance-aware propagation.
+3. Covariance-aware uncertainty propagation, effective degrees of freedom, and Monte Carlo methods.
 4. Optional vectorized conversion support.
 5. Lookup-table generation and interpolation APIs.
 6. Whether the distribution and repository should eventually be renamed

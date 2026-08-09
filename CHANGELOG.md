@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 * Public `CallendarVanDusenRTDModel` for traceable user-supplied `R0`, `A`, `B`, and optional `C` coefficient sets with explicit validity ranges and curve-shape validation.
 * IEC 60751:2022 tolerance calculations for standard thermometer classes AA/A/B/C and bare platinum-resistor W/F classes, with construction-specific validity ranges.
 * GUM-style measurement-uncertainty primitives for bounded Type B conversions, independent root-sum-square combination, expanded uncertainty, and exact analytical RTD sensitivity.
+* Structured RTD resistance-to-temperature uncertainty propagation and named independent-component temperature uncertainty budgets with optional coverage-factor reporting and provenance metadata.
 
 ## 0.2.0 — 2026-08-09
 

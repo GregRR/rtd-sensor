@@ -98,10 +98,17 @@ def test_package_exports_uncertainty_module() -> None:
 def test_uncertainty_public_api() -> None:
     assert set(uncertainty.__all__) == {
         "BoundDistribution",
+        "EvaluationMethod",
+        "RTDUncertaintyModel",
+        "ResistanceUncertaintyPropagation",
+        "TemperatureUncertaintyBudget",
+        "TemperatureUncertaintyComponent",
         "combine_independent_standard_uncertainties",
         "expanded_uncertainty",
+        "propagate_resistance_uncertainty",
         "standard_uncertainty_from_bound",
         "standard_uncertainty_from_expanded",
+        "temperature_uncertainty_budget",
     }
 
 
