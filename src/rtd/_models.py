@@ -58,6 +58,23 @@ class RTDModel:
             resistance_ratio
         )
 
+    def resistance_sensitivity_ohms_per_celsius(
+        self,
+        temperature_c: float,
+    ) -> float:
+        """Return the exact local resistance sensitivity dR/dT."""
+        return self.r0_ohms * self.curve.resistance_ratio_slope(temperature_c)
+
+    def temperature_sensitivity_celsius_per_ohm(
+        self,
+        temperature_c: float,
+    ) -> float:
+        """Return the exact local inverse sensitivity dT/dR."""
+        resistance_sensitivity = self.resistance_sensitivity_ohms_per_celsius(
+            temperature_c
+        )
+        return 1.0 / resistance_sensitivity
+
     def _validate_resistance(self, resistance_ohms: float) -> None:
         if not math.isfinite(resistance_ohms):
             raise ValueError("Resistance must be finite")

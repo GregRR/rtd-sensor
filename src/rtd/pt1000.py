@@ -32,7 +32,9 @@ __all__ = [
     "MIN_TEMPERATURE_C",
     "R0_OHMS",
     "celsius_to_resistance",
+    "resistance_sensitivity_ohms_per_celsius",
     "resistance_to_celsius",
+    "temperature_sensitivity_celsius_per_ohm",
 ]
 
 _MODEL = PT1000_IEC_60751
@@ -73,3 +75,21 @@ def resistance_to_celsius(resistance_ohms: float) -> float:
             850 °C.
     """
     return _MODEL.resistance_to_celsius(resistance_ohms)
+
+
+def resistance_sensitivity_ohms_per_celsius(temperature_c: float) -> float:
+    """Return the exact local resistance sensitivity dR/dT.
+
+    The result is expressed in ohms per degree Celsius and is evaluated
+    analytically from the configured Callendar-Van Dusen curve.
+    """
+    return _MODEL.resistance_sensitivity_ohms_per_celsius(temperature_c)
+
+
+def temperature_sensitivity_celsius_per_ohm(temperature_c: float) -> float:
+    """Return the exact local inverse sensitivity dT/dR.
+
+    The result is expressed in degrees Celsius per ohm and is the reciprocal
+    of the local resistance sensitivity.
+    """
+    return _MODEL.temperature_sensitivity_celsius_per_ohm(temperature_c)

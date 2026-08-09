@@ -13,7 +13,7 @@ Example:
     temperature_c = simulation.read_temperature_celsius(reader)
 """
 
-from . import models, pt100, pt1000, simulation, tolerance
+from . import models, pt100, pt1000, simulation, tolerance, uncertainty
 
 __all__ = [
     "models",
@@ -21,4 +21,5 @@ __all__ = [
     "pt1000",
     "simulation",
     "tolerance",
+    "uncertainty",
 ]

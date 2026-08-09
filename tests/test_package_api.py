@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-from rtd import models, pt100, pt1000, simulation, tolerance
+from rtd import models, pt100, pt1000, simulation, tolerance, uncertainty
 
 
 def test_package_exports_pt100_module() -> None:
@@ -38,6 +38,7 @@ def test_package_public_api() -> None:
         "pt1000",
         "simulation",
         "tolerance",
+        "uncertainty",
     }
 
 
@@ -54,7 +55,9 @@ def test_pt100_public_api() -> None:
         "MIN_TEMPERATURE_C",
         "R0_OHMS",
         "celsius_to_resistance",
+        "resistance_sensitivity_ohms_per_celsius",
         "resistance_to_celsius",
+        "temperature_sensitivity_celsius_per_ohm",
     }
 
 
@@ -64,7 +67,9 @@ def test_pt1000_public_api() -> None:
         "MIN_TEMPERATURE_C",
         "R0_OHMS",
         "celsius_to_resistance",
+        "resistance_sensitivity_ohms_per_celsius",
         "resistance_to_celsius",
+        "temperature_sensitivity_celsius_per_ohm",
     }
 
 
@@ -81,6 +86,22 @@ def test_tolerance_public_api() -> None:
         "ThermometerToleranceClass",
         "platinum_resistor_tolerance_c",
         "thermometer_tolerance_c",
+    }
+
+
+def test_package_exports_uncertainty_module() -> None:
+    from rtd import uncertainty as imported_uncertainty
+
+    assert imported_uncertainty is uncertainty
+
+
+def test_uncertainty_public_api() -> None:
+    assert set(uncertainty.__all__) == {
+        "BoundDistribution",
+        "combine_independent_standard_uncertainties",
+        "expanded_uncertainty",
+        "standard_uncertainty_from_bound",
+        "standard_uncertainty_from_expanded",
     }
 
 

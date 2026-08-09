@@ -107,6 +107,56 @@ Both functions return the **positive magnitude** of the maximum permitted deviat
 
 The standard validity range for the selected class is enforced. Values outside that range raise `ValueError` rather than silently extrapolating a class designation. Tolerance is a bounded conformity limit, not a probability distribution or standard uncertainty. These functions calculate the numerical class limit and validity range only; they do not assert that a physical sensor satisfies every IEC 60751 construction and test requirement.
 
+## Measurement uncertainty primitives
+
+The `rtd.uncertainty` module provides the low-level numerical building blocks used by measurement-uncertainty analysis. It does **not** automatically decide which effects belong in a particular sensor or hardware uncertainty budget.
+
+For a symmetric bound `±a`, convert the bound to a standard uncertainty only after choosing an appropriate probability model:
+
+```python
+from rtd import uncertainty
+
+u_rectangular = uncertainty.standard_uncertainty_from_bound(
+    0.35,
+    distribution="rectangular",
+)
+
+u_triangular = uncertainty.standard_uncertainty_from_bound(
+    0.35,
+    distribution="triangular",
+)
+```
+
+The rectangular and triangular helpers use `a / sqrt(3)` and `a / sqrt(6)` respectively. Choosing either distribution is an explicit modeling assumption. In particular, an IEC tolerance limit is **not** automatically a standard uncertainty simply because the library can convert a bound numerically.
+
+Independent standard-uncertainty components can be combined by root-sum-square, and expanded uncertainty can be calculated when the coverage factor is known:
+
+```python
+combined_u_c = uncertainty.combine_independent_standard_uncertainties(
+    0.04,
+    0.07,
+    0.02,
+)
+
+expanded_u = uncertainty.expanded_uncertainty(
+    combined_u_c,
+    coverage_factor=2.0,
+)
+```
+
+No confidence level is inferred from a coverage factor. A statement such as `k = 2` only has a probability interpretation when that interpretation is justified by the complete uncertainty analysis. Correlated components are not supported by this helper; covariance-aware propagation is a later capability.
+
+RTD models also expose their exact local Callendar–Van Dusen sensitivity:
+
+```python
+from rtd import pt100
+
+d_r_d_t = pt100.resistance_sensitivity_ohms_per_celsius(100.0)
+d_t_d_r = pt100.temperature_sensitivity_celsius_per_ohm(100.0)
+```
+
+These derivatives are evaluated analytically from the active RTD model rather than estimated by finite differences. They form the basis for propagating resistance uncertainty into temperature uncertainty in the next uncertainty layer.
+
 ## Simulation
 
 Simulation readers support both Pt100 and Pt1000. Pt100 remains the default for backward compatibility.
@@ -158,6 +208,7 @@ src/rtd/
     pt1000.py
     simulation.py
     tolerance.py
+    uncertainty.py
 
 tests/
 docs/DESIGN.md
@@ -179,6 +230,7 @@ The current development branch provides:
 - public configurable IEC 60751 models for individually characterized `R0` values and declared temperature ranges
 - public Callendar–Van Dusen models for traceable user-supplied `R0`, `A`, `B`, and optional `C` coefficient sets
 - IEC 60751:2022 tolerance calculations for standard thermometer and platinum-resistor classes
+- GUM-style uncertainty primitives for bound conversion, independent root-sum-square combination, expanded uncertainty, and exact RTD sensitivity
 
 Potential future RTD types are not considered supported until their equations, ranges, independent reference values, tests, and documentation are complete.
 

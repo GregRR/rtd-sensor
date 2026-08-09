@@ -226,7 +226,8 @@ src/rtd/
 ├── pt100.py
 ├── pt1000.py
 ├── simulation.py
-└── tolerance.py
+├── tolerance.py
+└── uncertainty.py
 
 tests/
 ├── test_custom_cvd_models.py
@@ -236,7 +237,8 @@ tests/
 ├── test_pt1000.py
 ├── test_public_models.py
 ├── test_simulation.py
-└── test_tolerance.py
+├── test_tolerance.py
+└── test_uncertainty.py
 ```
 
 The `rtd` namespace is intentionally broader than the initial repository name.
@@ -332,6 +334,44 @@ Special supplier/user-agreed tolerance classes and modified ranges permitted by 
 
 Tolerance and uncertainty are deliberately not conflated. A tolerance limit is a bounded conformity requirement; converting that bound into a standard uncertainty requires an explicit uncertainty model and is deferred to the uncertainty-propagation layer.
 
+### Measurement uncertainty foundation
+
+The uncertainty layer follows the measurement-uncertainty terminology and first-order propagation framework described by JCGM 100:2008 (GUM) and NIST Technical Note 1297. The initial public API provides small numerical primitives rather than a monolithic sensor-error estimate.
+
+All uncertainty components passed to combination helpers are expressed as **standard uncertainties** (estimated standard deviations) in common output units. Independent components are combined by root-sum-square. Expanded uncertainty is calculated as `U = k × u_c`, and the coverage factor `k` must be supplied explicitly. The library does not infer a confidence level from `k`.
+
+For a symmetric bounded input `±a`, the public helper can convert the bound to standard uncertainty under an explicitly selected distribution:
+
+```text
+rectangular: u = a / sqrt(3)
+triangular:  u = a / sqrt(6)
+```
+
+The choice of distribution is a property of the uncertainty model, not of the numerical bound itself. Consequently, IEC tolerance limits, manufacturer specifications, calibration limits, and similar bounded quantities are never converted automatically. The caller must explicitly choose the probability model justified by the available information.
+
+The Callendar–Van Dusen curve implementation also exposes its exact local analytical derivative. For an RTD model:
+
+```text
+dR/dT = R0 × d(R/R0)/dT
+dT/dR = 1 / (dR/dT)
+```
+
+For `t >= 0 °C`:
+
+```text
+d(R/R0)/dT = A + 2Bt
+```
+
+For `t < 0 °C`:
+
+```text
+d(R/R0)/dT = A + 2Bt + C t² (4t - 300)
+```
+
+These sensitivities are calculated analytically from the active curve coefficients, including user-supplied calibrated coefficients, rather than approximated numerically. They are the sensitivity coefficients needed to propagate resistance uncertainty into temperature uncertainty in the next implementation batch.
+
+The initial helper for combining standard uncertainties assumes uncorrelated inputs. Covariance terms, coefficient covariance, effective degrees of freedom, coverage-interval selection, and Monte Carlo propagation remain outside this first uncertainty foundation and must not be implied by the root-sum-square helper.
+
 ### Measurement boundary
 
 The core library begins with the best available estimate of the RTD sensing element's resistance in ohms.
@@ -346,7 +386,7 @@ Potential future additions include:
 
 * Pt500
 * alternate standardized platinum curves
-* uncertainty propagation
+* structured RTD uncertainty budgets and covariance-aware propagation
 * vectorized conversion
 * tabular or lookup-based conversion for constrained systems
 
@@ -436,7 +476,7 @@ The following decisions remain intentionally deferred:
 
 1. Alternate standardized platinum curves and historical `R0`, alpha, delta, beta coefficient notation.
 2. ITS-90 interpolation support for reference-grade calibrated PRTs.
-3. Uncertainty-propagation APIs and result types.
+3. Structured RTD uncertainty-budget result types and covariance-aware propagation.
 4. Optional vectorized conversion support.
 5. Lookup-table generation and interpolation APIs.
 6. Whether the distribution and repository should eventually be renamed
@@ -511,6 +551,20 @@ is a copyrighted publication available from the IEC.
   calibration ranges.
 
   https://blog.beamex.com/pt100-temperature-sensor
+
+### Measurement uncertainty references
+
+* Joint Committee for Guides in Metrology. **JCGM 100:2008, Evaluation of measurement data — Guide to the expression of uncertainty in measurement (GUM 1995 with minor corrections)**.
+
+  This is the primary framework used for standard uncertainty, sensitivity coefficients, law-of-propagation concepts, combined standard uncertainty, and expanded uncertainty.
+
+  https://www.bipm.org/documents/20126/2071204/JCGM_100_2008_E.pdf
+
+* National Institute of Standards and Technology. **NIST Technical Note 1297, Guidelines for Evaluating and Expressing the Uncertainty of NIST Measurement Results**.
+
+  TN 1297 provides openly accessible guidance for Type B evaluation, rectangular and triangular distributions, root-sum-square combination of independent standard uncertainties, and expanded uncertainty.
+
+  https://www.nist.gov/pml/nist-technical-note-1297
 
 ### Implemented curve and models
 

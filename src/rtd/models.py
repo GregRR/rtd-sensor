@@ -107,6 +107,24 @@ class IEC60751RTDModel:
         self._validate_resistance(resistance)
         return self._model.resistance_to_celsius(resistance)
 
+    def resistance_sensitivity_ohms_per_celsius(
+        self,
+        temperature_c: float,
+    ) -> float:
+        """Return the exact local resistance sensitivity dR/dT."""
+        temperature = float(temperature_c)
+        self._validate_temperature(temperature)
+        return self._model.resistance_sensitivity_ohms_per_celsius(temperature)
+
+    def temperature_sensitivity_celsius_per_ohm(
+        self,
+        temperature_c: float,
+    ) -> float:
+        """Return the exact local inverse sensitivity dT/dR."""
+        temperature = float(temperature_c)
+        self._validate_temperature(temperature)
+        return self._model.temperature_sensitivity_celsius_per_ohm(temperature)
+
     def _validate_temperature(self, temperature_c: float) -> None:
         if not math.isfinite(temperature_c):
             raise ValueError("Temperature must be finite")
@@ -278,6 +296,24 @@ class CallendarVanDusenRTDModel:
         resistance = float(resistance_ohms)
         self._validate_resistance(resistance)
         return self._model.resistance_to_celsius(resistance)
+
+    def resistance_sensitivity_ohms_per_celsius(
+        self,
+        temperature_c: float,
+    ) -> float:
+        """Return the exact local resistance sensitivity dR/dT."""
+        temperature = float(temperature_c)
+        self._validate_temperature(temperature)
+        return self._model.resistance_sensitivity_ohms_per_celsius(temperature)
+
+    def temperature_sensitivity_celsius_per_ohm(
+        self,
+        temperature_c: float,
+    ) -> float:
+        """Return the exact local inverse sensitivity dT/dR."""
+        temperature = float(temperature_c)
+        self._validate_temperature(temperature)
+        return self._model.temperature_sensitivity_celsius_per_ohm(temperature)
 
     def _validate_temperature(self, temperature_c: float) -> None:
         if not math.isfinite(temperature_c):

@@ -41,6 +41,10 @@ class RTDCurve(Protocol):
         """Return R(T) / R0 for a temperature in Celsius."""
         ...
 
+    def resistance_ratio_slope(self, temperature_c: float) -> float:
+        """Return d(R/R0)/dT at a temperature in Celsius."""
+        ...
+
     def temperature_from_resistance_ratio(
         self,
         resistance_ratio: float,
@@ -158,6 +162,19 @@ class CallendarVanDusenCurve:
         temperature = float(temperature_c)
         self._validate_temperature(temperature)
         return self._resistance_ratio_unchecked(temperature)
+
+    def resistance_ratio_slope(self, temperature_c: float) -> float:
+        """Return the exact local slope d(R/R0)/dT.
+
+        The derivative is evaluated analytically from the same
+        Callendar-Van Dusen equation used for conversion.  Keeping this
+        calculation in the curve object ensures uncertainty propagation uses
+        the model's actual coefficients rather than a finite-difference
+        approximation.
+        """
+        temperature = float(temperature_c)
+        self._validate_temperature(temperature)
+        return self._resistance_ratio_slope_unchecked(temperature)
 
     def temperature_from_resistance_ratio(
         self,
