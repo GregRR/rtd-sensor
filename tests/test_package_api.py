@@ -57,6 +57,7 @@ def test_simulation_public_api() -> None:
     assert set(simulation.__all__) == {
         "FixedResistanceReader",
         "NoisyTemperatureReader",
+        "RTDType",
         "ResistanceReader",
         "ResistanceSequenceReader",
         "TemperatureSequenceReader",

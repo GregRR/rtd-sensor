@@ -6,6 +6,9 @@
 
 All simulated readers expose resistance in ohms. This allows application
 code to use the same interface for simulated data and physical hardware.
+
+Simulation defaults to Pt100 for backward compatibility. Pass
+``rtd_type="pt1000"`` to simulate a Pt1000 sensor.
 """
 
 from __future__ import annotations
@@ -14,18 +17,27 @@ import math
 import random
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import Literal, Protocol, runtime_checkable
 
-from ._models import PT100_IEC_60751 as _PT100_MODEL
+from ._models import PT100_IEC_60751, PT1000_IEC_60751, RTDModel
 
 __all__ = [
     "FixedResistanceReader",
     "NoisyTemperatureReader",
+    "RTDType",
     "ResistanceReader",
     "ResistanceSequenceReader",
     "TemperatureSequenceReader",
     "read_temperature_celsius",
 ]
+
+
+type RTDType = Literal["pt100", "pt1000"]
+
+_SUPPORTED_MODELS: dict[RTDType, RTDModel] = {
+    "pt100": PT100_IEC_60751,
+    "pt1000": PT1000_IEC_60751,
+}
 
 
 class ResistanceReader(Protocol):
@@ -36,15 +48,32 @@ class ResistanceReader(Protocol):
         ...
 
 
+@runtime_checkable
+class _ModelAwareResistanceReader(ResistanceReader, Protocol):
+    """Internal protocol for readers that declare their RTD type."""
+
+    @property
+    def rtd_type(self) -> RTDType:
+        """Return the RTD type represented by this reader."""
+        ...
+
+
 @dataclass(slots=True)
 class FixedResistanceReader:
     """Return the same resistance for every reading."""
 
     resistance_ohms: float
+    rtd_type: RTDType = "pt100"
+    _model: RTDModel = field(
+        init=False,
+        repr=False,
+    )
 
     def __post_init__(self) -> None:
+        self._model = _model_for_rtd_type(self.rtd_type)
         self.resistance_ohms = _validate_resistance(
-            self.resistance_ohms
+            self.resistance_ohms,
+            self._model,
         )
 
     def read_resistance_ohms(self) -> float:
@@ -58,6 +87,11 @@ class ResistanceSequenceReader:
 
     readings_ohms: Sequence[float]
     repeat: bool = False
+    rtd_type: RTDType = "pt100"
+    _model: RTDModel = field(
+        init=False,
+        repr=False,
+    )
     _readings: tuple[float, ...] = field(
         init=False,
         repr=False,
@@ -74,8 +108,9 @@ class ResistanceSequenceReader:
                 "At least one resistance reading is required"
             )
 
+        self._model = _model_for_rtd_type(self.rtd_type)
         self._readings = tuple(
-            _validate_resistance(reading)
+            _validate_resistance(reading, self._model)
             for reading in self.readings_ohms
         )
 
@@ -101,10 +136,15 @@ class ResistanceSequenceReader:
 
 @dataclass(slots=True)
 class TemperatureSequenceReader:
-    """Simulate resistance from a temperature sequence."""
+    """Simulate RTD resistance from a temperature sequence."""
 
     temperatures_c: Sequence[float]
     repeat: bool = False
+    rtd_type: RTDType = "pt100"
+    _model: RTDModel = field(
+        init=False,
+        repr=False,
+    )
     _reader: ResistanceSequenceReader = field(
         init=False,
         repr=False,
@@ -116,14 +156,16 @@ class TemperatureSequenceReader:
                 "At least one simulated temperature is required"
             )
 
+        self._model = _model_for_rtd_type(self.rtd_type)
         readings = tuple(
-            _PT100_MODEL.celsius_to_resistance(temperature)
+            self._model.celsius_to_resistance(temperature)
             for temperature in self.temperatures_c
         )
 
         self._reader = ResistanceSequenceReader(
             readings_ohms=readings,
             repeat=self.repeat,
+            rtd_type=self.rtd_type,
         )
 
     def read_resistance_ohms(self) -> float:
@@ -136,7 +178,7 @@ class NoisyTemperatureReader:
     """Simulate a temperature with reproducible Gaussian noise.
 
     Noise is applied in degrees Celsius before the simulated temperature
-    is converted into ideal Pt100 resistance.
+    is converted into ideal resistance for the selected RTD type.
 
     Supplying the same seed produces the same sequence of readings.
     """
@@ -144,14 +186,22 @@ class NoisyTemperatureReader:
     temperature_c: float
     noise_standard_deviation_c: float = 0.05
     seed: int | None = None
+    rtd_type: RTDType = "pt100"
+    _model: RTDModel = field(
+        init=False,
+        repr=False,
+    )
     _random: random.Random = field(
         init=False,
         repr=False,
     )
 
     def __post_init__(self) -> None:
-        # Validate the base temperature through the public conversion API.
-        _PT100_MODEL.celsius_to_resistance(self.temperature_c)
+        self._model = _model_for_rtd_type(self.rtd_type)
+
+        # Validation belongs to the selected RTD model so the simulator
+        # exercises the same range rules as real conversion calls.
+        self._model.celsius_to_resistance(self.temperature_c)
 
         standard_deviation = float(
             self.noise_standard_deviation_c
@@ -171,26 +221,58 @@ class NoisyTemperatureReader:
         self._random = random.Random(self.seed)
 
     def read_resistance_ohms(self) -> float:
-        """Return one noisy simulated Pt100 resistance reading."""
+        """Return one noisy simulated RTD resistance reading."""
         simulated_temperature = self._random.gauss(
             self.temperature_c,
             self.noise_standard_deviation_c,
         )
 
-        return _PT100_MODEL.celsius_to_resistance(
+        return self._model.celsius_to_resistance(
             simulated_temperature
         )
 
 
 def read_temperature_celsius(
     reader: ResistanceReader,
+    *,
+    rtd_type: RTDType | None = None,
 ) -> float:
-    """Read resistance from a source and convert it to Celsius."""
+    """Read resistance from a source and convert it to Celsius.
+
+    Built-in simulation readers carry their RTD type, so no explicit
+    ``rtd_type`` is needed when reading them. For an external hardware
+    reader that exposes only resistance, pass ``rtd_type`` explicitly.
+
+    Readers without a declared RTD type default to Pt100 for backward
+    compatibility.
+    """
+    selected_type = rtd_type
+
+    if selected_type is None:
+        if isinstance(reader, _ModelAwareResistanceReader):
+            selected_type = reader.rtd_type
+        else:
+            selected_type = "pt100"
+
+    model = _model_for_rtd_type(selected_type)
     resistance = reader.read_resistance_ohms()
-    return _PT100_MODEL.resistance_to_celsius(resistance)
+    return model.resistance_to_celsius(resistance)
 
 
-def _validate_resistance(resistance_ohms: float) -> float:
+def _model_for_rtd_type(rtd_type: RTDType) -> RTDModel:
+    try:
+        return _SUPPORTED_MODELS[rtd_type]
+    except KeyError as error:
+        supported = ", ".join(sorted(_SUPPORTED_MODELS))
+        raise ValueError(
+            f"Unsupported RTD type {rtd_type!r}; expected one of: {supported}"
+        ) from error
+
+
+def _validate_resistance(
+    resistance_ohms: float,
+    model: RTDModel,
+) -> float:
     resistance = float(resistance_ohms)
 
     if not math.isfinite(resistance):
@@ -199,7 +281,6 @@ def _validate_resistance(resistance_ohms: float) -> float:
     if resistance <= 0.0:
         raise ValueError("Resistance must be greater than zero")
 
-    # Validate that the resistance belongs to the supported Pt100 range.
-    _PT100_MODEL.resistance_to_celsius(resistance)
+    model.resistance_to_celsius(resistance)
 
     return resistance

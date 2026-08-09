@@ -3,10 +3,11 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import math
+from typing import cast
 
 import pytest
 
-from rtd import pt100, simulation
+from rtd import pt100, pt1000, simulation
 
 
 def test_fixed_resistance_reader_repeats_value() -> None:
@@ -33,6 +34,18 @@ def test_fixed_reader_rejects_invalid_resistance(
 ) -> None:
     with pytest.raises(ValueError):
         simulation.FixedResistanceReader(resistance_ohms)
+
+
+def test_fixed_reader_supports_pt1000_resistance() -> None:
+    resistance = pt1000.celsius_to_resistance(65.0)
+    reader = simulation.FixedResistanceReader(
+        resistance,
+        rtd_type="pt1000",
+    )
+
+    assert simulation.read_temperature_celsius(
+        reader
+    ) == pytest.approx(65.0, abs=1e-9)
 
 
 def test_resistance_sequence_returns_values_in_order() -> None:
@@ -66,6 +79,28 @@ def test_resistance_sequence_can_repeat() -> None:
     assert reader.read_resistance_ohms() == 119.397125
 
 
+def test_resistance_sequence_can_repeat_pt1000_values() -> None:
+    readings = [
+        pt1000.celsius_to_resistance(0.0),
+        pt1000.celsius_to_resistance(100.0),
+    ]
+    reader = simulation.ResistanceSequenceReader(
+        readings,
+        repeat=True,
+        rtd_type="pt1000",
+    )
+
+    temperatures = [
+        simulation.read_temperature_celsius(reader)
+        for _ in range(4)
+    ]
+
+    assert temperatures == pytest.approx(
+        [0.0, 100.0, 0.0, 100.0],
+        abs=1e-9,
+    )
+
+
 def test_resistance_sequence_rejects_empty_sequence() -> None:
     with pytest.raises(ValueError):
         simulation.ResistanceSequenceReader([])
@@ -92,10 +127,45 @@ def test_temperature_sequence_generates_pt100_resistance() -> None:
     )
 
 
+def test_temperature_sequence_generates_pt1000_resistance() -> None:
+    reader = simulation.TemperatureSequenceReader(
+        [0.0, 25.0, 50.0],
+        rtd_type="pt1000",
+    )
+
+    assert reader.read_resistance_ohms() == pytest.approx(
+        pt1000.celsius_to_resistance(0.0)
+    )
+    assert reader.read_resistance_ohms() == pytest.approx(
+        pt1000.celsius_to_resistance(25.0)
+    )
+    assert reader.read_resistance_ohms() == pytest.approx(
+        pt1000.celsius_to_resistance(50.0)
+    )
+
+
 def test_temperature_sequence_can_repeat() -> None:
     reader = simulation.TemperatureSequenceReader(
         [0.0, 100.0],
         repeat=True,
+    )
+
+    temperatures = [
+        simulation.read_temperature_celsius(reader)
+        for _ in range(4)
+    ]
+
+    assert temperatures == pytest.approx(
+        [0.0, 100.0, 0.0, 100.0],
+        abs=1e-9,
+    )
+
+
+def test_pt1000_temperature_sequence_can_repeat() -> None:
+    reader = simulation.TemperatureSequenceReader(
+        [0.0, 100.0],
+        repeat=True,
+        rtd_type="pt1000",
     )
 
     temperatures = [
@@ -131,11 +201,55 @@ def test_read_temperature_celsius_uses_reader_interface() -> None:
     )
 
 
+def test_read_temperature_celsius_accepts_explicit_pt1000_type() -> None:
+    class BareResistanceReader:
+        def read_resistance_ohms(self) -> float:
+            return pt1000.celsius_to_resistance(65.0)
+
+    reader = BareResistanceReader()
+
+    assert simulation.read_temperature_celsius(
+        reader,
+        rtd_type="pt1000",
+    ) == pytest.approx(65.0, abs=1e-9)
+
+
+def test_untyped_external_reader_defaults_to_pt100() -> None:
+    class BareResistanceReader:
+        def read_resistance_ohms(self) -> float:
+            return pt100.celsius_to_resistance(65.0)
+
+    reader = BareResistanceReader()
+
+    assert simulation.read_temperature_celsius(
+        reader
+    ) == pytest.approx(65.0, abs=1e-9)
+
+
 def test_zero_noise_returns_exact_temperature() -> None:
     reader = simulation.NoisyTemperatureReader(
         temperature_c=65.0,
         noise_standard_deviation_c=0.0,
         seed=12345,
+    )
+
+    temperatures = [
+        simulation.read_temperature_celsius(reader)
+        for _ in range(5)
+    ]
+
+    assert temperatures == pytest.approx(
+        [65.0] * 5,
+        abs=1e-9,
+    )
+
+
+def test_pt1000_zero_noise_returns_exact_temperature() -> None:
+    reader = simulation.NoisyTemperatureReader(
+        temperature_c=65.0,
+        noise_standard_deviation_c=0.0,
+        seed=12345,
+        rtd_type="pt1000",
     )
 
     temperatures = [
@@ -232,4 +346,14 @@ def test_noisy_reader_rejects_invalid_temperature(
     with pytest.raises(ValueError):
         simulation.NoisyTemperatureReader(
             temperature_c=temperature_c
+        )
+
+
+def test_unsupported_rtd_type_is_rejected() -> None:
+    unsupported = cast(simulation.RTDType, "pt500")
+
+    with pytest.raises(ValueError, match="Unsupported RTD type"):
+        simulation.TemperatureSequenceReader(
+            [0.0],
+            rtd_type=unsupported,
         )
