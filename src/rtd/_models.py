@@ -11,7 +11,11 @@ from dataclasses import dataclass
 
 from ._curves import IEC_60751_PT385, RTDCurve
 
-__all__ = ["PT100_IEC_60751", "RTDModel"]
+__all__ = [
+    "PT100_IEC_60751",
+    "PT1000_IEC_60751",
+    "RTDModel",
+]
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,5 +84,12 @@ class RTDModel:
 PT100_IEC_60751 = RTDModel(
     name="Pt100",
     r0_ohms=100.0,
+    curve=IEC_60751_PT385,
+)
+
+
+PT1000_IEC_60751 = RTDModel(
+    name="Pt1000",
+    r0_ohms=1000.0,
     curve=IEC_60751_PT385,
 )

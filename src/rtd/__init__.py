@@ -13,9 +13,10 @@ Example:
     temperature_c = simulation.read_temperature_celsius(reader)
 """
 
-from . import pt100, simulation
+from . import pt100, pt1000, simulation
 
 __all__ = [
     "pt100",
+    "pt1000",
     "simulation",
 ]
