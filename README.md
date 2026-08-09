@@ -96,13 +96,11 @@ See [`docs/DESIGN.md`](docs/DESIGN.md) for detailed architecture, mathematical a
 
 ## Status
 
-The published 0.1.0 release introduced IEC 60751 Pt100 conversion and simulation support.
+Version 0.2.0 provides:
 
-Current development on `main` additionally provides:
-
-- IEC 60751 Pt1000 resistance-to-temperature conversion
-- Pt1000 temperature-to-resistance conversion
-- independently sourced Pt1000 reference-value tests
+- IEC 60751 Pt100 resistance-to-temperature and temperature-to-resistance conversion
+- IEC 60751 Pt1000 resistance-to-temperature and temperature-to-resistance conversion
+- independently sourced reference-value tests for both supported RTD types
 - shared internal RTD curve and model infrastructure
 - model-aware Pt100/Pt1000 simulation while preserving Pt100 defaults
 
