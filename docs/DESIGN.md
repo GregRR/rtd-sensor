@@ -270,22 +270,35 @@ This permits multiple RTD models to share one verified standardized curve withou
 
 The implementation defines the IEC 60751 PT-385 Callendar–Van Dusen curve once and combines it with model-specific `R0` values. Pt100 uses `R0 = 100 Ω`; Pt1000 uses `R0 = 1000 Ω`.
 
-The curve and model infrastructure remains internal until the public API for user-defined and calibrated models has been deliberately designed.
+The low-level curve and model infrastructure remains internal. Public wrappers expose the supported configurable and calibrated-model capabilities without making the internal numerical abstractions part of the compatibility contract.
 
 
-### Public configurable IEC 60751 model
+### Public configurable and calibrated models
 
-The first public advanced-model API is intentionally narrower than the internal curve/model architecture. `rtd.models.IEC60751RTDModel` represents an RTD that retains the standardized IEC 60751 PT-385 curve while allowing:
+The public advanced-model API has two deliberately distinct levels.
+
+`rtd.models.IEC60751RTDModel` represents an RTD that retains the standardized IEC 60751 PT-385 curve while allowing:
 
 * an individually characterized or calibrated `R0`;
 * a human-readable model or probe name; and
 * a declared valid temperature range that may be narrower than the full IEC curve.
 
-The built-in `rtd.pt100` and `rtd.pt1000` modules remain the preferred APIs for nominal standard sensors. The public configurable model is for cases where an individual probe's `R0` is known more precisely or its usable/calibrated range should be enforced.
+The built-in `rtd.pt100` and `rtd.pt1000` modules remain the preferred APIs for nominal standard sensors. `IEC60751RTDModel` is for cases where an individual probe's `R0` is known more precisely or its usable/calibrated range should be enforced. A declared range constrains use of the model; it does not modify the underlying IEC curve.
 
-A declared temperature range constrains use of the model; it does not modify the underlying IEC curve. It may therefore represent a manufacturer operating range, a calibration range, or another application-specific validity interval.
+`rtd.models.CallendarVanDusenRTDModel` represents an RTD for which a calibration certificate, manufacturer, or other traceable technical source provides an IEC-style `R0`, `A`, `B`, `C` Callendar–Van Dusen coefficient set. It requires an explicit valid temperature range because custom coefficients have no package-defined universal range.
 
-User-supplied Callendar–Van Dusen coefficients are deliberately not exposed in this first public-model batch. A custom coefficient set changes the curve itself and requires explicit validation rules and provenance expectations before becoming a stable public API.
+The custom-CVD model follows these rules:
+
+* `R0`, `A`, and `B` are required;
+* `C` is required when the declared range includes temperatures below 0 °C and may be omitted for a wholly non-negative range;
+* all numerical inputs must be finite and `R0` must be positive;
+* the supplied coefficients must define a finite, positive-resistance, strictly increasing curve over the interval required for inversion;
+* the declared range is enforced in both conversion directions; and
+* optional `coefficient_source` metadata may retain a calibration-certificate identifier, manufacturer document, or other provenance label.
+
+A user-supplied coefficient set is not automatically described as IEC 60751 compliant merely because it uses the same algebraic form. The standard `IEC60751RTDModel` remains the explicit API for the package's verified IEC PT-385 curve.
+
+The library consumes characterized or calibrated parameters; it does not currently fit `R0`, `A`, `B`, or `C` from raw calibration observations. Historical `R0`, alpha, delta, beta coefficient notation and ITS-90 interpolation functions are also outside the current public API.
 
 ### Measurement boundary
 
@@ -301,8 +314,6 @@ Potential future additions include:
 
 * Pt500
 * alternate standardized platinum curves
-* user-supplied Callendar–Van Dusen coefficients
-* calibrated coefficient sets
 * tolerance-class calculations
 * uncertainty propagation
 * vectorized conversion
@@ -392,8 +403,8 @@ Version 1 will not include:
 
 The following decisions remain intentionally deferred:
 
-1. The public API for user-supplied Callendar–Van Dusen coefficients and alternate RTD curves.
-2. The public representation of calibrated coefficient sets and their provenance/validity requirements.
+1. Alternate standardized platinum curves and historical `R0`, alpha, delta, beta coefficient notation.
+2. ITS-90 interpolation support for reference-grade calibrated PRTs.
 3. Tolerance-class calculation APIs.
 4. Uncertainty-propagation APIs and result types.
 5. Optional vectorized conversion support.
@@ -461,6 +472,16 @@ is a copyrighted publication available from the IEC.
 
   https://library.e.abb.com/public/f23fd36098164ef18489c604a0eb1308/Technical_Note_153_ProcessVariableMeasurementUsingARTD.pdf
 
+* Beamex. **Pt100 temperature sensor – useful things to know**.
+
+  Beamex documents the IEC-style Callendar–Van Dusen calibration
+  coefficient form `R0`, `A`, `B`, `C` and notes that `C` may be absent
+  when a sensor has not been calibrated below 0 °C. This supports the
+  public custom-coefficient model's treatment of positive-only
+  calibration ranges.
+
+  https://blog.beamex.com/pt100-temperature-sensor
+
 ### Implemented curve and models
 
 The implementation supports the standard IEC 60751 PT-385 curve:
@@ -490,9 +511,12 @@ For temperatures from -200 °C through 0 °C:
 R(t) = R0 × [1 + A×t + B×t² + C×(t - 100)×t³]
 ```
 
-The implementation models the ideal standardized curve. It does not
-include individual probe calibration, sensor tolerance, lead-wire
-resistance, self-heating, or measurement-circuit errors.
+The built-in Pt100 and Pt1000 modules model the ideal standardized curve.
+Public model objects can consume an individually characterized `R0` or a
+traceable custom Callendar–Van Dusen coefficient set, but the library does
+not currently fit calibration coefficients from observations. Sensor
+tolerance, lead-wire resistance, self-heating, and measurement-circuit
+errors remain separate concerns.
 
 ### Test provenance
 

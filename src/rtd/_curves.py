@@ -79,6 +79,80 @@ class CallendarVanDusenCurve:
         ):
             raise ValueError("Curve temperature range must include 0 °C")
 
+        self._validate_curve_shape()
+
+    def _validate_curve_shape(self) -> None:
+        try:
+            endpoint_ratios = [
+                self._resistance_ratio_unchecked(self.minimum_temperature_c),
+                self._resistance_ratio_unchecked(self.maximum_temperature_c),
+            ]
+            slope_candidates = [
+                self.minimum_temperature_c,
+                self.maximum_temperature_c,
+                0.0,
+                *self._negative_slope_extrema(),
+            ]
+        except OverflowError as exc:
+            raise ValueError("Curve calculations must remain finite") from exc
+
+        if not all(math.isfinite(ratio) for ratio in endpoint_ratios):
+            raise ValueError("Curve resistance ratio must remain finite")
+        if endpoint_ratios[0] <= 0.0:
+            raise ValueError("Curve resistance ratio must remain positive")
+
+        for temperature_c in slope_candidates:
+            if not (
+                self.minimum_temperature_c
+                <= temperature_c
+                <= self.maximum_temperature_c
+            ):
+                continue
+            try:
+                slope = self._resistance_ratio_slope_unchecked(temperature_c)
+            except OverflowError as exc:
+                raise ValueError("Curve slope must remain finite") from exc
+            if not math.isfinite(slope):
+                raise ValueError("Curve slope must remain finite")
+            if slope <= 0.0:
+                raise ValueError(
+                    "Curve must be strictly increasing over its supported range"
+                )
+
+    def _negative_slope_extrema(self) -> list[float]:
+        negative_maximum_c = min(self.maximum_temperature_c, 0.0)
+        if self.minimum_temperature_c >= negative_maximum_c or self.c == 0.0:
+            return []
+
+        quadratic_a = 12.0 * self.c
+        quadratic_b = -600.0 * self.c
+        quadratic_c = 2.0 * self.b
+        discriminant = (
+            quadratic_b**2 - 4.0 * quadratic_a * quadratic_c
+        )
+        if discriminant < 0.0:
+            return []
+
+        sqrt_discriminant = math.sqrt(discriminant)
+        denominator = 2.0 * quadratic_a
+        return [
+            (-quadratic_b - sqrt_discriminant) / denominator,
+            (-quadratic_b + sqrt_discriminant) / denominator,
+        ]
+
+    def _resistance_ratio_slope_unchecked(
+        self,
+        temperature_c: float,
+    ) -> float:
+        slope = self.a + 2.0 * self.b * temperature_c
+        if temperature_c < 0.0:
+            slope += (
+                self.c
+                * temperature_c**2
+                * (4.0 * temperature_c - 300.0)
+            )
+        return slope
+
     def resistance_ratio(self, temperature_c: float) -> float:
         """Return the normalized resistance ratio R(T) / R0."""
         temperature = float(temperature_c)

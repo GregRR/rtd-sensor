@@ -53,7 +53,26 @@ probe = IEC60751RTDModel(
 temperature_c = probe.resistance_to_celsius(119.42)
 ```
 
-The configurable model retains the standard IEC 60751 PT-385 curve while allowing an individually characterized `R0` and a narrower declared or calibrated temperature range. User-supplied Callendar–Van Dusen coefficient sets are a separate planned capability and are not yet part of the public API.
+The configurable model retains the standard IEC 60751 PT-385 curve while allowing an individually characterized `R0` and a narrower declared or calibrated temperature range.
+
+For a probe whose calibration certificate or manufacturer documentation supplies an IEC-style Callendar–Van Dusen coefficient set, use `CallendarVanDusenRTDModel`:
+
+```python
+from rtd.models import CallendarVanDusenRTDModel
+
+calibrated_probe = CallendarVanDusenRTDModel(
+    r0_ohms=100.025,
+    a=3.91e-3,
+    b=-5.80e-7,
+    c=-4.20e-12,
+    minimum_temperature_c=-50.0,
+    maximum_temperature_c=250.0,
+    name="Probe SN-123",
+    coefficient_source="Calibration certificate SN-123",
+)
+```
+
+Custom coefficient models must declare their valid temperature range. `C` may be omitted only when that range is entirely at or above 0 °C. The model validates that the supplied curve remains finite, positive-resistance, and strictly increasing over the interval required for conversion. Custom coefficients are not automatically described as IEC 60751 compliant; `coefficient_source` can retain a calibration-certificate or manufacturer reference alongside the model.
 
 ## Simulation
 
@@ -116,7 +135,7 @@ See [`docs/DESIGN.md`](docs/DESIGN.md) for detailed architecture, mathematical a
 
 ## Status
 
-Version 0.2.0 provides:
+The current development branch provides:
 
 - IEC 60751 Pt100 resistance-to-temperature and temperature-to-resistance conversion
 - IEC 60751 Pt1000 resistance-to-temperature and temperature-to-resistance conversion
@@ -124,6 +143,7 @@ Version 0.2.0 provides:
 - shared internal RTD curve and model infrastructure
 - model-aware Pt100/Pt1000 simulation while preserving Pt100 defaults
 - public configurable IEC 60751 models for individually characterized `R0` values and declared temperature ranges
+- public Callendar–Van Dusen models for traceable user-supplied `R0`, `A`, `B`, and optional `C` coefficient sets
 
 Potential future RTD types are not considered supported until their equations, ranges, independent reference values, tests, and documentation are complete.
 

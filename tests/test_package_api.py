@@ -41,7 +41,10 @@ def test_package_public_api() -> None:
 
 
 def test_models_public_api() -> None:
-    assert set(models.__all__) == {"IEC60751RTDModel"}
+    assert set(models.__all__) == {
+        "CallendarVanDusenRTDModel",
+        "IEC60751RTDModel",
+    }
 
 
 def test_pt100_public_api() -> None:
