@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+* IEC 60751 Pt1000 resistance-to-Celsius and Celsius-to-resistance conversion.
+* Independently sourced Pt1000 reference-value tests covering the standardized range.
+* Shared internal RTD curve and model infrastructure for verified RTD variants.
+* Model-aware simulation for Pt100 and Pt1000 while preserving Pt100 as the default.
+
+### Changed
+
+* Development workflow migrated to uv with a locked Python 3.14 environment.
+* Project metadata and documentation now describe both supported RTD models.
+
 ## 0.1.0 — 2026-08-04
 
 Initial release.

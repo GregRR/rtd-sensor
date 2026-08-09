@@ -2,14 +2,14 @@
 
 ## 1. Purpose
 
-`pt100-core` provides a small, dependable, platform-independent implementation of resistance-to-temperature and temperature-to-resistance conversion for an industry-standard Pt100 resistance temperature detector.
+`pt100-core` provides a small, dependable, platform-independent implementation of resistance-to-temperature and temperature-to-resistance conversion for standardized platinum resistance temperature detectors.
 
-The first supported sensor model is:
+The currently supported sensor models are:
 
-- platinum resistance thermometer
-- nominal resistance: 100 Ω at 0 °C
+- Pt100: nominal resistance 100 Ω at 0 °C
+- Pt1000: nominal resistance 1000 Ω at 0 °C
 - standard: IEC 60751
-- nominal temperature coefficient: α = 0.00385
+- normalized platinum curve: PT-385, α ≈ 0.00385
 
 The project exists so applications can share one tested scientific conversion layer while keeping hardware acquisition code separate.
 
@@ -58,13 +58,16 @@ The implementation should identify the standard, equation, constants, assumption
 
 ### 3.3 Small public API
 
-The primary version 1 interface should remain simple:
+The public interfaces for supported RTD models should remain parallel and simple:
 
 ```python
-from rtd import pt100
+from rtd import pt100, pt1000
 
 temperature_c = pt100.resistance_to_celsius(resistance_ohms)
 resistance_ohms = pt100.celsius_to_resistance(temperature_c)
+
+pt1000_temperature_c = pt1000.resistance_to_celsius(resistance_ohms)
+pt1000_resistance_ohms = pt1000.celsius_to_resistance(temperature_c)
 ```
 
 ### 3.4 Simulation as a first-class use case
@@ -95,24 +98,28 @@ For temperatures below 0 °C:
 R(T) = R0 × [1 + A×T + B×T² + C×(T - 100)×T³]
 ```
 
-For the standard IEC 60751 Pt100 curve:
+For the standard IEC 60751 PT-385 curve:
 
 ```text
-R0 = 100 Ω
 A  = 3.9083 × 10⁻³ °C⁻¹
 B  = -5.775 × 10⁻⁷ °C⁻²
 C  = -4.183 × 10⁻¹² °C⁻⁴
+```
+
+The supported models differ in nominal resistance at 0 °C:
+
+```text
+Pt100:  R0 = 100 Ω
+Pt1000: R0 = 1000 Ω
 ```
 
 Resistance-to-temperature conversion above 0 °C may use the analytic inverse of the quadratic equation. Below 0 °C, the implementation may use a bounded numerical solution of the complete equation.
 
 The implementation must document numerical tolerances and must avoid silently extrapolating beyond its supported range.
 
-## 5. Initial public API
+## 5. Supported public API
 
-The initial module is `rtd.pt100`.
-
-Planned functions:
+The supported model modules are `rtd.pt100` and `rtd.pt1000`. Each exposes the same conversion interface:
 
 ```python
 def resistance_to_celsius(resistance_ohms: float) -> float:
@@ -163,17 +170,11 @@ This is sufficient for deterministic tests of application behavior.
 
 ### 7.2 Measurement-stream simulation
 
-A later simulation module may produce:
+The simulation module currently provides fixed resistance readings, finite and repeating resistance sequences, temperature-defined sequences, and reproducible seeded temperature noise. Temperature-based readers are model-aware and support both Pt100 and Pt1000. Pt100 remains the default for backward compatibility.
 
-- fixed readings
-- finite sequences
-- repeating sequences
-- ramps
-- heating and cooling profiles
-- seeded noise
-- injected open-circuit or short-circuit faults
+Future simulation additions may include ramps, heating and cooling profiles, and injected open-circuit or short-circuit faults.
 
-Simulation components should expose resistance values so they exercise the same application path as real hardware.
+Simulation components expose resistance values so they exercise the same application path as real hardware.
 
 ## 8. Testing strategy
 
@@ -220,12 +221,14 @@ src/rtd/
 ├── _curves.py
 ├── _models.py
 ├── pt100.py
+├── pt1000.py
 └── simulation.py
 
 tests/
 ├── test_models.py
 ├── test_package_api.py
 ├── test_pt100.py
+├── test_pt1000.py
 └── test_simulation.py
 ```
 
@@ -264,7 +267,7 @@ An RTD model combines:
 
 This permits multiple RTD models to share one verified standardized curve without duplicating conversion logic.
 
-The initial implementation defines the IEC 60751 PT-385 Callendar–Van Dusen curve and combines it with `R0 = 100 Ω` for the supported Pt100 model.
+The implementation defines the IEC 60751 PT-385 Callendar–Van Dusen curve once and combines it with model-specific `R0` values. Pt100 uses `R0 = 100 Ω`; Pt1000 uses `R0 = 1000 Ω`.
 
 The curve and model infrastructure remains internal until the public API for user-defined and calibrated models has been deliberately designed.
 
@@ -280,7 +283,6 @@ The scientific conversion layer must not require a wire-count parameter.
 
 Potential future additions include:
 
-* Pt1000
 * Pt500
 * alternate standardized platinum curves
 * user-supplied Callendar–Van Dusen coefficients
@@ -314,22 +316,20 @@ Before an additional RTD type is publicly exported or advertised, the project mu
 
 Unfinished RTD types should not be exposed as placeholder modules, constants, or documented supported features.
 
-### Next development milestone
+### Completed Pt1000 milestone
 
-The next intended RTD type is Pt1000.
+Pt1000 is now implemented as a verified public RTD type. The milestone established:
 
-Development should proceed in this order:
+1. the internal normalized curve abstraction;
+2. the reusable RTD model abstraction;
+3. Pt100 on the shared model without changing its public API;
+4. generic model tests for R0 behavior, normalized resistance, boundaries, validation, monotonicity, and round trips;
+5. Pt1000 reference provenance and independent reference-value tests;
+6. the public `rtd.pt1000` conversion module; and
+7. model-aware simulation supporting Pt100 and Pt1000 while preserving Pt100 defaults.
 
-1. Introduce the internal normalized curve abstraction.
-2. Introduce the internal reusable RTD model.
-3. Refactor Pt100 onto the shared model without changing its public API.
-4. Make the existing simulation implementation use the shared Pt100 model internally.
-5. Run all existing independently sourced Pt100 reference tests unchanged.
-6. Add generic model tests for R0 behavior, normalized resistance, boundaries, validation, monotonicity, and round trips.
-7. Research and document the Pt1000 standard, range, and independent reference values.
-8. Implement and test the Pt1000 public module.
-9. Make simulation publicly model-selectable once more than one verified RTD type exists.
-10. Export and advertise Pt1000 only after the support-readiness requirements are satisfied.
+No additional RTD type should be added merely because the shared engine can represent it. Each future type must independently satisfy the support-readiness policy above.
+
 
 Pt500 and other RTD variants should follow the same process rather than being assumed supported merely because they can share the generalized calculation engine.
 
@@ -374,8 +374,6 @@ Version 1 will not include:
 - network services
 
 ## 15. Deferred design decisions
-
-The following decisions should be made before the first stable release:
 
 The following decisions remain intentionally deferred:
 
@@ -432,16 +430,38 @@ is a copyrighted publication available from the IEC.
 
   Accessed August 4, 2026.
 
-### Implemented curve
+* Italcoppie Sensori. **Pt1000 Resistance Chart**.
 
-The initial implementation supports the standard IEC 60751 Pt100
-PT-385 curve:
+  The manufacturer-published table states that its values are according
+  to DIN EN IEC 60751 and spans -200 °C through 850 °C in 1 °C
+  increments. Selected rounded values are used as the primary independent
+  Pt1000 reference dataset.
+
+  https://www.italcoppie.com/wp-content/uploads/2022/08/Pt1000-Resistance-Chart-A4.pdf
+
+* ABB. **Technical Note 153: Process variable measurement using an RTD**.
+
+  ABB publishes an independent Pt1000 resistance table over a central
+  portion of the range. These values corroborate the Italcoppie Pt1000
+  references at their published precision.
+
+  https://library.e.abb.com/public/f23fd36098164ef18489c604a0eb1308/Technical_Note_153_ProcessVariableMeasurementUsingARTD.pdf
+
+### Implemented curve and models
+
+The implementation supports the standard IEC 60751 PT-385 curve:
 
 ```text
-R0 = 100.0 Ω
 A  = 3.9083 × 10⁻³ °C⁻¹
 B  = -5.775 × 10⁻⁷ °C⁻²
 C  = -4.183 × 10⁻¹² °C⁻⁴
+```
+
+The currently supported models are:
+
+```text
+Pt100:  R0 = 100.0 Ω
+Pt1000: R0 = 1000.0 Ω
 ```
 
 For temperatures from 0 °C through 850 °C:
@@ -462,9 +482,11 @@ resistance, self-heating, or measurement-circuit errors.
 
 ### Test provenance
 
-Reference-value tests use selected, rounded PT-385 values independently
-checked against the Fluke PT100 calculator and published standard-
-compatible tables.
+Pt100 reference-value tests use selected, rounded PT-385 values independently
+checked against the Fluke PT100 calculator and published standard-compatible
+tables. Pt1000 reference-value tests use selected rounded values from the
+Italcoppie Pt1000 resistance chart, with ABB values providing an additional
+independent cross-check over part of the range.
 
 Exact supported-range boundary tests use values calculated from the full
 Callendar–Van Dusen equation rather than rounded two-decimal table
