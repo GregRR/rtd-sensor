@@ -195,25 +195,27 @@ Round-trip tests alone are insufficient because the forward and inverse implemen
 
 ## 9. Accuracy boundaries
 
-The core conversion describes the ideal standardized curve. It does not by itself account for:
+The built-in Pt100 and Pt1000 conversion functions describe the ideal standardized IEC curve. The advanced model APIs can represent an individually characterized `R0` or a traceable custom Callendar–Van Dusen coefficient set, and `rtd.tolerance` can calculate the numerical IEC class limit. These layers remain distinct: none of them, by themselves, establishes the total measurement accuracy of a physical installation.
 
-- sensor tolerance class
-- individual probe calibration
-- lead-wire resistance
-- self-heating
-- excitation-current error
-- amplifier offset or gain
-- ADC quantization
-- reference-resistor tolerance
-- thermal gradients
-- immersion depth
-- response time
+Effects that remain outside nominal curve conversion include:
 
-Hardware and calibration layers may correct these effects before passing resistance into the core, or may apply a documented calibration model afterward.
+- whether a physical sensor actually conforms to its stated tolerance class;
+- calibration uncertainty and residual calibration error;
+- lead-wire resistance not removed by the acquisition system;
+- self-heating;
+- excitation-current error;
+- amplifier offset or gain;
+- ADC quantization;
+- reference-resistor tolerance;
+- thermal gradients;
+- immersion depth; and
+- response time.
+
+Hardware-facing acquisition code should correct applicable electrical effects before passing resistance into this package. Characterized or calibrated curve parameters may be represented with the public model APIs. Statistical combination of remaining uncertainty contributions belongs to the separate uncertainty layer.
 
 ## 10. Package structure
 
-Initial structure:
+Current structure:
 
 ```
 src/rtd/
@@ -223,14 +225,18 @@ src/rtd/
 ├── models.py
 ├── pt100.py
 ├── pt1000.py
-└── simulation.py
+├── simulation.py
+└── tolerance.py
 
 tests/
+├── test_custom_cvd_models.py
 ├── test_models.py
 ├── test_package_api.py
 ├── test_pt100.py
 ├── test_pt1000.py
-└── test_simulation.py
+├── test_public_models.py
+├── test_simulation.py
+└── test_tolerance.py
 ```
 
 The `rtd` namespace is intentionally broader than the initial repository name.
@@ -245,7 +251,7 @@ The Python import namespace begins as `rtd`:
 from rtd import pt100
 ```
 
-Once the project genuinely supports additional RTD families, the repository may be renamed `rtd-core`. The Python import path would remain unchanged.
+As the project grows beyond its original Pt100-only scope, the repository/distribution may be renamed to a broader RTD-focused name such as `rtd-sensor`. The final name should be checked for package-index and repository availability before a rename. The Python import path can remain `rtd`, so existing user code does not need to change.
 
 
 ## 12. Generalized RTD architecture and future support
@@ -300,6 +306,32 @@ A user-supplied coefficient set is not automatically described as IEC 60751 comp
 
 The library consumes characterized or calibrated parameters; it does not currently fit `R0`, `A`, `B`, or `C` from raw calibration observations. Historical `R0`, alpha, delta, beta coefficient notation and ITS-90 interpolation functions are also outside the current public API.
 
+### IEC 60751 tolerance classes
+
+Tolerance calculations are a separate layer from nominal resistance-temperature conversion and from calibration. IEC 60751:2022 defines tolerance as a maximum permitted temperature deviation from the nominal resistance-temperature relationship and states that the tolerance classes apply for any value of `R0`.
+
+The standard distinguishes two related cases:
+
+* **platinum resistors** (bare sensing elements), whose class designation includes construction, for example `W 0.15` for wire wound or `F 0.15` for film; and
+* **thermometers** (assembled temperature sensors), whose standard classes are `AA`, `A`, `B`, and `C` and whose validity range depends on whether the thermometer uses a wire-wound or film platinum resistor.
+
+The standard tolerance formulas are:
+
+| Thermometer class | Resistor class value | Maximum permitted deviation (°C) |
+| --- | --- | --- |
+| AA | 0.1 | `±(0.1 + 0.0017 × |t|)` |
+| A | 0.15 | `±(0.15 + 0.002 × |t|)` |
+| B | 0.3 | `±(0.3 + 0.005 × |t|)` |
+| C | 0.6 | `±(0.6 + 0.01 × |t|)` |
+
+The public `rtd.tolerance` API exposes the positive magnitude of that maximum permitted deviation in degrees Celsius. A returned value of `x` therefore describes a nominal tolerance band of ±`x` °C around the reference temperature; it is not a prediction that the sensor will have an error of magnitude `x`. The API enforces the IEC 60751:2022 temperature range of validity for each standard class and construction and does not extrapolate a standard class beyond the range in which the standard defines that designation.
+
+`thermometer_tolerance_c()` accepts the standard thermometer class and the resistor construction separately. `platinum_resistor_tolerance_c()` uses normalized ASCII designations such as `W0.15` and `F0.3`, corresponding to the standard's wire-wound and film resistor class designations.
+
+Special supplier/user-agreed tolerance classes and modified ranges permitted by IEC 60751 are not represented as standard classes by this API. They should not be inferred from the standard table without explicit supplier documentation. The numerical tolerance API also does not certify full IEC 60751 conformity; the standard imposes additional construction and test requirements outside this calculation layer.
+
+Tolerance and uncertainty are deliberately not conflated. A tolerance limit is a bounded conformity requirement; converting that bound into a standard uncertainty requires an explicit uncertainty model and is deferred to the uncertainty-propagation layer.
+
 ### Measurement boundary
 
 The core library begins with the best available estimate of the RTD sensing element's resistance in ohms.
@@ -314,7 +346,6 @@ Potential future additions include:
 
 * Pt500
 * alternate standardized platinum curves
-* tolerance-class calculations
 * uncertainty propagation
 * vectorized conversion
 * tabular or lookup-based conversion for constrained systems
@@ -405,11 +436,10 @@ The following decisions remain intentionally deferred:
 
 1. Alternate standardized platinum curves and historical `R0`, alpha, delta, beta coefficient notation.
 2. ITS-90 interpolation support for reference-grade calibrated PRTs.
-3. Tolerance-class calculation APIs.
-4. Uncertainty-propagation APIs and result types.
-5. Optional vectorized conversion support.
-6. Lookup-table generation and interpolation APIs.
-7. Whether the distribution and repository should eventually be renamed
+3. Uncertainty-propagation APIs and result types.
+4. Optional vectorized conversion support.
+5. Lookup-table generation and interpolation APIs.
+6. Whether the distribution and repository should eventually be renamed
    after multiple RTD families are genuinely supported.
 
 

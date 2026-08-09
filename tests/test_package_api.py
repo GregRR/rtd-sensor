@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-from rtd import models, pt100, pt1000, simulation
+from rtd import models, pt100, pt1000, simulation, tolerance
 
 
 def test_package_exports_pt100_module() -> None:
@@ -37,6 +37,7 @@ def test_package_public_api() -> None:
         "pt100",
         "pt1000",
         "simulation",
+        "tolerance",
     }
 
 
@@ -64,6 +65,22 @@ def test_pt1000_public_api() -> None:
         "R0_OHMS",
         "celsius_to_resistance",
         "resistance_to_celsius",
+    }
+
+
+def test_package_exports_tolerance_module() -> None:
+    from rtd import tolerance as imported_tolerance
+
+    assert imported_tolerance is tolerance
+
+
+def test_tolerance_public_api() -> None:
+    assert set(tolerance.__all__) == {
+        "PlatinumResistorToleranceClass",
+        "RTDConstruction",
+        "ThermometerToleranceClass",
+        "platinum_resistor_tolerance_c",
+        "thermometer_tolerance_c",
     }
 
 

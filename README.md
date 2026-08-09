@@ -74,6 +74,39 @@ calibrated_probe = CallendarVanDusenRTDModel(
 
 Custom coefficient models must declare their valid temperature range. `C` may be omitted only when that range is entirely at or above 0 °C. The model validates that the supplied curve remains finite, positive-resistance, and strictly increasing over the interval required for conversion. Custom coefficients are not automatically described as IEC 60751 compliant; `coefficient_source` can retain a calibration-certificate or manufacturer reference alongside the model.
 
+## IEC 60751 tolerance classes
+
+The `rtd.tolerance` module calculates the maximum permitted temperature deviation for the standard IEC 60751:2022 tolerance classes. The standard distinguishes complete thermometers from bare platinum resistors, and it assigns different validity ranges to wire-wound and film construction.
+
+For an assembled thermometer:
+
+```python
+from rtd import tolerance
+
+maximum_error_c = tolerance.thermometer_tolerance_c(
+    100.0,
+    tolerance_class="A",
+    construction="wire_wound",
+)
+# 0.35 °C
+```
+
+For a bare platinum resistor, the public ASCII class designations combine the IEC `W`/`F` construction prefix with the class value:
+
+```python
+maximum_error_c = tolerance.platinum_resistor_tolerance_c(
+    100.0,
+    tolerance_class="F0.15",
+)
+# 0.35 °C
+```
+
+Use `thermometer_tolerance_c()` for a complete, assembled temperature sensor or probe. Use `platinum_resistor_tolerance_c()` when you are working with the bare platinum sensing element and its W/F resistor-class designation.
+
+Both functions return the **positive magnitude** of the maximum permitted deviation. For example, a return value of `0.35` means a nominal tolerance band of ±0.35 °C at that temperature; it does not mean the sensor is expected to be off by 0.35 °C.
+
+The standard validity range for the selected class is enforced. Values outside that range raise `ValueError` rather than silently extrapolating a class designation. Tolerance is a bounded conformity limit, not a probability distribution or standard uncertainty. These functions calculate the numerical class limit and validity range only; they do not assert that a physical sensor satisfies every IEC 60751 construction and test requirement.
+
 ## Simulation
 
 Simulation readers support both Pt100 and Pt1000. Pt100 remains the default for backward compatibility.
@@ -124,6 +157,7 @@ src/rtd/
     pt100.py
     pt1000.py
     simulation.py
+    tolerance.py
 
 tests/
 docs/DESIGN.md
@@ -144,6 +178,7 @@ The current development branch provides:
 - model-aware Pt100/Pt1000 simulation while preserving Pt100 defaults
 - public configurable IEC 60751 models for individually characterized `R0` values and declared temperature ranges
 - public Callendar–Van Dusen models for traceable user-supplied `R0`, `A`, `B`, and optional `C` coefficient sets
+- IEC 60751:2022 tolerance calculations for standard thermometer and platinum-resistor classes
 
 Potential future RTD types are not considered supported until their equations, ranges, independent reference values, tests, and documentation are complete.
 
