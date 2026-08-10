@@ -21,25 +21,30 @@ def test_package_exports_pt100_module() -> None:
 
     assert imported_pt100 is pt100
 
+
 def test_package_exports_pt500_module() -> None:
     from rtd import pt500 as imported_pt500
 
     assert imported_pt500 is pt500
+
 
 def test_package_exports_pt1000_module() -> None:
     from rtd import pt1000 as imported_pt1000
 
     assert imported_pt1000 is pt1000
 
+
 def test_package_exports_ni1000_module() -> None:
     from rtd import ni1000 as imported_ni1000
 
     assert imported_ni1000 is ni1000
 
+
 def test_package_exports_ni1000_tk5000_module() -> None:
     from rtd import ni1000_tk5000 as imported_ni1000_tk5000
 
     assert imported_ni1000_tk5000 is ni1000_tk5000
+
 
 def test_package_exports_ni120_module() -> None:
     from rtd import ni120 as imported_ni120
@@ -52,10 +57,12 @@ def test_package_exports_models_module() -> None:
 
     assert imported_models is models
 
+
 def test_package_exports_simulation_module() -> None:
     from rtd import simulation as imported_simulation
 
     assert imported_simulation is simulation
+
 
 def test_package_public_api() -> None:
     import rtd
@@ -73,6 +80,7 @@ def test_package_public_api() -> None:
         "uncertainty",
     }
 
+
 def test_models_public_api() -> None:
     assert set(models.__all__) == {
         "CallendarVanDusenRTDModel",
@@ -81,6 +89,7 @@ def test_models_public_api() -> None:
         "PiecewisePolynomialSegment",
         "PolynomialRTDModel",
     }
+
 
 def test_ni1000_public_api() -> None:
     assert set(ni1000.__all__) == {
@@ -94,6 +103,7 @@ def test_ni1000_public_api() -> None:
     }
     assert not hasattr(ni1000, "NI1000_6180")
 
+
 def test_ni1000_tk5000_public_api() -> None:
     assert set(ni1000_tk5000.__all__) == {
         "MAX_TEMPERATURE_C",
@@ -105,6 +115,7 @@ def test_ni1000_tk5000_public_api() -> None:
         "temperature_sensitivity_celsius_per_ohm",
     }
     assert not hasattr(ni1000_tk5000, "NI1000_TK5000")
+
 
 def test_ni120_public_api() -> None:
     assert set(ni120.__all__) == {
@@ -130,6 +141,7 @@ def test_pt100_public_api() -> None:
         "temperature_sensitivity_celsius_per_ohm",
     }
 
+
 def test_pt500_public_api() -> None:
     assert set(pt500.__all__) == {
         "MAX_TEMPERATURE_C",
@@ -140,6 +152,7 @@ def test_pt500_public_api() -> None:
         "resistance_to_celsius",
         "temperature_sensitivity_celsius_per_ohm",
     }
+
 
 def test_pt1000_public_api() -> None:
     assert set(pt1000.__all__) == {
@@ -152,10 +165,12 @@ def test_pt1000_public_api() -> None:
         "temperature_sensitivity_celsius_per_ohm",
     }
 
+
 def test_package_exports_tolerance_module() -> None:
     from rtd import tolerance as imported_tolerance
 
     assert imported_tolerance is tolerance
+
 
 def test_tolerance_public_api() -> None:
     assert set(tolerance.__all__) == {
@@ -166,10 +181,12 @@ def test_tolerance_public_api() -> None:
         "thermometer_tolerance_c",
     }
 
+
 def test_package_exports_uncertainty_module() -> None:
     from rtd import uncertainty as imported_uncertainty
 
     assert imported_uncertainty is uncertainty
+
 
 def test_uncertainty_public_api() -> None:
     assert set(uncertainty.__all__) == {
@@ -187,6 +204,7 @@ def test_uncertainty_public_api() -> None:
         "temperature_uncertainty_budget",
     }
 
+
 def test_simulation_public_api() -> None:
     assert set(simulation.__all__) == {
         "FixedResistanceReader",
@@ -198,6 +216,7 @@ def test_simulation_public_api() -> None:
         "TemperatureSequenceReader",
         "read_temperature_celsius",
     }
+
 
 def test_public_modules_do_not_leak_internal_model_singletons() -> None:
     assert not hasattr(pt100, "PT100_IEC_60751")

@@ -182,9 +182,9 @@ def test_analytical_sensitivity_matches_central_difference(
 def test_negative_temperature_sensitivity_uses_full_cvd_derivative() -> None:
     # At -100 °C the C term contributes to the derivative.  This reference is
     # calculated independently from d(R/R0)/dT = A + 2BT + C*T^2*(4T-300).
-    assert pt100.resistance_sensitivity_ohms_per_celsius(
-        -100.0
-    ) == pytest.approx(0.4053081, abs=1e-12)
+    assert pt100.resistance_sensitivity_ohms_per_celsius(-100.0) == pytest.approx(
+        0.4053081, abs=1e-12
+    )
 
 
 def test_configurable_iec_model_exposes_same_sensitivity_behavior() -> None:

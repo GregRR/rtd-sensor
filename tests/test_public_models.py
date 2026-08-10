@@ -20,9 +20,9 @@ def test_nominal_100_ohm_model_matches_pt100(
 ) -> None:
     model = IEC60751RTDModel(r0_ohms=100.0)
 
-    assert model.celsius_to_resistance(
-        temperature_c
-    ) == pytest.approx(pt100.celsius_to_resistance(temperature_c))
+    assert model.celsius_to_resistance(temperature_c) == pytest.approx(
+        pt100.celsius_to_resistance(temperature_c)
+    )
 
 
 @pytest.mark.parametrize(
@@ -34,9 +34,9 @@ def test_nominal_1000_ohm_model_matches_pt1000(
 ) -> None:
     model = IEC60751RTDModel(r0_ohms=1000.0)
 
-    assert model.celsius_to_resistance(
-        temperature_c
-    ) == pytest.approx(pt1000.celsius_to_resistance(temperature_c))
+    assert model.celsius_to_resistance(temperature_c) == pytest.approx(
+        pt1000.celsius_to_resistance(temperature_c)
+    )
 
 
 def test_characterized_r0_is_exact_at_zero_celsius() -> None:

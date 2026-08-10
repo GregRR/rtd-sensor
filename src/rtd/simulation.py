@@ -42,9 +42,7 @@ type RTDType = str
 # registry the authoritative source of what is actually supported. This avoids
 # duplicating every new built-in identity in both a type alias and a lookup
 # table while retaining strict runtime validation.
-SUPPORTED_RTD_TYPES: tuple[RTDType, ...] = tuple(
-    _models.BUILTIN_RTD_MODELS
-)
+SUPPORTED_RTD_TYPES: tuple[RTDType, ...] = tuple(_models.BUILTIN_RTD_MODELS)
 
 
 class ResistanceReader(Protocol):
@@ -84,9 +82,7 @@ class _FixedRTDIdentity:
             except AttributeError:
                 pass
             else:
-                raise AttributeError(
-                    "rtd_type is read-only after reader construction"
-                )
+                raise AttributeError("rtd_type is read-only after reader construction")
 
         object.__setattr__(self, name, value)
 
@@ -137,14 +133,11 @@ class ResistanceSequenceReader(_FixedRTDIdentity):
 
     def __post_init__(self) -> None:
         if not self.readings_ohms:
-            raise ValueError(
-                "At least one resistance reading is required"
-            )
+            raise ValueError("At least one resistance reading is required")
 
         self._model = _model_for_rtd_type(self.rtd_type)
         self._readings = tuple(
-            _validate_resistance(reading, self._model)
-            for reading in self.readings_ohms
+            _validate_resistance(reading, self._model) for reading in self.readings_ohms
         )
 
     def read_resistance_ohms(self) -> float:
@@ -155,9 +148,7 @@ class ResistanceSequenceReader(_FixedRTDIdentity):
         """
         if self._index >= len(self._readings):
             if not self.repeat:
-                raise StopIteration(
-                    "No simulated resistance readings remain"
-                )
+                raise StopIteration("No simulated resistance readings remain")
 
             self._index = 0
 
@@ -185,9 +176,7 @@ class TemperatureSequenceReader(_FixedRTDIdentity):
 
     def __post_init__(self) -> None:
         if not self.temperatures_c:
-            raise ValueError(
-                "At least one simulated temperature is required"
-            )
+            raise ValueError("At least one simulated temperature is required")
 
         self._model = _model_for_rtd_type(self.rtd_type)
         readings = tuple(
@@ -242,14 +231,10 @@ class NoisyTemperatureReader(_FixedRTDIdentity):
         )
 
         if not math.isfinite(standard_deviation):
-            raise ValueError(
-                "Noise standard deviation must be finite"
-            )
+            raise ValueError("Noise standard deviation must be finite")
 
         if standard_deviation < 0.0:
-            raise ValueError(
-                "Noise standard deviation cannot be negative"
-            )
+            raise ValueError("Noise standard deviation cannot be negative")
 
         self.noise_standard_deviation_c = standard_deviation
         self._random = random.Random(self.seed)
@@ -261,9 +246,7 @@ class NoisyTemperatureReader(_FixedRTDIdentity):
             self.noise_standard_deviation_c,
         )
 
-        return self._model.celsius_to_resistance(
-            simulated_temperature
-        )
+        return self._model.celsius_to_resistance(simulated_temperature)
 
 
 def read_temperature_celsius(

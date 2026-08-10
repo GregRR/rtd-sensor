@@ -62,12 +62,8 @@ class IEC60751RTDModel:
 
     r0_ohms: float
     name: str = "IEC 60751 RTD"
-    minimum_temperature_c: float = (
-        _curves.IEC_60751_PT385.minimum_temperature_c
-    )
-    maximum_temperature_c: float = (
-        _curves.IEC_60751_PT385.maximum_temperature_c
-    )
+    minimum_temperature_c: float = _curves.IEC_60751_PT385.minimum_temperature_c
+    maximum_temperature_c: float = _curves.IEC_60751_PT385.maximum_temperature_c
     _model: _RTDModel = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
@@ -86,23 +82,11 @@ class IEC60751RTDModel:
         if not math.isfinite(maximum_temperature_c):
             raise ValueError("Maximum temperature must be finite")
         if minimum_temperature_c >= maximum_temperature_c:
-            raise ValueError(
-                "Minimum temperature must be below maximum temperature"
-            )
-        if (
-            minimum_temperature_c
-            < _curves.IEC_60751_PT385.minimum_temperature_c
-        ):
-            raise ValueError(
-                "Minimum temperature is below the IEC 60751 PT-385 range"
-            )
-        if (
-            maximum_temperature_c
-            > _curves.IEC_60751_PT385.maximum_temperature_c
-        ):
-            raise ValueError(
-                "Maximum temperature is above the IEC 60751 PT-385 range"
-            )
+            raise ValueError("Minimum temperature must be below maximum temperature")
+        if minimum_temperature_c < _curves.IEC_60751_PT385.minimum_temperature_c:
+            raise ValueError("Minimum temperature is below the IEC 60751 PT-385 range")
+        if maximum_temperature_c > _curves.IEC_60751_PT385.maximum_temperature_c:
+            raise ValueError("Maximum temperature is above the IEC 60751 PT-385 range")
 
         model = _RTDModel(
             name=self.name,
@@ -157,9 +141,7 @@ class IEC60751RTDModel:
         if not math.isfinite(temperature_c):
             raise ValueError("Temperature must be finite")
         if not (
-            self.minimum_temperature_c
-            <= temperature_c
-            <= self.maximum_temperature_c
+            self.minimum_temperature_c <= temperature_c <= self.maximum_temperature_c
         ):
             raise ValueError(
                 "Temperature must be between "
@@ -268,9 +250,7 @@ class CallendarVanDusenRTDModel:
         if not math.isfinite(maximum_temperature_c):
             raise ValueError("Maximum temperature must be finite")
         if minimum_temperature_c >= maximum_temperature_c:
-            raise ValueError(
-                "Minimum temperature must be below maximum temperature"
-            )
+            raise ValueError("Minimum temperature must be below maximum temperature")
 
         if minimum_temperature_c < 0.0 and c is None:
             raise ValueError(
@@ -353,9 +333,7 @@ class CallendarVanDusenRTDModel:
         if not math.isfinite(temperature_c):
             raise ValueError("Temperature must be finite")
         if not (
-            self.minimum_temperature_c
-            <= temperature_c
-            <= self.maximum_temperature_c
+            self.minimum_temperature_c <= temperature_c <= self.maximum_temperature_c
         ):
             raise ValueError(
                 "Temperature must be between "
@@ -483,15 +461,9 @@ class PolynomialRTDModel:
             model.reference_resistance_ohms,
         )
         object.__setattr__(self, "coefficients", coefficients)
-        object.__setattr__(
-            self, "reference_temperature_c", reference_temperature_c
-        )
-        object.__setattr__(
-            self, "minimum_temperature_c", minimum_temperature_c
-        )
-        object.__setattr__(
-            self, "maximum_temperature_c", maximum_temperature_c
-        )
+        object.__setattr__(self, "reference_temperature_c", reference_temperature_c)
+        object.__setattr__(self, "minimum_temperature_c", minimum_temperature_c)
+        object.__setattr__(self, "maximum_temperature_c", maximum_temperature_c)
         object.__setattr__(self, "coefficient_source", coefficient_source)
         object.__setattr__(self, "_model", model)
 
@@ -508,18 +480,14 @@ class PolynomialRTDModel:
         temperature_c: float,
     ) -> float:
         """Return the exact local resistance sensitivity dR/dT."""
-        return self._model.resistance_sensitivity_ohms_per_celsius(
-            temperature_c
-        )
+        return self._model.resistance_sensitivity_ohms_per_celsius(temperature_c)
 
     def temperature_sensitivity_celsius_per_ohm(
         self,
         temperature_c: float,
     ) -> float:
         """Return the exact local inverse sensitivity dT/dR."""
-        return self._model.temperature_sensitivity_celsius_per_ohm(
-            temperature_c
-        )
+        return self._model.temperature_sensitivity_celsius_per_ohm(temperature_c)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -558,9 +526,7 @@ class PiecewisePolynomialSegment:
             self, "maximum_temperature_c", internal.maximum_temperature_c
         )
         object.__setattr__(self, "coefficients", internal.coefficients)
-        object.__setattr__(
-            self, "temperature_origin_c", internal.temperature_origin_c
-        )
+        object.__setattr__(self, "temperature_origin_c", internal.temperature_origin_c)
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -629,12 +595,9 @@ class PiecewisePolynomialRTDModel:
         )
         segments = tuple(self.segments)
         if not all(
-            isinstance(segment, PiecewisePolynomialSegment)
-            for segment in segments
+            isinstance(segment, PiecewisePolynomialSegment) for segment in segments
         ):
-            raise TypeError(
-                "Segments must be PiecewisePolynomialSegment values"
-            )
+            raise TypeError("Segments must be PiecewisePolynomialSegment values")
 
         coefficient_source = self.coefficient_source
         if coefficient_source is not None:
@@ -668,18 +631,12 @@ class PiecewisePolynomialRTDModel:
             model.reference_resistance_ohms,
         )
         object.__setattr__(self, "segments", segments)
-        object.__setattr__(
-            self, "reference_temperature_c", reference_temperature_c
-        )
-        object.__setattr__(
-            self, "coefficient_source", coefficient_source
-        )
+        object.__setattr__(self, "reference_temperature_c", reference_temperature_c)
+        object.__setattr__(self, "coefficient_source", coefficient_source)
         object.__setattr__(
             self, "maximum_continuity_adjustment_ratio", maximum_adjustment
         )
-        object.__setattr__(
-            self, "continuity_adjustments", curve.continuity_adjustments
-        )
+        object.__setattr__(self, "continuity_adjustments", curve.continuity_adjustments)
         object.__setattr__(self, "_model", model)
 
     @property
@@ -700,18 +657,10 @@ class PiecewisePolynomialRTDModel:
         """Convert resistance in ohms to Celsius using the piecewise model."""
         return self._model.resistance_to_celsius(resistance_ohms)
 
-    def resistance_sensitivity_ohms_per_celsius(
-        self, temperature_c: float
-    ) -> float:
+    def resistance_sensitivity_ohms_per_celsius(self, temperature_c: float) -> float:
         """Return the active segment's analytical dR/dT sensitivity."""
-        return self._model.resistance_sensitivity_ohms_per_celsius(
-            temperature_c
-        )
+        return self._model.resistance_sensitivity_ohms_per_celsius(temperature_c)
 
-    def temperature_sensitivity_celsius_per_ohm(
-        self, temperature_c: float
-    ) -> float:
+    def temperature_sensitivity_celsius_per_ohm(self, temperature_c: float) -> float:
         """Return the active segment's analytical dT/dR sensitivity."""
-        return self._model.temperature_sensitivity_celsius_per_ohm(
-            temperature_c
-        )
+        return self._model.temperature_sensitivity_celsius_per_ohm(temperature_c)

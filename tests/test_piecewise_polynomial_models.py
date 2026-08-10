@@ -88,12 +88,8 @@ def test_piecewise_segment_can_use_local_temperature_origin() -> None:
 def test_piecewise_sensitivity_uses_active_segment() -> None:
     model = _continuous_model()
 
-    assert model.resistance_sensitivity_ohms_per_celsius(-1.0) == pytest.approx(
-        1.0
-    )
-    assert model.resistance_sensitivity_ohms_per_celsius(1.0) == pytest.approx(
-        2.0
-    )
+    assert model.resistance_sensitivity_ohms_per_celsius(-1.0) == pytest.approx(1.0)
+    assert model.resistance_sensitivity_ohms_per_celsius(1.0) == pytest.approx(2.0)
 
 
 def test_piecewise_boundary_sensitivity_uses_right_hand_segment() -> None:
@@ -103,17 +99,13 @@ def test_piecewise_boundary_sensitivity_uses_right_hand_segment() -> None:
     # fits need not be exactly C1-continuous, so the one-sided convention makes
     # the sensitivity result deterministic rather than pretending both slopes
     # are mathematically identical.
-    assert model.resistance_sensitivity_ohms_per_celsius(0.0) == pytest.approx(
-        2.0
-    )
+    assert model.resistance_sensitivity_ohms_per_celsius(0.0) == pytest.approx(2.0)
 
 
 def test_piecewise_final_endpoint_sensitivity_uses_last_segment() -> None:
     model = _continuous_model()
 
-    assert model.resistance_sensitivity_ohms_per_celsius(10.0) == pytest.approx(
-        2.0
-    )
+    assert model.resistance_sensitivity_ohms_per_celsius(10.0) == pytest.approx(2.0)
 
 
 def test_piecewise_preserves_source_segments_and_metadata() -> None:
@@ -455,7 +447,6 @@ def test_piecewise_randomized_continuous_models_round_trip_across_joins() -> Non
                 temperature_c,
                 abs=1e-10,
             )
-
 
 
 def test_piecewise_model_integrates_with_uncertainty_protocol() -> None:

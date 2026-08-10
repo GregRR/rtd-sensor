@@ -122,9 +122,7 @@ def test_propagate_pt1000_uses_pt1000_sensitivity() -> None:
         model=pt1000,
     )
 
-    expected = (
-        pt1000.temperature_sensitivity_celsius_per_ohm(100.0) * 0.1
-    )
+    expected = pt1000.temperature_sensitivity_celsius_per_ohm(100.0) * 0.1
     assert result.temperature_c == pytest.approx(100.0, abs=1e-10)
     assert result.temperature_standard_uncertainty_c == pytest.approx(expected)
 
@@ -150,9 +148,7 @@ def test_propagate_ni1000_tk5000_uses_tk5000_sensitivity() -> None:
         model=ni1000_tk5000,
     )
 
-    expected = (
-        ni1000_tk5000.temperature_sensitivity_celsius_per_ohm(100.0) * 0.1
-    )
+    expected = ni1000_tk5000.temperature_sensitivity_celsius_per_ohm(100.0) * 0.1
     assert result.temperature_c == pytest.approx(100.0, abs=1e-10)
     assert result.temperature_standard_uncertainty_c == pytest.approx(expected)
 
@@ -268,13 +264,9 @@ def test_temperature_budget_combines_resistance_and_named_components() -> None:
 
     assert budget.temperature_c == 0.0
     assert budget.additional_components == (calibration, repeatability)
-    assert budget.combined_standard_uncertainty_c == pytest.approx(
-        expected_combined
-    )
+    assert budget.combined_standard_uncertainty_c == pytest.approx(expected_combined)
     assert budget.coverage_factor == 2.0
-    assert budget.expanded_uncertainty_c == pytest.approx(
-        2.0 * expected_combined
-    )
+    assert budget.expanded_uncertainty_c == pytest.approx(2.0 * expected_combined)
 
 
 def test_temperature_budget_without_coverage_factor_omits_expanded_result() -> None:

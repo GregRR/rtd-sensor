@@ -129,12 +129,8 @@ def test_celsius_to_resistance_rejects_out_of_range_temperature(
 
 
 def test_resistance_to_celsius_rejects_out_of_range_resistance() -> None:
-    minimum = ni1000_tk5000.celsius_to_resistance(
-        ni1000_tk5000.MIN_TEMPERATURE_C
-    )
-    maximum = ni1000_tk5000.celsius_to_resistance(
-        ni1000_tk5000.MAX_TEMPERATURE_C
-    )
+    minimum = ni1000_tk5000.celsius_to_resistance(ni1000_tk5000.MIN_TEMPERATURE_C)
+    maximum = ni1000_tk5000.celsius_to_resistance(ni1000_tk5000.MAX_TEMPERATURE_C)
 
     with pytest.raises(ValueError):
         ni1000_tk5000.resistance_to_celsius(math.nextafter(minimum, -math.inf))

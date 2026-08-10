@@ -112,9 +112,7 @@ def test_resistance_to_celsius_matches_fluke_reference_table(
 )
 def test_temperature_round_trip(temperature_c: float) -> None:
     resistance = pt100.celsius_to_resistance(temperature_c)
-    converted_temperature = pt100.resistance_to_celsius(
-        resistance
-    )
+    converted_temperature = pt100.resistance_to_celsius(resistance)
 
     assert converted_temperature == pytest.approx(
         temperature_c,
@@ -139,9 +137,7 @@ def test_resistance_increases_with_temperature(
     temperature_c: float,
 ) -> None:
     first = pt100.celsius_to_resistance(temperature_c)
-    second = pt100.celsius_to_resistance(
-        temperature_c + 0.001
-    )
+    second = pt100.celsius_to_resistance(temperature_c + 0.001)
 
     assert second > first
 
@@ -183,9 +179,7 @@ def test_resistance_to_celsius_rejects_invalid_resistance(
 
 
 def test_minimum_temperature_boundary_round_trip() -> None:
-    resistance = pt100.celsius_to_resistance(
-        pt100.MIN_TEMPERATURE_C
-    )
+    resistance = pt100.celsius_to_resistance(pt100.MIN_TEMPERATURE_C)
 
     temperature = pt100.resistance_to_celsius(resistance)
 
@@ -196,9 +190,7 @@ def test_minimum_temperature_boundary_round_trip() -> None:
 
 
 def test_maximum_temperature_boundary_round_trip() -> None:
-    resistance = pt100.celsius_to_resistance(
-        pt100.MAX_TEMPERATURE_C
-    )
+    resistance = pt100.celsius_to_resistance(pt100.MAX_TEMPERATURE_C)
 
     temperature = pt100.resistance_to_celsius(resistance)
 

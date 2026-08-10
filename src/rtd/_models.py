@@ -55,16 +55,12 @@ class RTDModel:
             raise ValueError("Reference resistance must be finite")
         if reference_resistance_ohms <= 0.0:
             raise ValueError("Reference resistance must be greater than zero")
-        object.__setattr__(
-            self, "reference_resistance_ohms", reference_resistance_ohms
-        )
+        object.__setattr__(self, "reference_resistance_ohms", reference_resistance_ohms)
 
         if self.identity is not None and (
             not self.identity or self.identity != self.identity.strip()
         ):
-            raise ValueError(
-                "RTD model identity must be a non-empty, trimmed string"
-            )
+            raise ValueError("RTD model identity must be a non-empty, trimmed string")
 
     @property
     def reference_temperature_c(self) -> float:
@@ -103,18 +99,15 @@ class RTDModel:
         resistance = _as_float(resistance_ohms, name="Resistance")
         self._validate_resistance(resistance)
         resistance_ratio = resistance / self.reference_resistance_ohms
-        return self.curve.temperature_from_resistance_ratio(
-            resistance_ratio
-        )
+        return self.curve.temperature_from_resistance_ratio(resistance_ratio)
 
     def resistance_sensitivity_ohms_per_celsius(
         self,
         temperature_c: float,
     ) -> float:
         """Return the exact local resistance sensitivity dR/dT."""
-        return (
-            self.reference_resistance_ohms
-            * self.curve.resistance_ratio_slope(temperature_c)
+        return self.reference_resistance_ohms * self.curve.resistance_ratio_slope(
+            temperature_c
         )
 
     def temperature_sensitivity_celsius_per_ohm(
@@ -133,21 +126,13 @@ class RTDModel:
         if resistance_ohms <= 0.0:
             raise ValueError("Resistance must be greater than zero")
 
-        minimum_resistance = self.celsius_to_resistance(
-            self.minimum_temperature_c
-        )
-        maximum_resistance = self.celsius_to_resistance(
-            self.maximum_temperature_c
-        )
+        minimum_resistance = self.celsius_to_resistance(self.minimum_temperature_c)
+        maximum_resistance = self.celsius_to_resistance(self.maximum_temperature_c)
 
         if resistance_ohms < minimum_resistance:
-            raise ValueError(
-                f"Resistance is below the supported {self.name} range"
-            )
+            raise ValueError(f"Resistance is below the supported {self.name} range")
         if resistance_ohms > maximum_resistance:
-            raise ValueError(
-                f"Resistance is above the supported {self.name} range"
-            )
+            raise ValueError(f"Resistance is above the supported {self.name} range")
 
 
 _BUILTIN_RTD_MODELS: dict[str, RTDModel] = {}
@@ -231,6 +216,4 @@ NI120_6720 = _built_in_model(
 # Expose an immutable internal view so every consumer uses the same registry.
 # There is intentionally no public registration API yet: this is a closed set
 # of verified built-ins, not a plugin mechanism for arbitrary user models.
-BUILTIN_RTD_MODELS: Mapping[str, RTDModel] = MappingProxyType(
-    _BUILTIN_RTD_MODELS
-)
+BUILTIN_RTD_MODELS: Mapping[str, RTDModel] = MappingProxyType(_BUILTIN_RTD_MODELS)

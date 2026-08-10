@@ -200,21 +200,19 @@ The supported built-in model modules are `rtd.pt100`, `rtd.pt500`,
 exposes the same conversion interface:
 
 ```python
-def resistance_to_celsius(resistance_ohms: float) -> float:
-    ...
+def resistance_to_celsius(resistance_ohms: float) -> float: ...
 
-def celsius_to_resistance(temperature_c: float) -> float:
-    ...
+
+def celsius_to_resistance(temperature_c: float) -> float: ...
 ```
 
 Potential future convenience functions may include:
 
 ```python
-def resistance_to_fahrenheit(resistance_ohms: float) -> float:
-    ...
+def resistance_to_fahrenheit(resistance_ohms: float) -> float: ...
 
-def fahrenheit_to_resistance(temperature_f: float) -> float:
-    ...
+
+def fahrenheit_to_resistance(temperature_f: float) -> float: ...
 ```
 
 Those convenience functions are not required for the first release. Celsius is the native temperature representation because the governing standard is expressed in Celsius.

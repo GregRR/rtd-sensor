@@ -188,9 +188,7 @@ def standard_uncertainty_from_bound(
     elif distribution == "triangular":
         divisor = math.sqrt(6.0)
     else:
-        raise ValueError(
-            "Distribution must be 'rectangular' or 'triangular'"
-        )
+        raise ValueError("Distribution must be 'rectangular' or 'triangular'")
 
     return bound / divisor
 
@@ -335,9 +333,7 @@ def propagate_resistance_uncertainty(
     return ResistanceUncertaintyPropagation(
         resistance_ohms=resistance,
         temperature_c=temperature_c,
-        resistance_standard_uncertainty_ohms=(
-            resistance_standard_uncertainty
-        ),
+        resistance_standard_uncertainty_ohms=(resistance_standard_uncertainty),
         temperature_sensitivity_celsius_per_ohm=sensitivity,
         temperature_standard_uncertainty_c=temperature_standard_uncertainty,
     )

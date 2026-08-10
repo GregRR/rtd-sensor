@@ -93,13 +93,8 @@ class CallendarVanDusenCurve:
         if not math.isfinite(self.maximum_temperature_c):
             raise ValueError("Maximum temperature must be finite")
         if self.minimum_temperature_c >= self.maximum_temperature_c:
-            raise ValueError(
-                "Minimum temperature must be below maximum temperature"
-            )
-        if not (
-            self.minimum_temperature_c <= 0.0
-            <= self.maximum_temperature_c
-        ):
+            raise ValueError("Minimum temperature must be below maximum temperature")
+        if not (self.minimum_temperature_c <= 0.0 <= self.maximum_temperature_c):
             raise ValueError("Curve temperature range must include 0 °C")
 
         self._validate_curve_shape()
@@ -150,9 +145,7 @@ class CallendarVanDusenCurve:
         quadratic_a = 12.0 * self.c
         quadratic_b = -600.0 * self.c
         quadratic_c = 2.0 * self.b
-        discriminant = (
-            quadratic_b**2 - 4.0 * quadratic_a * quadratic_c
-        )
+        discriminant = quadratic_b**2 - 4.0 * quadratic_a * quadratic_c
         if discriminant < 0.0:
             return []
 
@@ -169,11 +162,7 @@ class CallendarVanDusenCurve:
     ) -> float:
         slope = self.a + 2.0 * self.b * temperature_c
         if temperature_c < 0.0:
-            slope += (
-                self.c
-                * temperature_c**2
-                * (4.0 * temperature_c - 300.0)
-            )
+            slope += self.c * temperature_c**2 * (4.0 * temperature_c - 300.0)
         return slope
 
     def resistance_ratio(self, temperature_c: float) -> float:
@@ -217,18 +206,10 @@ class CallendarVanDusenCurve:
         return self._negative_ratio_to_celsius(ratio)
 
     def _resistance_ratio_unchecked(self, temperature_c: float) -> float:
-        resistance_ratio = (
-            1.0
-            + self.a * temperature_c
-            + self.b * temperature_c**2
-        )
+        resistance_ratio = 1.0 + self.a * temperature_c + self.b * temperature_c**2
 
         if temperature_c < 0.0:
-            resistance_ratio += (
-                self.c
-                * (temperature_c - 100.0)
-                * temperature_c**3
-            )
+            resistance_ratio += self.c * (temperature_c - 100.0) * temperature_c**3
 
         return resistance_ratio
 
@@ -243,10 +224,7 @@ class CallendarVanDusenCurve:
                 )
             temperature_c = (resistance_ratio - 1.0) / self.a
         else:
-            discriminant = (
-                self.a**2
-                - 4.0 * self.b * (1.0 - resistance_ratio)
-            )
+            discriminant = self.a**2 - 4.0 * self.b * (1.0 - resistance_ratio)
 
             if discriminant < 0.0:
                 raise ValueError(
@@ -257,9 +235,9 @@ class CallendarVanDusenCurve:
             # suffers cancellation for ordinary platinum RTD coefficients
             # because ``sqrt(D)`` is close to ``A``.  This algebraically
             # equivalent form keeps the numerator well-conditioned.
-            temperature_c = (
-                2.0 * (1.0 - resistance_ratio)
-            ) / (-self.a - math.sqrt(discriminant))
+            temperature_c = (2.0 * (1.0 - resistance_ratio)) / (
+                -self.a - math.sqrt(discriminant)
+            )
 
         # The resistance ratio was already validated against a strictly
         # increasing curve, so its mathematical inverse is necessarily in
@@ -289,9 +267,7 @@ class CallendarVanDusenCurve:
         if not math.isfinite(temperature_c):
             raise ValueError("Temperature must be finite")
         if not (
-            self.minimum_temperature_c
-            <= temperature_c
-            <= self.maximum_temperature_c
+            self.minimum_temperature_c <= temperature_c <= self.maximum_temperature_c
         ):
             raise ValueError(
                 "Temperature must be between "
@@ -550,12 +526,8 @@ class PolynomialRTDSegment:
                 "Segment minimum temperature must be below maximum temperature"
             )
 
-        object.__setattr__(
-            self, "minimum_temperature_c", minimum_temperature_c
-        )
-        object.__setattr__(
-            self, "maximum_temperature_c", maximum_temperature_c
-        )
+        object.__setattr__(self, "minimum_temperature_c", minimum_temperature_c)
+        object.__setattr__(self, "maximum_temperature_c", maximum_temperature_c)
         object.__setattr__(self, "temperature_origin_c", temperature_origin_c)
         object.__setattr__(self, "coefficients", coefficients)
         self._validate_shape()
@@ -575,9 +547,7 @@ class PolynomialRTDSegment:
         lower_x = self.minimum_temperature_c - self.temperature_origin_c
         upper_x = self.maximum_temperature_c - self.temperature_origin_c
         slope_coefficients = _polynomial_derivative(self.coefficients)
-        second_derivative_coefficients = _polynomial_derivative(
-            slope_coefficients
-        )
+        second_derivative_coefficients = _polynomial_derivative(slope_coefficients)
 
         try:
             minimum_ratio = _polynomial_value(self.coefficients, lower_x)
@@ -593,9 +563,7 @@ class PolynomialRTDSegment:
             ) from exc
 
         if not math.isfinite(minimum_ratio) or not math.isfinite(maximum_ratio):
-            raise ValueError(
-                "Piecewise polynomial resistance ratio must remain finite"
-            )
+            raise ValueError("Piecewise polynomial resistance ratio must remain finite")
         if minimum_ratio <= 0.0:
             raise ValueError(
                 "Piecewise polynomial resistance ratio must remain positive"
@@ -646,12 +614,8 @@ class PiecewisePolynomialRTDCurve:
     _continuity_adjustments: tuple[float, ...] = field(
         init=False, repr=False, compare=False
     )
-    _join_temperatures: tuple[float, ...] = field(
-        init=False, repr=False, compare=False
-    )
-    _join_ratios: tuple[float, ...] = field(
-        init=False, repr=False, compare=False
-    )
+    _join_temperatures: tuple[float, ...] = field(init=False, repr=False, compare=False)
+    _join_ratios: tuple[float, ...] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         segments = tuple(self.segments)
@@ -666,9 +630,7 @@ class PiecewisePolynomialRTDCurve:
 
         if not segments:
             raise ValueError("At least one piecewise polynomial segment is required")
-        if not all(
-            isinstance(segment, PolynomialRTDSegment) for segment in segments
-        ):
+        if not all(isinstance(segment, PolynomialRTDSegment) for segment in segments):
             raise TypeError(
                 "Piecewise curve segments must be PolynomialRTDSegment values"
             )
@@ -677,9 +639,7 @@ class PiecewisePolynomialRTDCurve:
         if not math.isfinite(maximum_adjustment):
             raise ValueError("Maximum continuity adjustment ratio must be finite")
         if maximum_adjustment < 0.0:
-            raise ValueError(
-                "Maximum continuity adjustment ratio must not be negative"
-            )
+            raise ValueError("Maximum continuity adjustment ratio must not be negative")
 
         for previous, current in zip(segments, segments[1:], strict=False):
             if previous.maximum_temperature_c < current.minimum_temperature_c:
@@ -687,16 +647,12 @@ class PiecewisePolynomialRTDCurve:
                     "Piecewise polynomial segments must not contain temperature gaps"
                 )
             if previous.maximum_temperature_c > current.minimum_temperature_c:
-                raise ValueError(
-                    "Piecewise polynomial segments must not overlap"
-                )
+                raise ValueError("Piecewise polynomial segments must not overlap")
 
         minimum_temperature_c = segments[0].minimum_temperature_c
         maximum_temperature_c = segments[-1].maximum_temperature_c
         if not (
-            minimum_temperature_c
-            <= reference_temperature_c
-            <= maximum_temperature_c
+            minimum_temperature_c <= reference_temperature_c <= maximum_temperature_c
         ):
             raise ValueError(
                 "Reference temperature must lie within the piecewise range"
@@ -777,15 +733,12 @@ class PiecewisePolynomialRTDCurve:
             segment.maximum_temperature_c for segment in segments[:-1]
         )
         join_ratios = tuple(
-            segments[index].resistance_ratio_unchecked(boundary_c)
-            + adjustments[index]
+            segments[index].resistance_ratio_unchecked(boundary_c) + adjustments[index]
             for index, boundary_c in enumerate(join_temperatures)
         )
 
         object.__setattr__(self, "segments", segments)
-        object.__setattr__(
-            self, "reference_temperature_c", reference_temperature_c
-        )
+        object.__setattr__(self, "reference_temperature_c", reference_temperature_c)
         object.__setattr__(
             self, "maximum_continuity_adjustment_ratio", maximum_adjustment
         )
@@ -831,9 +784,7 @@ class PiecewisePolynomialRTDCurve:
         index = self._segment_index_for_temperature(temperature)
         return self.segments[index].resistance_ratio_slope_unchecked(temperature)
 
-    def temperature_from_resistance_ratio(
-        self, resistance_ratio: float
-    ) -> float:
+    def temperature_from_resistance_ratio(self, resistance_ratio: float) -> float:
         """Invert the stitched characteristic by bounded global bisection."""
         ratio = _as_float(resistance_ratio, name="Resistance ratio")
         minimum_ratio, maximum_ratio = self._resistance_ratio_bounds()
@@ -907,9 +858,7 @@ class PiecewisePolynomialRTDCurve:
     def _segment_index_for_temperature(self, temperature_c: float) -> int:
         return self._segment_index_for_temperature_in(self.segments, temperature_c)
 
-    def _resistance_ratio_unchecked(
-        self, index: int, temperature_c: float
-    ) -> float:
+    def _resistance_ratio_unchecked(self, index: int, temperature_c: float) -> float:
         return (
             self.segments[index].resistance_ratio_unchecked(temperature_c)
             + self._continuity_adjustments[index]
@@ -930,9 +879,7 @@ class PiecewisePolynomialRTDCurve:
         if not math.isfinite(temperature_c):
             raise ValueError("Temperature must be finite")
         if not (
-            self.minimum_temperature_c
-            <= temperature_c
-            <= self.maximum_temperature_c
+            self.minimum_temperature_c <= temperature_c <= self.maximum_temperature_c
         ):
             raise ValueError(
                 "Temperature must be between "
@@ -942,9 +889,7 @@ class PiecewisePolynomialRTDCurve:
 
     def _resistance_ratio_bounds(self) -> tuple[float, float]:
         return (
-            self._resistance_ratio_unchecked(
-                0, self.minimum_temperature_c
-            ),
+            self._resistance_ratio_unchecked(0, self.minimum_temperature_c),
             self._resistance_ratio_unchecked(
                 len(self.segments) - 1, self.maximum_temperature_c
             ),
@@ -1005,20 +950,12 @@ class PolynomialRTDCurve:
         if not math.isfinite(maximum_temperature_c):
             raise ValueError("Maximum temperature must be finite")
         if minimum_temperature_c >= maximum_temperature_c:
-            raise ValueError(
-                "Minimum temperature must be below maximum temperature"
-            )
+            raise ValueError("Minimum temperature must be below maximum temperature")
 
         object.__setattr__(self, "coefficients", coefficients)
-        object.__setattr__(
-            self, "reference_temperature_c", reference_temperature_c
-        )
-        object.__setattr__(
-            self, "minimum_temperature_c", minimum_temperature_c
-        )
-        object.__setattr__(
-            self, "maximum_temperature_c", maximum_temperature_c
-        )
+        object.__setattr__(self, "reference_temperature_c", reference_temperature_c)
+        object.__setattr__(self, "minimum_temperature_c", minimum_temperature_c)
+        object.__setattr__(self, "maximum_temperature_c", maximum_temperature_c)
         self._validate_curve_shape()
 
     def resistance_ratio(self, temperature_c: float) -> float:
@@ -1087,9 +1024,7 @@ class PolynomialRTDCurve:
         upper_x = self.maximum_temperature_c - self.reference_temperature_c
         ratio_coefficients = (1.0, *self.coefficients)
         slope_coefficients = _polynomial_derivative(ratio_coefficients)
-        second_derivative_coefficients = _polynomial_derivative(
-            slope_coefficients
-        )
+        second_derivative_coefficients = _polynomial_derivative(slope_coefficients)
 
         try:
             minimum_ratio = _polynomial_value(ratio_coefficients, lower_x)
@@ -1124,9 +1059,7 @@ class PolynomialRTDCurve:
         if not math.isfinite(temperature_c):
             raise ValueError("Temperature must be finite")
         if not (
-            self.minimum_temperature_c
-            <= temperature_c
-            <= self.maximum_temperature_c
+            self.minimum_temperature_c <= temperature_c <= self.maximum_temperature_c
         ):
             raise ValueError(
                 "Temperature must be between "
@@ -1139,7 +1072,6 @@ class PolynomialRTDCurve:
             self._resistance_ratio_unchecked(self.minimum_temperature_c),
             self._resistance_ratio_unchecked(self.maximum_temperature_c),
         )
-
 
 
 # Former DIN 43760 nickel characteristic (6178/6180 ppm/K).  ABB, IST,

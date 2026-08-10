@@ -198,11 +198,7 @@ def _temperature_tolerance_c(
     temperature = _as_float(temperature_c, name="Temperature")
     if not math.isfinite(temperature):
         raise ValueError("Temperature must be finite")
-    if not (
-        spec.minimum_temperature_c
-        <= temperature
-        <= spec.maximum_temperature_c
-    ):
+    if not (spec.minimum_temperature_c <= temperature <= spec.maximum_temperature_c):
         raise ValueError(
             f"Temperature must be between {spec.minimum_temperature_c:g} °C "
             f"and {spec.maximum_temperature_c:g} °C for IEC 60751 "
