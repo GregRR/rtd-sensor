@@ -12,6 +12,11 @@ All notable changes to this project will be documented in this file.
 * GUM-style measurement-uncertainty primitives for bounded Type B conversions, independent root-sum-square combination, expanded uncertainty, and exact analytical RTD sensitivity.
 * Structured RTD resistance-to-temperature uncertainty propagation and named independent-component temperature uncertainty budgets with optional coverage-factor reporting and provenance metadata.
 
+### Fixed
+
+* Exact model-boundary resistance round trips no longer fail when floating-point `R0 × ratio` followed by `R / R0` lands one representable value outside the normalized curve boundary.
+* Positive-temperature CVD inversion now uses a numerically stable quadratic form to reduce cancellation near resistance-ratio boundaries.
+
 ## 0.2.0 — 2026-08-09
 
 ### Added

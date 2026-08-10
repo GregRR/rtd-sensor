@@ -113,7 +113,7 @@ Pt100:  R0 = 100 Ω
 Pt1000: R0 = 1000 Ω
 ```
 
-Resistance-to-temperature conversion above 0 °C may use the analytic inverse of the quadratic equation. Below 0 °C, the implementation may use a bounded numerical solution of the complete equation.
+Resistance-to-temperature conversion above 0 °C may use the analytic inverse of the quadratic equation. The implementation should use an algebraically stable quadratic form that avoids subtracting nearly equal terms for ordinary platinum RTD coefficients. Below 0 °C, the implementation may use a bounded numerical solution of the complete equation.
 
 The implementation must document numerical tolerances and must avoid silently extrapolating beyond its supported range.
 
@@ -152,7 +152,7 @@ The conversion functions should reject:
 
 Errors should use clear `ValueError` messages unless a dedicated exception hierarchy becomes justified.
 
-The package should not silently clamp values.
+The package should not silently clamp physical measurements. One narrow numerical exception is permitted at normalized curve boundaries: converting an exact endpoint through `R0 × ratio` and then back through `R / R0` can land exactly one representable floating-point value beyond the original ratio. The curve layer may normalize that one-ULP artifact back to the mathematical endpoint, while the public resistance-in-ohms validation remains strict. Values farther outside the supported range must still be rejected.
 
 ## 7. Simulation
 
@@ -248,6 +248,7 @@ src/rtd/
 └── uncertainty.py
 
 tests/
+├── test_boundary_roundtrips.py
 ├── test_custom_cvd_models.py
 ├── test_models.py
 ├── test_package_api.py

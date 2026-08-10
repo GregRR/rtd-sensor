@@ -182,8 +182,13 @@ class CallendarVanDusenCurve:
     ) -> float:
         """Invert a normalized resistance ratio to Celsius."""
         ratio = float(resistance_ratio)
-        self._validate_resistance_ratio(ratio)
+        ratio = self._validated_resistance_ratio(ratio)
 
+        minimum_ratio, maximum_ratio = self._resistance_ratio_bounds()
+        if ratio == minimum_ratio:
+            return self.minimum_temperature_c
+        if ratio == maximum_ratio:
+            return self.maximum_temperature_c
         if ratio == 1.0:
             return 0.0
 
@@ -229,13 +234,18 @@ class CallendarVanDusenCurve:
                     f"Resistance ratio cannot be converted using {self.name}"
                 )
 
+            # The direct quadratic root ``(-A + sqrt(D)) / (2B)``
+            # suffers cancellation for ordinary platinum RTD coefficients
+            # because ``sqrt(D)`` is close to ``A``.  This algebraically
+            # equivalent form keeps the numerator well-conditioned.
             temperature_c = (
-                -self.a + math.sqrt(discriminant)
-            ) / (2.0 * self.b)
+                2.0 * (1.0 - resistance_ratio)
+            ) / (-self.a - math.sqrt(discriminant))
 
-        if temperature_c > self.maximum_temperature_c:
-            raise ValueError("Resistance ratio is above the supported range")
-
+        # The resistance ratio was already validated against a strictly
+        # increasing curve, so its mathematical inverse is necessarily in
+        # range.  A second strict comparison here can only turn harmless
+        # inverse-rounding noise near the endpoint into a false rejection.
         return temperature_c
 
     def _negative_ratio_to_celsius(
@@ -270,23 +280,41 @@ class CallendarVanDusenCurve:
                 f"{self.maximum_temperature_c:g} °C"
             )
 
-    def _validate_resistance_ratio(self, resistance_ratio: float) -> None:
+    def _resistance_ratio_bounds(self) -> tuple[float, float]:
+        return (
+            self._resistance_ratio_unchecked(self.minimum_temperature_c),
+            self._resistance_ratio_unchecked(self.maximum_temperature_c),
+        )
+
+    def _validated_resistance_ratio(self, resistance_ratio: float) -> float:
+        """Validate and normalize a ratio at floating-point boundaries.
+
+        A public model converts a measured resistance back to a ratio with
+        ``R / R0``.  At an exact model endpoint, the preceding ``R0 * ratio``
+        multiplication can make that round trip land one representable float
+        just outside the original ratio.  Accepting exactly that one-ULP
+        neighbor preserves the model's own endpoint round trip without
+        admitting a materially out-of-range measurement.
+        """
         if not math.isfinite(resistance_ratio):
             raise ValueError("Resistance ratio must be finite")
         if resistance_ratio <= 0.0:
             raise ValueError("Resistance ratio must be greater than zero")
 
-        minimum_ratio = self._resistance_ratio_unchecked(
-            self.minimum_temperature_c
-        )
-        maximum_ratio = self._resistance_ratio_unchecked(
-            self.maximum_temperature_c
-        )
+        minimum_ratio, maximum_ratio = self._resistance_ratio_bounds()
+        minimum_neighbor = math.nextafter(minimum_ratio, -math.inf)
+        maximum_neighbor = math.nextafter(maximum_ratio, math.inf)
 
         if resistance_ratio < minimum_ratio:
+            if resistance_ratio == minimum_neighbor:
+                return minimum_ratio
             raise ValueError("Resistance ratio is below the supported range")
         if resistance_ratio > maximum_ratio:
+            if resistance_ratio == maximum_neighbor:
+                return maximum_ratio
             raise ValueError("Resistance ratio is above the supported range")
+
+        return resistance_ratio
 
 
 IEC_60751_PT385 = CallendarVanDusenCurve(
