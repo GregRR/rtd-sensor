@@ -7,8 +7,8 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from rtd import pt100, pt1000
-from rtd.models import IEC60751RTDModel
+from rtd_sensor import pt100, pt1000
+from rtd_sensor.models import IEC60751RTDModel
 
 
 @pytest.mark.parametrize(

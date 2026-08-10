@@ -6,8 +6,8 @@ import math
 
 import pytest
 
-from rtd import pt100, pt1000, uncertainty
-from rtd.models import CallendarVanDusenRTDModel, IEC60751RTDModel
+from rtd_sensor import pt100, pt1000, uncertainty
+from rtd_sensor.models import CallendarVanDusenRTDModel, IEC60751RTDModel
 
 
 def test_rectangular_bound_converts_to_standard_uncertainty() -> None:

@@ -4,37 +4,30 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-* Fixed custom Callendar-Van Dusen models so coefficient-shape validation and inversion honor exactly the caller-declared validity interval rather than silently widening one-sided calibration ranges to include the 0 °C R0 reference point.
-* Hardened the built-in RTD identity registry with regression coverage for immutability, duplicate registration, invalid/whitespace identities, and clean type errors for non-string identities.
-* Generalized simulation model identity around one immutable built-in RTD
-  registry, with discoverable supported identities and registry-driven
-  mismatch/immutability regression coverage that expands automatically as new
-  built-in characteristics are added. `simulation.RTDType` is now a string alias
-  backed by strict runtime registry validation instead of a separately maintained
-  closed `Literal[...]` union.
-* Added built-in North American Ni120 / 6720 ppm/K conversion using Minco's
-  twelve-segment nickel characteristic, with auditable continuity stitching,
-  simulation and uncertainty support, and independent Pyromation R/T tests.
-* Added public `PiecewisePolynomialRTDModel` and `PiecewisePolynomialSegment`
-  infrastructure for traceable multi-interval RTD characteristics, including
-  analytical segment validation, bounded inversion, deterministic boundary
-  sensitivity, and explicit auditable continuity stitching for rounded source
-  equations.
-* Added built-in Ni1000 TK5000 / 5000 ppm/K conversion as a characteristic
-  distinct from the former-DIN 6180 Ni1000 model, with analytical sensitivity,
-  simulation support, and independent E+E resistance-table tests.
-* Added built-in Ni1000 6178/6180 ppm/K conversion for the former DIN 43760
-  nickel characteristic, including analytical sensitivity, -60 °C through
-  250 °C range validation, simulation support, and independently sourced
-  resistance-table tests.
-* Added a public `PolynomialRTDModel` for traceable single-polynomial RTD characteristics with an explicit reference resistance, reference temperature, declared range, coefficient provenance, analytical sensitivity, and dependency-free inverse conversion.
-* Added polynomial curve validation that checks finite positive resistance and locates analytical-slope extrema so non-monotonic regions cannot hide between arbitrary sampling points.
-* Generalized the internal RTD scaling model from a hard-coded 0 °C resistance assumption to an explicit curve reference resistance/temperature while preserving the existing Pt100/Pt500/Pt1000 and CVD public APIs.
-* Added `docs/ROADMAP.md` to preserve the planned Ni1000 6180, Ni1000 TK5000, Ni120, additional nickel, Cu10/Cu100, tabulated-characteristic, calibration-fitting, and `rtd-sensor` rename work.
+## 0.4.0 — 2026-08-10
+
 ### Added
 
-* IEC 60751 Pt500 resistance-to-temperature and temperature-to-resistance conversion using the shared PT-385 curve with `R0 = 500 Ω`.
-* Independently sourced Pt500 reference-value tests using the UST Umweltsensortechnik Pt500 resistance table, plus round-trip, boundary, scaling, simulation, and uncertainty-propagation coverage.
+* Added IEC 60751 Pt500 resistance-to-temperature and temperature-to-resistance conversion using the shared PT-385 curve with `R0 = 500 Ω`.
+* Added independently sourced Pt500 reference-value tests using the UST Umweltsensortechnik Pt500 resistance table, plus round-trip, boundary, scaling, simulation, and uncertainty-propagation coverage.
+* Added built-in Ni1000 6178/6180 ppm/K conversion for the former DIN 43760 nickel characteristic, including analytical sensitivity, -60 °C through 250 °C range validation, simulation support, and independently sourced resistance-table tests.
+* Added built-in Ni1000 TK5000 / 5000 ppm/K conversion as a characteristic distinct from the former-DIN 6180 Ni1000 model, with analytical sensitivity, simulation support, and independent E+E resistance-table tests.
+* Added built-in North American Ni120 / 6720 ppm/K conversion using Minco's twelve-segment nickel characteristic, with auditable continuity stitching, simulation and uncertainty support, and independent Pyromation R/T tests.
+* Added a public `PolynomialRTDModel` for traceable single-polynomial RTD characteristics with an explicit reference resistance, reference temperature, declared range, coefficient provenance, analytical sensitivity, and dependency-free inverse conversion.
+* Added public `PiecewisePolynomialRTDModel` and `PiecewisePolynomialSegment` infrastructure for traceable multi-interval RTD characteristics, including analytical segment validation, bounded inversion, deterministic boundary sensitivity, and explicit auditable continuity stitching for rounded source equations.
+* Added polynomial curve validation that checks finite positive resistance and locates analytical-slope extrema so non-monotonic regions cannot hide between arbitrary sampling points.
+* Added `docs/ROADMAP.md` to preserve planned additional nickel, Cu10/Cu100, tabulated-characteristic, calibration-fitting, and other future RTD work.
+
+### Changed
+
+* Renamed the PyPI distribution and repository from `pt100-core` to `rtd-sensor` and the Python import package from `rtd` to `rtd_sensor`. Version 0.4.0 intentionally does not ship an `rtd` compatibility package; applications migrating from 0.3.x must update their imports.
+* Generalized simulation model identity around one immutable built-in RTD registry, with discoverable supported identities and registry-driven mismatch/immutability regression coverage that expands automatically as new built-in characteristics are added. `simulation.RTDType` is now a string alias backed by strict runtime registry validation instead of a separately maintained closed `Literal[...]` union.
+* Generalized the internal RTD scaling model from a hard-coded 0 °C resistance assumption to an explicit curve reference resistance/temperature while preserving the established Pt100/Pt500/Pt1000 and CVD model behavior.
+
+### Fixed
+
+* Fixed custom Callendar-Van Dusen models so coefficient-shape validation and inversion honor exactly the caller-declared validity interval rather than silently widening one-sided calibration ranges to include the 0 °C `R0` reference point.
+* Hardened the built-in RTD identity registry with regression coverage for immutability, duplicate registration, invalid/whitespace identities, and clean type errors for non-string identities.
 
 ## 0.3.0 — 2026-08-09
 

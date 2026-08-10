@@ -14,7 +14,7 @@ of 1000 ohms at 0 °C and the normalized cubic
 with ``A = 4.427e-3``, ``B = 5.172e-6``, and ``C = 5.585e-9``.  The supported
 characteristic range is -60 °C through 250 °C.
 
-This characteristic is intentionally separate from :mod:`rtd.ni1000`, which
+This characteristic is intentionally separate from :mod:`rtd_sensor.ni1000`, which
 implements the former-DIN 6178/6180 ppm/K Ni1000 curve.  Nominal resistance
 alone is therefore not sufficient to choose between the two modules.
 

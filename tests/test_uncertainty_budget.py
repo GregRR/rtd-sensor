@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from rtd import (
+from rtd_sensor import (
     ni120,
     ni1000,
     ni1000_tk5000,
@@ -16,7 +16,7 @@ from rtd import (
     tolerance,
     uncertainty,
 )
-from rtd.models import CallendarVanDusenRTDModel, IEC60751RTDModel
+from rtd_sensor.models import CallendarVanDusenRTDModel, IEC60751RTDModel
 
 
 def test_temperature_uncertainty_component_normalizes_metadata() -> None:
@@ -356,7 +356,7 @@ def test_tolerance_can_be_explicitly_modeled_as_budget_component() -> None:
 
 
 def test_polynomial_model_participates_in_uncertainty_propagation() -> None:
-    from rtd.models import PolynomialRTDModel
+    from rtd_sensor.models import PolynomialRTDModel
 
     model = PolynomialRTDModel(
         reference_resistance_ohms=100.0,

@@ -8,7 +8,7 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from rtd.models import PolynomialRTDModel
+from rtd_sensor.models import PolynomialRTDModel
 
 
 def _cubic_model() -> PolynomialRTDModel:

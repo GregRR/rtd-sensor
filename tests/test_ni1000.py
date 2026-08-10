@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from rtd import ni1000
+from rtd_sensor import ni1000
 
 # Independent reference table
 # ---------------------------

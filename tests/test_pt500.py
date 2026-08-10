@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from rtd import pt500
+from rtd_sensor import pt500
 
 # Independent reference values
 # ----------------------------
@@ -158,7 +158,7 @@ def test_500_ohms_is_zero_celsius() -> None:
 def test_pt500_is_five_times_pt100_on_same_iec_curve(
     temperature_c: float,
 ) -> None:
-    from rtd import pt100
+    from rtd_sensor import pt100
 
     assert pt500.celsius_to_resistance(temperature_c) == pytest.approx(
         5.0 * pt100.celsius_to_resistance(temperature_c),
@@ -171,7 +171,7 @@ def test_pt500_is_five_times_pt100_on_same_iec_curve(
     [-200.0, -100.0, 0.0, 100.0, 500.0, 850.0],
 )
 def test_pt500_sensitivity_scales_from_pt100(temperature_c: float) -> None:
-    from rtd import pt100
+    from rtd_sensor import pt100
 
     assert pt500.resistance_sensitivity_ohms_per_celsius(
         temperature_c

@@ -6,8 +6,8 @@ import math
 
 import pytest
 
-import rtd._curves as _curves
-from rtd import ni120
+import rtd_sensor._curves as _curves
+from rtd_sensor import ni120
 
 # Independent reference table
 # ---------------------------

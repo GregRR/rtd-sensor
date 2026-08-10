@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-from rtd import (
+from rtd_sensor import (
     models,
     ni120,
     ni1000,
@@ -17,57 +17,57 @@ from rtd import (
 
 
 def test_package_exports_pt100_module() -> None:
-    from rtd import pt100 as imported_pt100
+    from rtd_sensor import pt100 as imported_pt100
 
     assert imported_pt100 is pt100
 
 
 def test_package_exports_pt500_module() -> None:
-    from rtd import pt500 as imported_pt500
+    from rtd_sensor import pt500 as imported_pt500
 
     assert imported_pt500 is pt500
 
 
 def test_package_exports_pt1000_module() -> None:
-    from rtd import pt1000 as imported_pt1000
+    from rtd_sensor import pt1000 as imported_pt1000
 
     assert imported_pt1000 is pt1000
 
 
 def test_package_exports_ni1000_module() -> None:
-    from rtd import ni1000 as imported_ni1000
+    from rtd_sensor import ni1000 as imported_ni1000
 
     assert imported_ni1000 is ni1000
 
 
 def test_package_exports_ni1000_tk5000_module() -> None:
-    from rtd import ni1000_tk5000 as imported_ni1000_tk5000
+    from rtd_sensor import ni1000_tk5000 as imported_ni1000_tk5000
 
     assert imported_ni1000_tk5000 is ni1000_tk5000
 
 
 def test_package_exports_ni120_module() -> None:
-    from rtd import ni120 as imported_ni120
+    from rtd_sensor import ni120 as imported_ni120
 
     assert imported_ni120 is ni120
 
 
 def test_package_exports_models_module() -> None:
-    from rtd import models as imported_models
+    from rtd_sensor import models as imported_models
 
     assert imported_models is models
 
 
 def test_package_exports_simulation_module() -> None:
-    from rtd import simulation as imported_simulation
+    from rtd_sensor import simulation as imported_simulation
 
     assert imported_simulation is simulation
 
 
 def test_package_public_api() -> None:
-    import rtd
+    import rtd_sensor
 
-    assert set(rtd.__all__) == {
+    assert set(rtd_sensor.__all__) == {
         "models",
         "ni1000",
         "ni1000_tk5000",
@@ -167,7 +167,7 @@ def test_pt1000_public_api() -> None:
 
 
 def test_package_exports_tolerance_module() -> None:
-    from rtd import tolerance as imported_tolerance
+    from rtd_sensor import tolerance as imported_tolerance
 
     assert imported_tolerance is tolerance
 
@@ -183,7 +183,7 @@ def test_tolerance_public_api() -> None:
 
 
 def test_package_exports_uncertainty_module() -> None:
-    from rtd import uncertainty as imported_uncertainty
+    from rtd_sensor import uncertainty as imported_uncertainty
 
     assert imported_uncertainty is uncertainty
 

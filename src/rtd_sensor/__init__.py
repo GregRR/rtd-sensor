@@ -5,7 +5,7 @@
 """Resistance temperature detector conversion and simulation tools.
 
 Example:
-    from rtd import pt100, simulation
+    from rtd_sensor import pt100, simulation
 
     reader = simulation.TemperatureSequenceReader(
         [20.0, 40.0, 60.0]

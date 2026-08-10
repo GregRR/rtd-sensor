@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from rtd import pt100
+from rtd_sensor import pt100
 
 # Independent reference values
 # ----------------------------

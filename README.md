@@ -1,4 +1,4 @@
-# pt100-core
+# rtd-sensor
 
 A small, platform-independent Python library for resistance temperature detectors (RTDs).
 Its verified built-in sensor modules currently cover IEC 60751 Pt100, Pt500, Pt1000,
@@ -11,7 +11,7 @@ tools, and simulation support.
 
 ## Scope
 
-`pt100-core` currently handles:
+`rtd-sensor` currently handles:
 
 ```text
 Pt100 resistance in ohms  ↔ temperature in Celsius
@@ -30,10 +30,10 @@ The Pt100/Pt500/Pt1000 modules use the IEC 60751 PT-385 platinum curve:
 * α ≈ 0.00385
 * ideal standardized curve from -200 °C through 850 °C
 
-`rtd.ni1000` implements the distinct former DIN 43760 nickel characteristic with
+`rtd_sensor.ni1000` implements the distinct former DIN 43760 nickel characteristic with
 1000 Ω at 0 °C, approximately 6178/6180 ppm/K over 0–100 °C, and a
 supported characteristic range of -60 °C through 250 °C. It must not be
-interchanged with `rtd.ni1000_tk5000`, which uses a different
+interchanged with `rtd_sensor.ni1000_tk5000`, which uses a different
 resistance-temperature curve.
 
 The conversion modules describe ideal characteristics rather than a particular
@@ -41,10 +41,41 @@ sensor manufacturer's packaging or probe construction.
 
 Hardware-specific concerns such as ADC readings, GPIO, SPI, I²C, excitation circuits, two-/three-/four-wire topology, and lead-wire compensation belong in separate hardware layers.
 
+## Installation
+
+```bash
+python -m pip install rtd-sensor
+```
+
+The distribution name uses a hyphen (`rtd-sensor`), while the Python import package uses an underscore (`rtd_sensor`).
+
+## Migrating from pt100-core 0.3.x
+
+Version 0.4.0 renames both the distribution and the Python import package as the project expands beyond its original Pt100-only scope:
+
+```text
+Old distribution:  pt100-core
+New distribution:  rtd-sensor
+Old Python import: rtd
+New Python import: rtd_sensor
+```
+
+For example:
+
+```python
+# pt100-core 0.3.x and earlier
+from rtd import pt100
+
+# rtd-sensor 0.4.0 and later
+from rtd_sensor import pt100
+```
+
+Advanced-model imports change the same way, for example from `rtd.models` to `rtd_sensor.models`. `rtd-sensor` intentionally does **not** ship an `rtd` compatibility package; applications migrating from `pt100-core` must update their imports. Existing `pt100-core` releases remain part of the historical release line.
+
 ## Basic usage
 
 ```python
-from rtd import ni1000, ni1000_tk5000, ni120, pt100, pt500, pt1000
+from rtd_sensor import ni1000, ni1000_tk5000, ni120, pt100, pt500, pt1000
 
 pt100_temperature_c = pt100.resistance_to_celsius(119.3971)
 pt100_resistance_ohms = pt100.celsius_to_resistance(50.0)
@@ -69,7 +100,7 @@ Physical numerical inputs such as temperature, resistance, coefficients, and unc
 
 ## Ni1000 6180 / former DIN 43760
 
-`rtd.ni1000` means the former DIN 43760 / Nickel ND characteristic, not an
+`rtd_sensor.ni1000` means the former DIN 43760 / Nickel ND characteristic, not an
 arbitrary sensor whose nominal resistance happens to be 1000 Ω. Its normalized
 forward equation is:
 
@@ -84,11 +115,11 @@ conformity ranges; those product limits are separate from the mathematical
 characteristic.
 
 Ni1000 TK5000 is a different characteristic and is not interchangeable with
-`rtd.ni1000`.
+`rtd_sensor.ni1000`.
 
 ## Ni1000 TK5000 / Nickel NL 5000 ppm/K
 
-`rtd.ni1000_tk5000` implements the distinct TK5000 characteristic. IST AG
+`rtd_sensor.ni1000_tk5000` implements the distinct TK5000 characteristic. IST AG
 publishes the same cubic as `Nickel NL (5000 ppm/K)`:
 
 ```text
@@ -107,7 +138,7 @@ user actually has the former-DIN 6180 characteristic, or vice versa.
 
 ## Ni120 / North American 6720 ppm/K
 
-`rtd.ni120` implements Minco's `NA` nickel characteristic: 120 Ω at 0 °C
+`rtd_sensor.ni120` implements Minco's `NA` nickel characteristic: 120 Ω at 0 °C
 with nominal TCR 0.00672 Ω/Ω/°C. Minco publishes this characteristic as
 twelve cubic intervals from -80 °C through 260 °C rather than as one global
 polynomial:
@@ -134,7 +165,7 @@ from narrower operating limits that a particular packaged sensor may specify.
 For an individual Pt100, Pt500, Pt1000, or other IEC 60751 PT-385 sensor with a characterized resistance at 0 °C, use `IEC60751RTDModel`:
 
 ```python
-from rtd.models import IEC60751RTDModel
+from rtd_sensor.models import IEC60751RTDModel
 
 probe = IEC60751RTDModel(
     r0_ohms=100.017,
@@ -151,7 +182,7 @@ The configurable model retains the standard IEC 60751 PT-385 curve while allowin
 For a probe whose calibration certificate or manufacturer documentation supplies an IEC-style Callendar–Van Dusen coefficient set, use `CallendarVanDusenRTDModel`:
 
 ```python
-from rtd.models import CallendarVanDusenRTDModel
+from rtd_sensor.models import CallendarVanDusenRTDModel
 
 calibrated_probe = CallendarVanDusenRTDModel(
     r0_ohms=100.025,
@@ -172,7 +203,7 @@ Custom coefficient models must declare their valid temperature range. `C` may be
 For a manufacturer, calibration laboratory, or legacy RTD characteristic that is published as one global polynomial, use `PolynomialRTDModel`:
 
 ```python
-from rtd.models import PolynomialRTDModel
+from rtd_sensor.models import PolynomialRTDModel
 
 example = PolynomialRTDModel(
     reference_resistance_ohms=10.0,
@@ -211,7 +242,7 @@ x = T - segment_temperature_origin
 For example:
 
 ```python
-from rtd.models import PiecewisePolynomialRTDModel, PiecewisePolynomialSegment
+from rtd_sensor.models import PiecewisePolynomialRTDModel, PiecewisePolynomialSegment
 
 example = PiecewisePolynomialRTDModel(
     reference_resistance_ohms=100.0,
@@ -237,12 +268,12 @@ Published piecewise fits are sometimes independently rounded and miss exact cont
 
 ## IEC 60751 tolerance classes
 
-The `rtd.tolerance` module calculates the maximum permitted temperature deviation for the standard IEC 60751:2022 tolerance classes. The standard distinguishes complete thermometers from bare platinum resistors, and it assigns different validity ranges to wire-wound and film construction.
+The `rtd_sensor.tolerance` module calculates the maximum permitted temperature deviation for the standard IEC 60751:2022 tolerance classes. The standard distinguishes complete thermometers from bare platinum resistors, and it assigns different validity ranges to wire-wound and film construction.
 
 For an assembled thermometer:
 
 ```python
-from rtd import tolerance
+from rtd_sensor import tolerance
 
 maximum_error_c = tolerance.thermometer_tolerance_c(
     100.0,
@@ -270,12 +301,12 @@ The standard validity range for the selected class is enforced. Values outside t
 
 ## Measurement uncertainty primitives
 
-The `rtd.uncertainty` module provides the low-level numerical building blocks used by measurement-uncertainty analysis. It does **not** automatically decide which effects belong in a particular sensor or hardware uncertainty budget.
+The `rtd_sensor.uncertainty` module provides the low-level numerical building blocks used by measurement-uncertainty analysis. It does **not** automatically decide which effects belong in a particular sensor or hardware uncertainty budget.
 
 For a symmetric bound `±a`, convert the bound to a standard uncertainty only after choosing an appropriate probability model:
 
 ```python
-from rtd import uncertainty
+from rtd_sensor import uncertainty
 
 u_rectangular = uncertainty.standard_uncertainty_from_bound(
     0.35,
@@ -310,7 +341,7 @@ No confidence level is inferred from a coverage factor. A statement such as `k =
 RTD models also expose their exact local resistance/temperature sensitivity. For the built-in platinum models this derivative comes from the Callendar–Van Dusen characteristic, while polynomial models differentiate their supplied polynomial analytically:
 
 ```python
-from rtd import pt100
+from rtd_sensor import pt100
 
 d_r_d_t = pt100.resistance_sensitivity_ohms_per_celsius(100.0)
 d_t_d_r = pt100.temperature_sensitivity_celsius_per_ohm(100.0)
@@ -323,7 +354,7 @@ These derivatives are evaluated analytically from the active RTD model rather th
 Propagate a resistance standard uncertainty through the same RTD model used for the nominal conversion:
 
 ```python
-from rtd import pt100, uncertainty
+from rtd_sensor import pt100, uncertainty
 
 propagated = uncertainty.propagate_resistance_uncertainty(
     100.0,
@@ -341,7 +372,7 @@ The result retains the measured resistance, converted temperature, resistance st
 Additional independent contributions that are already expressed as standard uncertainties in °C can be kept as named, inspectable components:
 
 ```python
-from rtd import pt100, tolerance, uncertainty
+from rtd_sensor import pt100, tolerance, uncertainty
 
 class_a_limit = tolerance.thermometer_tolerance_c(
     100.0,
@@ -391,7 +422,7 @@ compatibility. The currently registered identities are available through
 maintaining their own copy of the built-in identity list.
 
 ```python
-from rtd import simulation
+from rtd_sensor import simulation
 
 reader = simulation.TemperatureSequenceReader(
     [20.0, 40.0, 60.0],
@@ -431,7 +462,7 @@ uv run --locked mypy
 ## Project structure
 
 ```text
-src/rtd/
+src/rtd_sensor/
     _curves.py
     _models.py
     _validation.py
@@ -448,7 +479,7 @@ tests/
 docs/DESIGN.md
 ```
 
-The repository is named `pt100-core` for discoverability. The Python package uses the broader `rtd` namespace so additional RTD models and curves can be added later without changing existing Pt100 or Pt1000 imports.
+The repository and PyPI distribution are named `rtd-sensor`; the Python import package is `rtd_sensor`. Releases through 0.3.x used the historical `pt100-core` distribution and `rtd` import namespace; see the migration section above when updating existing applications.
 
 See [`docs/DESIGN.md`](docs/DESIGN.md) for detailed architecture and mathematical assumptions, and [`docs/ROADMAP.md`](docs/ROADMAP.md) for planned RTD families and future characteristic/calibration work.
 

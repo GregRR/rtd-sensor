@@ -7,9 +7,9 @@ from typing import cast
 
 import pytest
 
-import rtd._models as _models
-from rtd._curves import IEC_60751_PT385
-from rtd._models import (
+import rtd_sensor._models as _models
+from rtd_sensor._curves import IEC_60751_PT385
+from rtd_sensor._models import (
     BUILTIN_RTD_MODELS,
     NI120_6720,
     NI1000_6180,

@@ -8,8 +8,8 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from rtd import uncertainty
-from rtd.models import PiecewisePolynomialRTDModel, PiecewisePolynomialSegment
+from rtd_sensor import uncertainty
+from rtd_sensor.models import PiecewisePolynomialRTDModel, PiecewisePolynomialSegment
 
 
 def _continuous_model() -> PiecewisePolynomialRTDModel:

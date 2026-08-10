@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 import pytest
 
-from rtd import (
+from rtd_sensor import (
     ni120,
     ni1000,
     ni1000_tk5000,
@@ -17,7 +17,7 @@ from rtd import (
     tolerance,
     uncertainty,
 )
-from rtd.models import (
+from rtd_sensor.models import (
     CallendarVanDusenRTDModel,
     IEC60751RTDModel,
     PolynomialRTDModel,

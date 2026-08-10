@@ -1,11 +1,11 @@
-# pt100-core / future rtd-sensor roadmap
+# rtd-sensor roadmap
 
 This roadmap records planned capabilities and the scientific constraints that
 must be satisfied before they become supported public features. It is not a
 promise that every item will land in the next release.
 
-The project is evolving from its original Pt100-only scope toward a general RTD
-modeling library. The intended project identity after that transition is:
+The project has evolved from its original Pt100-only scope toward a general RTD
+modeling library. Beginning with version 0.4.0, the project identity is:
 
 ```text
 PyPI distribution:  rtd-sensor
@@ -13,11 +13,12 @@ Python import:       rtd_sensor
 GitHub repository:   rtd-sensor
 ```
 
-The rename is planned for a release in which multiple non-Pt100 RTD families
-are genuinely supported. Existing `pt100-core` releases remain part of the
-project history and will need a documented migration path.
+Version 0.4.0 completes the rename from the historical `pt100-core` distribution
+and `rtd` import package. Existing `pt100-core` releases remain part of the
+project history; migration requires updating imports to `rtd_sensor` as documented
+in the README.
 
-## 0.4.0 development direction
+## 0.4.x development direction
 
 ### Completed foundation
 
@@ -75,13 +76,13 @@ with equation provenance and independent reference values for each one.
 
 Likely near-term targets:
 
-- **Ni1000 6180 ppm/K** — implemented as `rtd.ni1000` using the former DIN
+- **Ni1000 6180 ppm/K** — implemented as `rtd_sensor.ni1000` using the former DIN
   43760 / Nickel ND characteristic. The mathematical -60 °C through 250 °C
   range is kept separate from narrower physical-product ratings.
-- **Ni1000 TK5000 / 5000 ppm/K** — implemented as `rtd.ni1000_tk5000`
+- **Ni1000 TK5000 / 5000 ppm/K** — implemented as `rtd_sensor.ni1000_tk5000`
   using the IST Nickel NL cubic and independently validated against the E+E
-  TK5000 R/T table. It remains a distinct identity from `rtd.ni1000`.
-- **Ni120 North-American 6720 ppm/K** — implemented as `rtd.ni120` using
+  TK5000 R/T table. It remains a distinct identity from `rtd_sensor.ni1000`.
+- **Ni120 North-American 6720 ppm/K** — implemented as `rtd_sensor.ni120` using
   Minco's twelve-segment `NA` characteristic from -80 °C through 260 °C, with
   explicit bounded stitching for printed-coefficient join mismatches and
   independent Pyromation R/T validation.
@@ -102,7 +103,7 @@ Before each characteristic is publicly exported, require:
 
 ### Additional nickel characteristics to investigate
 
-Keep these on the research roadmap even if they do not land in 0.4.0:
+Keep these on the research roadmap even if they do not land in 0.4.x:
 
 - Nickel NJ / approximately 6370 ppm/K and its actual nominal-resistance
   variants and industry aliases.
@@ -270,7 +271,7 @@ A source appearing here does not by itself make a characteristic supported.
   documented source discrepancy rather than silently averaging coefficients:
   https://www.mouser.com/datasheet/2/619/hera_s_a0009182606_1-2289114.pdf
 - IST AG nickel application note with the Nickel NL (5000 ppm/K) cubic
-  coefficients used by `rtd.ni1000_tk5000`:
+  coefficients used by `rtd_sensor.ni1000_tk5000`:
   https://www.mouser.com/datasheet/2/1426/nl1k0_520_2fw_b_007-2950467.pdf
 - E+E Ni1000 TK5000 resistance/temperature table used for independent
   implementation validation:

@@ -7,9 +7,9 @@ import random
 
 import pytest
 
-from rtd._curves import IEC_60751_PT385
-from rtd._models import RTDModel
-from rtd.models import CallendarVanDusenRTDModel, IEC60751RTDModel
+from rtd_sensor._curves import IEC_60751_PT385
+from rtd_sensor._models import RTDModel
+from rtd_sensor.models import CallendarVanDusenRTDModel, IEC60751RTDModel
 
 IEC_A = 3.9083e-3
 IEC_B = -5.775e-7

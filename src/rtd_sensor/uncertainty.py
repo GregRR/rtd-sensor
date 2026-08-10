@@ -53,8 +53,8 @@ type EvaluationMethod = Literal["A", "B"]
 class RTDUncertaintyModel(Protocol):
     """Structural interface required for RTD uncertainty propagation.
 
-    The built-in :mod:`rtd.pt100`, :mod:`rtd.pt500`, and :mod:`rtd.pt1000`
-    modules and the public
+    The built-in :mod:`rtd_sensor.pt100`, :mod:`rtd_sensor.pt500`, and
+    :mod:`rtd_sensor.pt1000` modules and the public
     configurable model classes all satisfy this protocol. Third-party models
     can participate without inheriting from a package-specific base class if
     they provide the same conversion and local-sensitivity operations.

@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from rtd import ni120, ni1000, ni1000_tk5000, pt100, pt500, pt1000, simulation
+from rtd_sensor import ni120, ni1000, ni1000_tk5000, pt100, pt500, pt1000, simulation
 
 _CONFLICTING_RTD_TYPE_PAIRS = tuple(
     (declared_type, explicit_type)

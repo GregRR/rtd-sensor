@@ -7,7 +7,7 @@ from typing import cast
 
 import pytest
 
-from rtd import tolerance
+from rtd_sensor import tolerance
 
 # Normative reference
 # -------------------

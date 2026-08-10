@@ -7,8 +7,8 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from rtd import pt100, pt1000
-from rtd.models import CallendarVanDusenRTDModel
+from rtd_sensor import pt100, pt1000
+from rtd_sensor.models import CallendarVanDusenRTDModel
 
 IEC_A = 3.9083e-3
 IEC_B = -5.775e-7
