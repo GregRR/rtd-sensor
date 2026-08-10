@@ -214,11 +214,17 @@ characteristic unless that provenance is actually established.
 
 ## Simulation and model identity
 
-The current simulation type registry now covers six built-in RTD identities and
-should be generalized before further nickel/copper characteristics are added.
-The future design should avoid an ever-growing hard-coded binary/ternary decision tree and should preserve the existing rule
-that a model-aware reader cannot be silently interpreted using a contradictory
-sensor identity.
+Simulation identity is now driven by one immutable built-in model registry rather
+than a separately maintained `Literal[...]` and lookup table. Each verified
+built-in declares its identity alongside its internal model definition,
+`simulation.SUPPORTED_RTD_TYPES` is generated from that registry, and the
+conflict/identity regression matrix expands automatically as new built-ins are
+registered. The existing rule remains unchanged: a model-aware reader cannot be
+silently interpreted using a contradictory sensor identity.
+
+A public plugin/registration mechanism remains intentionally deferred. User-defined
+RTD models and verified package built-ins have different provenance and support
+contracts, so simulation should not blur them merely to make registration dynamic.
 
 ## Hardware boundary
 

@@ -7,7 +7,9 @@
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
+from types import MappingProxyType
 
 from ._curves import (
     IEC_60751_PT385,
@@ -42,6 +44,7 @@ class RTDModel:
     name: str
     reference_resistance_ohms: float
     curve: RTDCurve
+    identity: str | None = None
 
     def __post_init__(self) -> None:
         reference_resistance_ohms = _as_float(
@@ -55,6 +58,13 @@ class RTDModel:
         object.__setattr__(
             self, "reference_resistance_ohms", reference_resistance_ohms
         )
+
+        if self.identity is not None and (
+            not self.identity or self.identity != self.identity.strip()
+        ):
+            raise ValueError(
+                "RTD model identity must be a non-empty, trimmed string"
+            )
 
     @property
     def reference_temperature_c(self) -> float:
@@ -140,43 +150,87 @@ class RTDModel:
             )
 
 
-PT100_IEC_60751 = RTDModel(
+_BUILTIN_RTD_MODELS: dict[str, RTDModel] = {}
+
+
+def _built_in_model(
+    *,
+    identity: str,
+    name: str,
+    reference_resistance_ohms: float,
+    curve: RTDCurve,
+) -> RTDModel:
+    """Create and register one built-in model under its simulation identity.
+
+    Built-in identity belongs with the model definition rather than in the
+    simulation module. Keeping registration here gives the package one
+    authoritative identity-to-model mapping and prevents a new RTD from being
+    added to conversion APIs while simulation silently retains a stale list.
+    """
+    if identity in _BUILTIN_RTD_MODELS:
+        raise RuntimeError(f"Duplicate built-in RTD identity: {identity!r}")
+
+    model = RTDModel(
+        name=name,
+        reference_resistance_ohms=reference_resistance_ohms,
+        curve=curve,
+        identity=identity,
+    )
+    _BUILTIN_RTD_MODELS[identity] = model
+    return model
+
+
+PT100_IEC_60751 = _built_in_model(
+    identity="pt100",
     name="Pt100",
     reference_resistance_ohms=100.0,
     curve=IEC_60751_PT385,
 )
 
 
-PT500_IEC_60751 = RTDModel(
+PT500_IEC_60751 = _built_in_model(
+    identity="pt500",
     name="Pt500",
     reference_resistance_ohms=500.0,
     curve=IEC_60751_PT385,
 )
 
 
-PT1000_IEC_60751 = RTDModel(
+PT1000_IEC_60751 = _built_in_model(
+    identity="pt1000",
     name="Pt1000",
     reference_resistance_ohms=1000.0,
     curve=IEC_60751_PT385,
 )
 
 
-NI1000_6180 = RTDModel(
+NI1000_6180 = _built_in_model(
+    identity="ni1000",
     name="Ni1000 6180",
     reference_resistance_ohms=1000.0,
     curve=NI_6180_DIN_43760,
 )
 
 
-NI1000_TK5000 = RTDModel(
+NI1000_TK5000 = _built_in_model(
+    identity="ni1000_tk5000",
     name="Ni1000 TK5000",
     reference_resistance_ohms=1000.0,
     curve=NI_5000_TK5000,
 )
 
 
-NI120_6720 = RTDModel(
+NI120_6720 = _built_in_model(
+    identity="ni120",
     name="Ni120 North American 6720",
     reference_resistance_ohms=120.0,
     curve=NI_6720_NORTH_AMERICAN,
+)
+
+
+# Expose an immutable internal view so every consumer uses the same registry.
+# There is intentionally no public registration API yet: this is a closed set
+# of verified built-ins, not a plugin mechanism for arbitrary user models.
+BUILTIN_RTD_MODELS: Mapping[str, RTDModel] = MappingProxyType(
+    _BUILTIN_RTD_MODELS
 )

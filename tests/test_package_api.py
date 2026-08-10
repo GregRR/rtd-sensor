@@ -192,6 +192,7 @@ def test_simulation_public_api() -> None:
         "FixedResistanceReader",
         "NoisyTemperatureReader",
         "RTDType",
+        "SUPPORTED_RTD_TYPES",
         "ResistanceReader",
         "ResistanceSequenceReader",
         "TemperatureSequenceReader",

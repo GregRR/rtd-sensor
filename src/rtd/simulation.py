@@ -18,7 +18,7 @@ import math
 import random
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Literal, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from . import _models
 from ._validation import as_float as _as_float
@@ -29,28 +29,22 @@ __all__ = [
     "RTDType",
     "ResistanceReader",
     "ResistanceSequenceReader",
+    "SUPPORTED_RTD_TYPES",
     "TemperatureSequenceReader",
     "read_temperature_celsius",
 ]
 
 
-type RTDType = Literal[
-    "pt100",
-    "pt500",
-    "pt1000",
-    "ni1000",
-    "ni1000_tk5000",
-    "ni120",
-]
+type RTDType = str
 
-_SUPPORTED_MODELS: dict[RTDType, _models.RTDModel] = {
-    "pt100": _models.PT100_IEC_60751,
-    "pt500": _models.PT500_IEC_60751,
-    "pt1000": _models.PT1000_IEC_60751,
-    "ni1000": _models.NI1000_6180,
-    "ni1000_tk5000": _models.NI1000_TK5000,
-    "ni120": _models.NI120_6720,
-}
+# Python's type system cannot derive a Literal[...] union from a runtime
+# registry. Keep the public spelling as strings and make the immutable model
+# registry the authoritative source of what is actually supported. This avoids
+# duplicating every new built-in identity in both a type alias and a lookup
+# table while retaining strict runtime validation.
+SUPPORTED_RTD_TYPES: tuple[RTDType, ...] = tuple(
+    _models.BUILTIN_RTD_MODELS
+)
 
 
 class ResistanceReader(Protocol):
@@ -315,9 +309,9 @@ def read_temperature_celsius(
 
 def _model_for_rtd_type(rtd_type: RTDType) -> _models.RTDModel:
     try:
-        return _SUPPORTED_MODELS[rtd_type]
+        return _models.BUILTIN_RTD_MODELS[rtd_type]
     except KeyError as error:
-        supported = ", ".join(sorted(_SUPPORTED_MODELS))
+        supported = ", ".join(sorted(SUPPORTED_RTD_TYPES))
         raise ValueError(
             f"Unsupported RTD type {rtd_type!r}; expected one of: {supported}"
         ) from error

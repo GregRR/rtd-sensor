@@ -259,6 +259,10 @@ remains the default for backward compatibility.
 
 A reader that declares an RTD type establishes a model-identity invariant: its declared type must not diverge from the model used to validate or generate its resistance values. Built-in readers therefore keep `rtd_type` read-only after construction. `read_temperature_celsius()` also rejects an explicit RTD type that conflicts with a model-aware reader's declaration. Generic readers that expose only resistance remain supported; callers may select their RTD type explicitly, and untyped readers still default to Pt100 for backward compatibility.
 
+Built-in simulation identities are registered with their internal `RTDModel` definitions and exposed through one immutable identity-to-model registry. Simulation must consume that registry rather than maintain a second sensor list. This keeps conversion support and simulation identity from drifting apart as new verified characteristics are added. `simulation.SUPPORTED_RTD_TYPES` is generated from the same registry.
+
+`simulation.RTDType` is intentionally a string alias rather than a closed `Literal[...]` union. Python's static type system cannot derive a literal union from the runtime registry, so retaining both would recreate two sources of truth. Runtime model selection remains strict: a string not present in the built-in registry raises `ValueError`. There is no public runtime registration/plugin API at this stage; the registry represents the package's verified built-in characteristics only.
+
 Future simulation additions may include ramps, heating and cooling profiles, and injected open-circuit or short-circuit faults.
 
 Simulation components expose resistance values so they exercise the same application path as real hardware.
@@ -391,9 +395,9 @@ An RTD model combines:
 * a normalized characteristic;
 * a reference resistance (`Rref`);
 * the characteristic's reference temperature (`Tref`);
-* a model identity.
+* an optional built-in model identity, where applicable.
 
-This permits multiple RTD models to share one verified characteristic without duplicating conversion logic.
+This permits multiple RTD models to share one verified characteristic without duplicating conversion logic. Verified package built-ins carry a stable string identity used by simulation; ad hoc/custom internal models do not become built-ins merely by having conversion behavior.
 
 The implementation defines the IEC 60751 PT-385 Callendar–Van Dusen curve once and combines it with model-specific `R0` values. Pt100 uses `R0 = 100 Ω`, Pt500 uses `R0 = 500 Ω`, and Pt1000 uses `R0 = 1000 Ω`.
 

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+* Generalized simulation model identity around one immutable built-in RTD
+  registry, with discoverable supported identities and registry-driven
+  mismatch/immutability regression coverage that expands automatically as new
+  built-in characteristics are added. `simulation.RTDType` is now a string alias
+  backed by strict runtime registry validation instead of a separately maintained
+  closed `Literal[...]` union.
 * Added built-in North American Ni120 / 6720 ppm/K conversion using Minco's
   twelve-segment nickel characteristic, with auditable continuity stitching,
   simulation and uncertainty support, and independent Pyromation R/T tests.

@@ -7,7 +7,16 @@ import math
 import pytest
 
 from rtd._curves import IEC_60751_PT385
-from rtd._models import RTDModel
+from rtd._models import (
+    BUILTIN_RTD_MODELS,
+    NI120_6720,
+    NI1000_6180,
+    NI1000_TK5000,
+    PT100_IEC_60751,
+    PT500_IEC_60751,
+    PT1000_IEC_60751,
+    RTDModel,
+)
 
 
 def _model(r0_ohms: float) -> RTDModel:
@@ -108,3 +117,26 @@ def test_generic_model_rejects_invalid_resistance(
     model = _model(250.0)
     with pytest.raises(ValueError):
         model.resistance_to_celsius(resistance_ohms)
+
+
+def test_custom_internal_model_has_no_builtin_identity() -> None:
+    assert _model(250.0).identity is None
+
+
+@pytest.mark.parametrize(
+    ("model", "identity"),
+    [
+        (PT100_IEC_60751, "pt100"),
+        (PT500_IEC_60751, "pt500"),
+        (PT1000_IEC_60751, "pt1000"),
+        (NI1000_6180, "ni1000"),
+        (NI1000_TK5000, "ni1000_tk5000"),
+        (NI120_6720, "ni120"),
+    ],
+)
+def test_builtin_models_carry_registered_identity(
+    model: RTDModel,
+    identity: str,
+) -> None:
+    assert model.identity == identity
+    assert BUILTIN_RTD_MODELS[identity] is model

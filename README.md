@@ -384,8 +384,11 @@ resistance-to-temperature conversion and local `dT/dR` sensitivity methods.
 
 ## Simulation
 
-Simulation readers support Pt100, Pt500, Pt1000, and the former-DIN Ni1000
-6180 characteristic. Pt100 remains the default for backward compatibility.
+Simulation readers support every verified built-in RTD characteristic through one
+authoritative model-identity registry. Pt100 remains the default for backward
+compatibility. The currently registered identities are available through
+`simulation.SUPPORTED_RTD_TYPES`, so applications can populate selectors without
+maintaining their own copy of the built-in identity list.
 
 ```python
 from rtd import simulation
@@ -407,7 +410,7 @@ temperature_c = simulation.read_temperature_celsius(
 )
 ```
 
-Built-in model-aware readers keep their RTD identity fixed after construction. If a reader declares `rtd_type="pt1000"`, passing a conflicting explicit `rtd_type="pt100"` to `read_temperature_celsius()` raises `ValueError` instead of silently interpreting the resistance with the wrong model. Supplying the same explicit type remains valid.
+Built-in model-aware readers keep their RTD identity fixed after construction. If a reader declares `rtd_type="pt1000"`, passing a conflicting explicit `rtd_type="pt100"` to `read_temperature_celsius()` raises `ValueError` instead of silently interpreting the resistance with the wrong model. Supplying the same explicit type remains valid. `RTDType` remains a string alias because Python cannot derive a static `Literal[...]` union from the runtime registry; unsupported strings are still rejected strictly at runtime.
 
 ## Development setup
 
@@ -459,7 +462,7 @@ The current development branch provides:
 - former-DIN Ni1000 6178/6180 ppm/K resistance-to-temperature and temperature-to-resistance conversion
 - independently sourced reference-value tests for all built-in RTD characteristics
 - shared internal RTD curve and model infrastructure
-- model-aware Pt100/Pt500/Pt1000/Ni1000 simulation while preserving Pt100 defaults
+- registry-driven model-aware simulation for all built-in RTD characteristics while preserving Pt100 defaults
 - public configurable IEC 60751 models for individually characterized `R0` values and declared temperature ranges
 - public Callendar–Van Dusen models for traceable user-supplied `R0`, `A`, `B`, and optional `C` coefficient sets
 - generic polynomial RTD models with explicit reference resistance/temperature, provenance, analytical sensitivity, and validated monotonic inversion

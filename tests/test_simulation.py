@@ -3,11 +3,17 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import math
-from typing import cast
 
 import pytest
 
 from rtd import ni120, ni1000, ni1000_tk5000, pt100, pt500, pt1000, simulation
+
+_CONFLICTING_RTD_TYPE_PAIRS = tuple(
+    (declared_type, explicit_type)
+    for declared_type in simulation.SUPPORTED_RTD_TYPES
+    for explicit_type in simulation.SUPPORTED_RTD_TYPES
+    if declared_type != explicit_type
+)
 
 
 def test_fixed_resistance_reader_repeats_value() -> None:
@@ -445,7 +451,7 @@ def test_explicit_ni120_type_converts_bare_reader() -> None:
     ) == pytest.approx(65.0, abs=1e-9)
 
 def test_unsupported_rtd_type_is_rejected() -> None:
-    unsupported = cast(simulation.RTDType, "cu10")
+    unsupported: simulation.RTDType = "cu10"
 
     with pytest.raises(ValueError, match="Unsupported RTD type"):
         simulation.TemperatureSequenceReader(
@@ -456,38 +462,7 @@ def test_unsupported_rtd_type_is_rejected() -> None:
 
 @pytest.mark.parametrize(
     ("declared_type", "explicit_type"),
-    [
-        ("pt100", "pt500"),
-        ("pt100", "pt1000"),
-        ("pt500", "pt100"),
-        ("pt500", "pt1000"),
-        ("pt1000", "pt100"),
-        ("pt1000", "pt500"),
-        ("pt100", "ni1000"),
-        ("pt500", "ni1000"),
-        ("pt1000", "ni1000"),
-        ("ni1000", "pt100"),
-        ("ni1000", "pt500"),
-        ("ni1000", "pt1000"),
-        ("pt100", "ni1000_tk5000"),
-        ("pt500", "ni1000_tk5000"),
-        ("pt1000", "ni1000_tk5000"),
-        ("ni1000", "ni1000_tk5000"),
-        ("ni1000_tk5000", "pt100"),
-        ("ni1000_tk5000", "pt500"),
-        ("ni1000_tk5000", "pt1000"),
-        ("ni1000_tk5000", "ni1000"),
-        ("pt100", "ni120"),
-        ("pt500", "ni120"),
-        ("pt1000", "ni120"),
-        ("ni1000", "ni120"),
-        ("ni1000_tk5000", "ni120"),
-        ("ni120", "pt100"),
-        ("ni120", "pt500"),
-        ("ni120", "pt1000"),
-        ("ni120", "ni1000"),
-        ("ni120", "ni1000_tk5000"),
-    ],
+    _CONFLICTING_RTD_TYPE_PAIRS,
 )
 def test_model_aware_reader_rejects_conflicting_explicit_type(
     declared_type: simulation.RTDType,
@@ -514,10 +489,7 @@ def test_model_aware_reader_rejects_conflicting_explicit_type(
     )
 
 
-@pytest.mark.parametrize(
-    "rtd_type",
-    ["pt100", "pt500", "pt1000", "ni1000", "ni1000_tk5000", "ni120"],
-)
+@pytest.mark.parametrize("rtd_type", simulation.SUPPORTED_RTD_TYPES)
 def test_model_aware_reader_accepts_matching_explicit_type(
     rtd_type: simulation.RTDType,
 ) -> None:
@@ -534,38 +506,7 @@ def test_model_aware_reader_accepts_matching_explicit_type(
 
 @pytest.mark.parametrize(
     ("declared_type", "explicit_type"),
-    [
-        ("pt100", "pt500"),
-        ("pt100", "pt1000"),
-        ("pt500", "pt100"),
-        ("pt500", "pt1000"),
-        ("pt1000", "pt100"),
-        ("pt1000", "pt500"),
-        ("pt100", "ni1000"),
-        ("pt500", "ni1000"),
-        ("pt1000", "ni1000"),
-        ("ni1000", "pt100"),
-        ("ni1000", "pt500"),
-        ("ni1000", "pt1000"),
-        ("pt100", "ni1000_tk5000"),
-        ("pt500", "ni1000_tk5000"),
-        ("pt1000", "ni1000_tk5000"),
-        ("ni1000", "ni1000_tk5000"),
-        ("ni1000_tk5000", "pt100"),
-        ("ni1000_tk5000", "pt500"),
-        ("ni1000_tk5000", "pt1000"),
-        ("ni1000_tk5000", "ni1000"),
-        ("pt100", "ni120"),
-        ("pt500", "ni120"),
-        ("pt1000", "ni120"),
-        ("ni1000", "ni120"),
-        ("ni1000_tk5000", "ni120"),
-        ("ni120", "pt100"),
-        ("ni120", "pt500"),
-        ("ni120", "pt1000"),
-        ("ni120", "ni1000"),
-        ("ni120", "ni1000_tk5000"),
-    ],
+    _CONFLICTING_RTD_TYPE_PAIRS,
 )
 def test_external_model_aware_reader_rejects_conflicting_type(
     declared_type: simulation.RTDType,
@@ -591,7 +532,7 @@ def test_external_model_aware_reader_rejects_conflicting_type(
 
 def test_external_model_aware_reader_rejects_unsupported_declaration() -> None:
     class InvalidDeclaredReader:
-        rtd_type = cast(simulation.RTDType, "cu10")
+        rtd_type: simulation.RTDType = "cu10"
 
         def read_resistance_ohms(self) -> float:
             return pt100.celsius_to_resistance(65.0)
@@ -600,22 +541,21 @@ def test_external_model_aware_reader_rejects_unsupported_declaration() -> None:
         simulation.read_temperature_celsius(InvalidDeclaredReader())
 
 
-@pytest.mark.parametrize(
-    ("rtd_type", "replacement_type", "reference_resistance_ohms"),
-    [
-        ("pt100", "pt500", 100.0),
-        ("pt500", "pt1000", 500.0),
-        ("pt1000", "pt100", 1000.0),
-        ("ni1000", "pt100", 1000.0),
-        ("ni1000_tk5000", "pt100", 1000.0),
-        ("ni120", "pt100", 120.0),
-    ],
-)
+@pytest.mark.parametrize("rtd_type", simulation.SUPPORTED_RTD_TYPES)
 def test_builtin_reader_rtd_identity_is_read_only(
     rtd_type: simulation.RTDType,
-    replacement_type: simulation.RTDType,
-    reference_resistance_ohms: float,
 ) -> None:
+    replacement_type = next(
+        candidate
+        for candidate in simulation.SUPPORTED_RTD_TYPES
+        if candidate != rtd_type
+    )
+    reference_reader = simulation.TemperatureSequenceReader(
+        [0.0],
+        rtd_type=rtd_type,
+    )
+    reference_resistance_ohms = reference_reader.read_resistance_ohms()
+
     readers = (
         simulation.FixedResistanceReader(
             reference_resistance_ohms,
