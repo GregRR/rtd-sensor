@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+* Added a public `PolynomialRTDModel` for traceable single-polynomial RTD characteristics with an explicit reference resistance, reference temperature, declared range, coefficient provenance, analytical sensitivity, and dependency-free inverse conversion.
+* Added polynomial curve validation that checks finite positive resistance and locates analytical-slope extrema so non-monotonic regions cannot hide between arbitrary sampling points.
+* Generalized the internal RTD scaling model from a hard-coded 0 °C resistance assumption to an explicit curve reference resistance/temperature while preserving the existing Pt100/Pt500/Pt1000 and CVD public APIs.
+* Added `docs/ROADMAP.md` to preserve the planned Ni1000 6180, Ni1000 TK5000, Ni120, additional nickel, Cu10/Cu100, piecewise-polynomial, tabulated-characteristic, calibration-fitting, and `rtd-sensor` rename work.
 ### Added
 
 * IEC 60751 Pt500 resistance-to-temperature and temperature-to-resistance conversion using the shared PT-385 curve with `R0 = 500 Ω`.

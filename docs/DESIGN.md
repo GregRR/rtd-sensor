@@ -199,7 +199,7 @@ Round-trip tests alone are insufficient because the forward and inverse implemen
 
 ## 9. Accuracy boundaries
 
-The built-in Pt100, Pt500, and Pt1000 conversion functions describe the ideal standardized IEC curve. The advanced model APIs can represent an individually characterized `R0` or a traceable custom Callendar–Van Dusen coefficient set, and `rtd.tolerance` can calculate the numerical IEC class limit. These layers remain distinct: none of them, by themselves, establishes the total measurement accuracy of a physical installation.
+The built-in Pt100, Pt500, and Pt1000 conversion functions describe the ideal standardized IEC curve. The advanced model APIs can represent an individually characterized `R0`, a traceable custom Callendar–Van Dusen coefficient set, or a separately sourced polynomial RTD characteristic. `rtd.tolerance` currently calculates the numerical IEC platinum class limit. These layers remain distinct: none of them, by themselves, establishes the total measurement accuracy of a physical installation.
 
 Effects that remain outside nominal curve conversion include:
 
@@ -259,6 +259,7 @@ tests/
 ├── test_models.py
 ├── test_numeric_input_validation.py
 ├── test_package_api.py
+├── test_polynomial_models.py
 ├── test_pt100.py
 ├── test_pt500.py
 ├── test_pt1000.py
@@ -281,28 +282,31 @@ The Python import namespace begins as `rtd`:
 from rtd import pt100
 ```
 
-As the project grows beyond its original Pt100-only scope, the repository/distribution may be renamed to a broader RTD-focused name such as `rtd-sensor`. The final name should be checked for package-index and repository availability before a rename. The Python import path can remain `rtd`, so existing user code does not need to change.
+The project has now outgrown the Pt100-only identity. The planned 0.4.x migration is to rename the distribution and repository to `rtd-sensor` and the Python import package to `rtd_sensor`. That is intentionally a public migration rather than preserving the ambiguous `rtd` import forever. Existing `pt100-core` releases remain part of the historical release line and the rename must include explicit migration documentation.
+
+The detailed feature and migration sequence is tracked in [`ROADMAP.md`](ROADMAP.md).
 
 
 ## 12. Generalized RTD architecture and future support
 
-The conversion architecture separates the normalized resistance-temperature curve from the nominal resistance of a particular RTD model.
+The conversion architecture separates a normalized resistance-temperature characteristic from the resistance used to scale that characteristic.
 
-A curve describes the relationship:
+A general curve describes:
 
 ```text
-R(T) / R0
+R(T) / Rref
 ```
 
-independently of the absolute value of `R0`.
+where `Rref` is the resistance at the curve's explicit reference temperature `Tref`. For the IEC 60751 platinum characteristic, `Tref = 0 °C` and `Rref` is the traditional `R0`. Keeping the reference temperature explicit avoids baking the 0 °C convention into the generic RTD layer and leaves room for future characteristics referenced at another temperature.
 
 An RTD model combines:
 
-* a curve;
-* a nominal or calibrated resistance at 0 °C (`R0`);
+* a normalized characteristic;
+* a reference resistance (`Rref`);
+* the characteristic's reference temperature (`Tref`);
 * a model identity.
 
-This permits multiple RTD models to share one verified standardized curve without duplicating conversion logic.
+This permits multiple RTD models to share one verified characteristic without duplicating conversion logic.
 
 The implementation defines the IEC 60751 PT-385 Callendar–Van Dusen curve once and combines it with model-specific `R0` values. Pt100 uses `R0 = 100 Ω`, Pt500 uses `R0 = 500 Ω`, and Pt1000 uses `R0 = 1000 Ω`.
 
@@ -311,7 +315,7 @@ The low-level curve and model infrastructure remains internal. Public modules sh
 
 ### Public configurable and calibrated models
 
-The public advanced-model API has two deliberately distinct levels.
+The public advanced-model API has three deliberately distinct levels.
 
 `rtd.models.IEC60751RTDModel` represents an RTD that retains the standardized IEC 60751 PT-385 curve while allowing:
 
@@ -335,6 +339,32 @@ The custom-CVD model follows these rules:
 A user-supplied coefficient set is not automatically described as IEC 60751 compliant merely because it uses the same algebraic form. The standard `IEC60751RTDModel` remains the explicit API for the package's verified IEC PT-385 curve.
 
 The library consumes characterized or calibrated parameters; it does not currently fit `R0`, `A`, `B`, or `C` from raw calibration observations. Historical `R0`, alpha, delta, beta coefficient notation and ITS-90 interpolation functions are also outside the current public API.
+
+### Generic polynomial characteristics
+
+`rtd.models.PolynomialRTDModel` provides the first material-neutral public characteristic model. For `x = T - Tref`, it represents:
+
+```text
+R(T) = Rref × (1 + c1*x + c2*x² + ... + cn*xⁿ)
+```
+
+The constant term is implicit because the normalized resistance must equal 1 at the reference temperature. The public model retains `Rref`, `Tref`, the normalized coefficients, the declared valid range, a human-readable name, and optional coefficient provenance.
+
+A polynomial model is accepted only when the complete declared interval is mathematically usable as an RTD characteristic. Validation therefore requires:
+
+* finite coefficients and reference quantities;
+* positive reference resistance;
+* finite, positive resistance throughout the supported range;
+* a strictly positive analytical slope throughout the range; and
+* a bounded, unique inverse.
+
+The slope is evaluated analytically. Its extrema are located from roots of the polynomial's second derivative using recursive derivative partitioning and bounded bisection, rather than by checking an arbitrary temperature grid. This preserves the same design goal established by custom CVD validation: a narrow non-monotonic region must not be able to hide between sampled test points.
+
+Once the curve is proven strictly increasing, resistance-to-temperature conversion uses bounded bisection on the authoritative forward polynomial. The library does not require SciPy and does not substitute a lower-accuracy approximate inverse polynomial merely for speed.
+
+The single-polynomial model must not be used to distort an authoritative piecewise or tabulated characteristic. Piecewise-polynomial and table-backed representations are planned as separate characteristic types and are recorded in `ROADMAP.md`.
+
+The generic model also deliberately supports a reference temperature other than 0 °C. That capability is architectural future-proofing; it does not imply that any particular future Cu10 or other characteristic is supported until its provenance and reference definition are independently established.
 
 ### IEC 60751 tolerance classes
 
@@ -377,12 +407,14 @@ triangular:  u = a / sqrt(6)
 
 The choice of distribution is a property of the uncertainty model, not of the numerical bound itself. Consequently, IEC tolerance limits, manufacturer specifications, calibration limits, and similar bounded quantities are never converted automatically. The caller must explicitly choose the probability model justified by the available information.
 
-The Callendar–Van Dusen curve implementation also exposes its exact local analytical derivative. For an RTD model:
+Each supported characteristic exposes its local analytical resistance slope where the characteristic form permits it. For a normalized RTD model:
 
 ```text
-dR/dT = R0 × d(R/R0)/dT
+dR/dT = Rref × d(R/Rref)/dT
 dT/dR = 1 / (dR/dT)
 ```
+
+For the IEC Callendar–Van Dusen platinum characteristic specifically, `Rref = R0` at 0 °C and:
 
 For `t >= 0 °C`:
 
@@ -396,7 +428,7 @@ For `t < 0 °C`:
 d(R/R0)/dT = A + 2Bt + C t² (4t - 300)
 ```
 
-These sensitivities are calculated analytically from the active curve coefficients, including user-supplied calibrated coefficients, rather than approximated numerically. They are the sensitivity coefficients needed to propagate resistance uncertainty into temperature uncertainty in the next implementation batch.
+These sensitivities are calculated from the active characteristic rather than approximated from the final temperature conversion. The CVD and polynomial models both provide analytical `dR/dT`, including user-supplied coefficients. They are the sensitivity coefficients used by the measurement-uncertainty layer to propagate resistance uncertainty into temperature uncertainty.
 
 The initial helper for combining standard uncertainties assumes uncorrelated inputs. Covariance terms, coefficient covariance, effective degrees of freedom, coverage-interval selection, and Monte Carlo propagation remain outside this first uncertainty foundation and must not be implied by the root-sum-square helper.
 
@@ -408,23 +440,15 @@ Two-wire, three-wire, and four-wire topology affects acquisition and compensatio
 
 The scientific conversion layer must not require a wire-count parameter.
 
-### Potential future additions
+### Planned characteristic expansion
 
-Potential future additions include:
+The current development roadmap is maintained in [`ROADMAP.md`](ROADMAP.md). Near-term work is expected to add characteristic infrastructure and then researched nickel support, including distinct Ni1000 6180 and TK5000 characteristics plus a specifically identified North-American Ni120 characteristic. Later research includes additional nickel/Balco variants and Cu10/Cu100 candidates.
 
-* Ni1000 nickel RTD characteristic(s), after the supported curve/standard is identified and independently validated;
-* Ni120 nickel RTD support, with its characteristic, valid range, and tolerance semantics documented independently of IEC platinum classes;
-* Cu10 copper RTD support, after the applicable characteristic/standard and useful range are verified;
-* alternate standardized platinum curves;
-* structured RTD uncertainty budgets with covariance-aware propagation;
-* vectorized conversion; and
-* tabular or lookup-based conversion for constrained systems.
-
-The likely 0.4 development direction is Pt500 plus researched nickel support, followed by a project/distribution/import rename to the broader `rtd-sensor` / `rtd_sensor` identity. The rename is a migration decision and does not change the scientific requirement that every newly supported RTD characteristic have explicit provenance, range, independent reference values, and tests.
+A nominal resistance or TCR value alone is not sufficient evidence that two RTDs share one characteristic. Every built-in characteristic must retain explicit identity and provenance, and apparently similar manufacturer curves must remain distinct when their published resistance/temperature behavior differs.
 
 Nominal conversion, calibration, tolerance, and uncertainty are related but separate concerns. Basic resistance-temperature conversion should continue to return the ideal value represented by the selected model. Calibration, tolerance, and uncertainty should be layered on top rather than silently altering nominal conversion behavior.
 
-The scalar, dependency-free implementation should remain the reference calculation. Future vectorized or lookup implementations should be verified against it.
+The scalar, dependency-free implementation should remain the reference calculation. Future piecewise, tabulated, vectorized, fitting, or lookup implementations should be verified against their authoritative source representation and must preserve the same range and inversion guarantees.
 
 ### Support-readiness policy
 
@@ -473,19 +497,19 @@ Pt500 is implemented as the third verified IEC 60751 PT-385 nominal platinum RTD
 Possible companion projects include:
 
 ```text
-pt100-hardware
+rtd-hardware
     Shared hardware-facing interfaces and measurement models
 
-pt100-max31865
+rtd-max31865
     MAX31865 driver independent of host platform
 
-pt100-bbb
+rtd-bbb
     BeagleBone-specific acquisition adapters
 
-pt100-rpi
+rtd-rpi
     Raspberry Pi-specific acquisition adapters
 
-pt100-examples
+rtd-examples
     Complete applications and integration examples
 ```
 
@@ -515,9 +539,9 @@ The following decisions remain intentionally deferred:
 2. ITS-90 interpolation support for reference-grade calibrated PRTs.
 3. Covariance-aware uncertainty propagation, effective degrees of freedom, and Monte Carlo methods.
 4. Optional vectorized conversion support.
-5. Lookup-table generation and interpolation APIs.
-6. Whether the distribution and repository should eventually be renamed
-   after multiple RTD families are genuinely supported.
+5. Exact public APIs for piecewise-polynomial and tabulated characteristics.
+6. Calibration-point fitting APIs and how fitted-coefficient covariance should
+   integrate with later uncertainty propagation.
 
 
 

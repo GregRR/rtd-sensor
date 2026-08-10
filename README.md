@@ -1,9 +1,10 @@
 # pt100-core
 
-A small, platform-independent Python library for platinum resistance temperature detectors (RTDs).
-It provides IEC 60751 Pt100, Pt500, and Pt1000 resistance↔temperature conversion, configurable and
-calibrated Callendar–Van Dusen models, standard tolerance calculations, measurement-uncertainty
-tools, and simulation support.
+A small, platform-independent Python library for resistance temperature detectors (RTDs).
+Its verified built-in sensor modules currently cover IEC 60751 Pt100, Pt500, and Pt1000. The
+library also provides configurable and calibrated Callendar–Van Dusen models, a generic
+polynomial RTD model for traceable manufacturer/user characteristics, standard platinum
+tolerance calculations, measurement-uncertainty tools, and simulation support.
 
 ## Scope
 
@@ -82,6 +83,38 @@ calibrated_probe = CallendarVanDusenRTDModel(
 
 Custom coefficient models must declare their valid temperature range. `C` may be omitted only when that range is entirely at or above 0 °C. The model validates that the supplied curve remains finite, positive-resistance, and strictly increasing over the interval required for conversion. Custom coefficients are not automatically described as IEC 60751 compliant; `coefficient_source` can retain a calibration-certificate or manufacturer reference alongside the model.
 
+## Generic polynomial RTD models
+
+For a manufacturer, calibration laboratory, or legacy RTD characteristic that is published as one global polynomial, use `PolynomialRTDModel`:
+
+```python
+from rtd.models import PolynomialRTDModel
+
+example = PolynomialRTDModel(
+    reference_resistance_ohms=10.0,
+    reference_temperature_c=25.0,
+    coefficients=(0.01,),
+    minimum_temperature_c=-20.0,
+    maximum_temperature_c=80.0,
+    name="Illustrative linear RTD",
+    coefficient_source="Example only — not a real sensor characteristic",
+)
+
+assert example.celsius_to_resistance(25.0) == 10.0
+```
+
+For `x = T - reference_temperature_c`, the model uses:
+
+```text
+R(T) = Rref × (1 + c1*x + c2*x² + ... + cn*xⁿ)
+```
+
+`coefficients` therefore contains `(c1, c2, ..., cn)`; the constant term is implicitly 1 at the reference temperature. This formulation is intentionally not tied to platinum or to a 0 °C reference point.
+
+The model analytically differentiates the polynomial, validates that resistance stays finite and positive, and locates derivative extrema to prove the characteristic remains strictly increasing over its declared range. Resistance-to-temperature conversion then uses dependency-free bounded bisection on that validated curve instead of an approximate inverse polynomial.
+
+Do not force a published piecewise or tabulated characteristic into this single-polynomial API. Piecewise-polynomial and authoritative table-based characteristics are separate planned model types.
+
 ## IEC 60751 tolerance classes
 
 The `rtd.tolerance` module calculates the maximum permitted temperature deviation for the standard IEC 60751:2022 tolerance classes. The standard distinguishes complete thermometers from bare platinum resistors, and it assigns different validity ranges to wire-wound and film construction.
@@ -154,7 +187,7 @@ expanded_u = uncertainty.expanded_uncertainty(
 
 No confidence level is inferred from a coverage factor. A statement such as `k = 2` only has a probability interpretation when that interpretation is justified by the complete uncertainty analysis. Correlated components are not supported by this helper; covariance-aware propagation is a later capability.
 
-RTD models also expose their exact local Callendar–Van Dusen sensitivity:
+RTD models also expose their exact local resistance/temperature sensitivity. For the built-in platinum models this derivative comes from the Callendar–Van Dusen characteristic, while polynomial models differentiate their supplied polynomial analytically:
 
 ```python
 from rtd import pt100
@@ -224,7 +257,7 @@ print(budget.expanded_uncertainty_c)
 
 `TemperatureUncertaintyComponent` can optionally retain a Type A/Type B evaluation-method label, source, and note. Those fields are provenance only; all supplied components must already be standard uncertainties in °C. The current budget combines the resistance contribution and additional components as **uncorrelated** terms. It does not yet support covariance matrices, coefficient covariance, effective degrees of freedom, or Monte Carlo propagation.
 
-The built-in `pt100`, `pt500`, and `pt1000` modules and both public configurable-model classes can be passed as the `model`. Third-party models may also participate if they provide compatible resistance-to-temperature conversion and local `dT/dR` sensitivity methods.
+The built-in `pt100`, `pt500`, and `pt1000` modules and the public configurable-model classes, including `PolynomialRTDModel`, can be passed as the `model`. Third-party models may also participate if they provide compatible resistance-to-temperature conversion and local `dT/dR` sensitivity methods.
 
 ## Simulation
 
@@ -288,7 +321,7 @@ docs/DESIGN.md
 
 The repository is named `pt100-core` for discoverability. The Python package uses the broader `rtd` namespace so additional RTD models and curves can be added later without changing existing Pt100 or Pt1000 imports.
 
-See [`docs/DESIGN.md`](docs/DESIGN.md) for detailed architecture, mathematical assumptions, testing requirements, and future plans.
+See [`docs/DESIGN.md`](docs/DESIGN.md) for detailed architecture and mathematical assumptions, and [`docs/ROADMAP.md`](docs/ROADMAP.md) for planned RTD families and future characteristic/calibration work.
 
 ## Current capabilities
 
@@ -301,6 +334,7 @@ The current development branch provides:
 - model-aware Pt100/Pt500/Pt1000 simulation while preserving Pt100 defaults
 - public configurable IEC 60751 models for individually characterized `R0` values and declared temperature ranges
 - public Callendar–Van Dusen models for traceable user-supplied `R0`, `A`, `B`, and optional `C` coefficient sets
+- generic polynomial RTD models with explicit reference resistance/temperature, provenance, analytical sensitivity, and validated monotonic inversion
 - IEC 60751:2022 tolerance calculations for standard thermometer and platinum-resistor classes
 - GUM-style uncertainty primitives, exact RTD sensitivity, first-order resistance-to-temperature propagation, and structured independent-component temperature uncertainty budgets
 

@@ -311,3 +311,28 @@ def test_tolerance_can_be_explicitly_modeled_as_budget_component() -> None:
     )
 
     assert budget.combined_standard_uncertainty_c == pytest.approx(standard_u_c)
+
+
+def test_polynomial_model_participates_in_uncertainty_propagation() -> None:
+    from rtd.models import PolynomialRTDModel
+
+    model = PolynomialRTDModel(
+        reference_resistance_ohms=100.0,
+        reference_temperature_c=25.0,
+        coefficients=(0.01,),
+        minimum_temperature_c=-20.0,
+        maximum_temperature_c=80.0,
+        name="Synthetic linear RTD",
+    )
+
+    propagated = uncertainty.propagate_resistance_uncertainty(
+        100.0,
+        0.2,
+        model=model,
+    )
+
+    # dR/dT = 100 ohm * 0.01 / °C = 1 ohm/°C, so 0.2 ohm of
+    # standard resistance uncertainty propagates to 0.2 °C at this point.
+    assert propagated.temperature_c == 25.0
+    assert propagated.temperature_sensitivity_celsius_per_ohm == 1.0
+    assert propagated.temperature_standard_uncertainty_c == pytest.approx(0.2)

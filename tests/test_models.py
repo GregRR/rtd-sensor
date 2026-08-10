@@ -13,7 +13,7 @@ from rtd._models import RTDModel
 def _model(r0_ohms: float) -> RTDModel:
     return RTDModel(
         name="test RTD",
-        r0_ohms=r0_ohms,
+        reference_resistance_ohms=r0_ohms,
         curve=IEC_60751_PT385,
     )
 

@@ -4,25 +4,29 @@
 
 """Public configurable RTD models.
 
-The built-in :mod:`rtd.pt100` and :mod:`rtd.pt1000` modules remain the
-simplest interfaces for nominal IEC 60751 sensors. This module provides
-advanced models for individually characterized RTDs and for platinum
-RTDs with user-supplied Callendar-Van Dusen coefficient sets.
+The built-in :mod:`rtd.pt100`, :mod:`rtd.pt500`, and :mod:`rtd.pt1000`
+modules remain the simplest interfaces for nominal IEC 60751 sensors. This
+module provides advanced models for individually characterized RTDs, platinum
+RTDs with user-supplied Callendar-Van Dusen coefficient sets, and generic RTD
+characteristics defined by a traceable polynomial.
 """
 
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 
 from . import _curves
 from ._curves import CallendarVanDusenCurve as _CallendarVanDusenCurve
+from ._curves import PolynomialRTDCurve as _PolynomialRTDCurve
 from ._models import RTDModel as _RTDModel
 from ._validation import as_float as _as_float
 
 __all__ = [
     "CallendarVanDusenRTDModel",
     "IEC60751RTDModel",
+    "PolynomialRTDModel",
 ]
 
 
@@ -61,6 +65,7 @@ class IEC60751RTDModel:
     _model: _RTDModel = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
+        r0_ohms = _as_float(self.r0_ohms, name="R0")
         minimum_temperature_c = _as_float(
             self.minimum_temperature_c,
             name="Minimum temperature",
@@ -95,7 +100,7 @@ class IEC60751RTDModel:
 
         model = _RTDModel(
             name=self.name,
-            r0_ohms=self.r0_ohms,
+            reference_resistance_ohms=r0_ohms,
             curve=_curves.IEC_60751_PT385,
         )
 
@@ -287,7 +292,7 @@ class CallendarVanDusenRTDModel:
 
         model = _RTDModel(
             name=self.name,
-            r0_ohms=r0_ohms,
+            reference_resistance_ohms=r0_ohms,
             curve=curve,
         )
 
@@ -369,3 +374,143 @@ class CallendarVanDusenRTDModel:
             raise ValueError("Resistance is below the declared model range")
         if resistance_ohms > maximum_resistance:
             raise ValueError("Resistance is above the declared model range")
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class PolynomialRTDModel:
+    """RTD model defined by a user- or manufacturer-supplied polynomial.
+
+    For ``x = T - reference_temperature_c``, the model evaluates
+
+    ``R(T) = Rref * (1 + c1*x + c2*x**2 + ... + cn*x**n)``.
+
+    ``coefficients`` therefore contains the first-order and higher-order
+    normalized coefficients only; the constant term is implicitly 1 because
+    ``reference_resistance_ohms`` is, by definition, the resistance at the
+    reference temperature. This form can represent published low-order nickel
+    characteristics today and leaves room for future RTDs referenced at a
+    temperature other than 0 °C.
+
+    The polynomial is validated over the complete declared range. Construction
+    fails if resistance becomes non-finite or non-positive, or if the exact
+    analytical slope reaches zero or becomes negative. Resistance-to-temperature
+    conversion then uses dependency-free bounded bisection on that proven
+    monotonic characteristic rather than an approximate inverse polynomial.
+
+    Args:
+        reference_resistance_ohms: Resistance in ohms at
+            ``reference_temperature_c``.
+        coefficients: Normalized coefficients ``(c1, c2, ..., cn)`` for the
+            powers of ``T - reference_temperature_c``. Polynomial degree is
+            currently limited to 12 because high-order calibration fits are
+            numerically fragile and are not the intended use of this API.
+        minimum_temperature_c: Lowest temperature for which the characteristic
+            is declared valid.
+        maximum_temperature_c: Highest temperature for which the characteristic
+            is declared valid.
+        reference_temperature_c: Temperature associated with
+            ``reference_resistance_ohms``. Defaults to 0 °C.
+        name: Human-readable model or characteristic name.
+        coefficient_source: Optional provenance such as a manufacturer data
+            sheet, calibration certificate, or standards document.
+
+    Notes:
+        This class represents a *single global polynomial*. Published
+        piecewise-polynomial and tabulated RTD characteristics should not be
+        forced into this form; dedicated representations for those models are
+        planned separately.
+    """
+
+    reference_resistance_ohms: float
+    coefficients: Sequence[float]
+    minimum_temperature_c: float
+    maximum_temperature_c: float
+    reference_temperature_c: float = 0.0
+    name: str = "Polynomial RTD"
+    coefficient_source: str | None = None
+    _model: _RTDModel = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        reference_resistance_ohms = _as_float(
+            self.reference_resistance_ohms,
+            name="Reference resistance",
+        )
+        reference_temperature_c = _as_float(
+            self.reference_temperature_c,
+            name="Reference temperature",
+        )
+        minimum_temperature_c = _as_float(
+            self.minimum_temperature_c,
+            name="Minimum temperature",
+        )
+        maximum_temperature_c = _as_float(
+            self.maximum_temperature_c,
+            name="Maximum temperature",
+        )
+        coefficients = tuple(
+            _as_float(value, name=f"Polynomial coefficient c{index}")
+            for index, value in enumerate(self.coefficients, start=1)
+        )
+
+        coefficient_source = self.coefficient_source
+        if coefficient_source is not None:
+            coefficient_source = coefficient_source.strip()
+            if not coefficient_source:
+                raise ValueError("Coefficient source must not be empty")
+
+        curve = _PolynomialRTDCurve(
+            name=f"{self.name} polynomial characteristic",
+            coefficients=coefficients,
+            reference_temperature_c=reference_temperature_c,
+            minimum_temperature_c=minimum_temperature_c,
+            maximum_temperature_c=maximum_temperature_c,
+        )
+        model = _RTDModel(
+            name=self.name,
+            reference_resistance_ohms=reference_resistance_ohms,
+            curve=curve,
+        )
+
+        object.__setattr__(
+            self,
+            "reference_resistance_ohms",
+            model.reference_resistance_ohms,
+        )
+        object.__setattr__(self, "coefficients", coefficients)
+        object.__setattr__(
+            self, "reference_temperature_c", reference_temperature_c
+        )
+        object.__setattr__(
+            self, "minimum_temperature_c", minimum_temperature_c
+        )
+        object.__setattr__(
+            self, "maximum_temperature_c", maximum_temperature_c
+        )
+        object.__setattr__(self, "coefficient_source", coefficient_source)
+        object.__setattr__(self, "_model", model)
+
+    def celsius_to_resistance(self, temperature_c: float) -> float:
+        """Convert Celsius to resistance using this polynomial model."""
+        return self._model.celsius_to_resistance(temperature_c)
+
+    def resistance_to_celsius(self, resistance_ohms: float) -> float:
+        """Convert resistance in ohms to Celsius using this polynomial model."""
+        return self._model.resistance_to_celsius(resistance_ohms)
+
+    def resistance_sensitivity_ohms_per_celsius(
+        self,
+        temperature_c: float,
+    ) -> float:
+        """Return the exact local resistance sensitivity dR/dT."""
+        return self._model.resistance_sensitivity_ohms_per_celsius(
+            temperature_c
+        )
+
+    def temperature_sensitivity_celsius_per_ohm(
+        self,
+        temperature_c: float,
+    ) -> float:
+        """Return the exact local inverse sensitivity dT/dR."""
+        return self._model.temperature_sensitivity_celsius_per_ohm(
+            temperature_c
+        )

@@ -15,8 +15,9 @@ selected probability distribution is an explicit modeling assumption made by
 the caller.
 
 The RTD-specific helpers use first-order propagation through the exact local
-Callendar-Van Dusen sensitivity. They preserve the resistance contribution and
-additional temperature-domain components separately so an uncertainty budget
+sensitivity supplied by the active RTD model. They preserve the resistance
+contribution and additional temperature-domain components separately so the
+uncertainty budget
 remains inspectable rather than collapsing immediately to one number.
 """
 

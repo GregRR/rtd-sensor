@@ -7,7 +7,11 @@ from collections.abc import Callable
 import pytest
 
 from rtd import pt100, pt500, pt1000, simulation, tolerance, uncertainty
-from rtd.models import CallendarVanDusenRTDModel, IEC60751RTDModel
+from rtd.models import (
+    CallendarVanDusenRTDModel,
+    IEC60751RTDModel,
+    PolynomialRTDModel,
+)
 
 
 @pytest.mark.parametrize(
@@ -120,3 +124,30 @@ def test_simulation_rejects_boolean_physical_values_but_accepts_controls() -> No
     )
     assert reader.read_resistance_ohms() == 100.0
     assert reader.read_resistance_ohms() == 100.0
+
+
+def test_polynomial_model_rejects_boolean_physical_inputs() -> None:
+    with pytest.raises(TypeError, match="Reference resistance"):
+        PolynomialRTDModel(
+            reference_resistance_ohms=True,
+            coefficients=(0.01,),
+            minimum_temperature_c=-10.0,
+            maximum_temperature_c=10.0,
+        )
+
+    with pytest.raises(TypeError, match="Polynomial coefficient"):
+        PolynomialRTDModel(
+            reference_resistance_ohms=100.0,
+            coefficients=(True,),
+            minimum_temperature_c=-10.0,
+            maximum_temperature_c=10.0,
+        )
+
+    with pytest.raises(TypeError, match="Reference temperature"):
+        PolynomialRTDModel(
+            reference_resistance_ohms=100.0,
+            reference_temperature_c=False,
+            coefficients=(0.01,),
+            minimum_temperature_c=-10.0,
+            maximum_temperature_c=10.0,
+        )

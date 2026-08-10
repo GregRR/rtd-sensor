@@ -19,7 +19,7 @@ IEC_C = -4.183e-12
 def _generic_iec_model(r0_ohms: float) -> RTDModel:
     return RTDModel(
         name="boundary test RTD",
-        r0_ohms=r0_ohms,
+        reference_resistance_ohms=r0_ohms,
         curve=IEC_60751_PT385,
     )
 
