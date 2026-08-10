@@ -7,6 +7,7 @@ import math
 import pytest
 
 from rtd import (
+    ni120,
     ni1000,
     ni1000_tk5000,
     pt100,
@@ -152,6 +153,19 @@ def test_propagate_ni1000_tk5000_uses_tk5000_sensitivity() -> None:
     expected = (
         ni1000_tk5000.temperature_sensitivity_celsius_per_ohm(100.0) * 0.1
     )
+    assert result.temperature_c == pytest.approx(100.0, abs=1e-10)
+    assert result.temperature_standard_uncertainty_c == pytest.approx(expected)
+
+
+def test_propagate_ni120_uses_piecewise_nickel_sensitivity() -> None:
+    resistance = ni120.celsius_to_resistance(100.0)
+    result = uncertainty.propagate_resistance_uncertainty(
+        resistance,
+        0.01,
+        model=ni120,
+    )
+
+    expected = ni120.temperature_sensitivity_celsius_per_ohm(100.0) * 0.01
     assert result.temperature_c == pytest.approx(100.0, abs=1e-10)
     assert result.temperature_standard_uncertainty_c == pytest.approx(expected)
 

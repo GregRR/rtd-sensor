@@ -13,6 +13,7 @@ from ._curves import (
     IEC_60751_PT385,
     NI_5000_TK5000,
     NI_6180_DIN_43760,
+    NI_6720_NORTH_AMERICAN,
     RTDCurve,
 )
 from ._validation import as_float as _as_float
@@ -22,6 +23,7 @@ __all__ = [
     "PT500_IEC_60751",
     "NI1000_6180",
     "NI1000_TK5000",
+    "NI120_6720",
     "PT1000_IEC_60751",
     "RTDModel",
 ]
@@ -170,4 +172,11 @@ NI1000_TK5000 = RTDModel(
     name="Ni1000 TK5000",
     reference_resistance_ohms=1000.0,
     curve=NI_5000_TK5000,
+)
+
+
+NI120_6720 = RTDModel(
+    name="Ni120 North American 6720",
+    reference_resistance_ohms=120.0,
+    curve=NI_6720_NORTH_AMERICAN,
 )

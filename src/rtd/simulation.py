@@ -9,7 +9,7 @@ code to use the same interface for simulated data and physical hardware.
 
 Simulation defaults to Pt100 for backward compatibility. Pass an explicit
 ``rtd_type`` to select Pt500, Pt1000, the built-in former-DIN Ni1000
-6180 characteristic, or Ni1000 TK5000.
+6180 characteristic, Ni1000 TK5000, or North American Ni120.
 """
 
 from __future__ import annotations
@@ -40,6 +40,7 @@ type RTDType = Literal[
     "pt1000",
     "ni1000",
     "ni1000_tk5000",
+    "ni120",
 ]
 
 _SUPPORTED_MODELS: dict[RTDType, _models.RTDModel] = {
@@ -48,6 +49,7 @@ _SUPPORTED_MODELS: dict[RTDType, _models.RTDModel] = {
     "pt1000": _models.PT1000_IEC_60751,
     "ni1000": _models.NI1000_6180,
     "ni1000_tk5000": _models.NI1000_TK5000,
+    "ni120": _models.NI120_6720,
 }
 
 

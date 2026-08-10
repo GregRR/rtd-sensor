@@ -7,6 +7,7 @@ from collections.abc import Callable
 import pytest
 
 from rtd import (
+    ni120,
     ni1000,
     ni1000_tk5000,
     pt100,
@@ -44,6 +45,10 @@ from rtd.models import (
         ni1000_tk5000.resistance_to_celsius,
         ni1000_tk5000.resistance_sensitivity_ohms_per_celsius,
         ni1000_tk5000.temperature_sensitivity_celsius_per_ohm,
+        ni120.celsius_to_resistance,
+        ni120.resistance_to_celsius,
+        ni120.resistance_sensitivity_ohms_per_celsius,
+        ni120.temperature_sensitivity_celsius_per_ohm,
     ],
 )
 def test_builtin_conversion_apis_reject_boolean_measurements(

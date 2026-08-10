@@ -18,6 +18,7 @@ __all__ = [
     "IEC_60751_PT385",
     "NI_5000_TK5000",
     "NI_6180_DIN_43760",
+    "NI_6720_NORTH_AMERICAN",
     "PiecewisePolynomialRTDCurve",
     "PolynomialRTDCurve",
     "PolynomialRTDSegment",
@@ -1178,6 +1179,150 @@ NI_5000_TK5000 = PolynomialRTDCurve(
     reference_temperature_c=0.0,
     minimum_temperature_c=-60.0,
     maximum_temperature_c=250.0,
+)
+
+
+# Minco North American nickel characteristic (NA, 120 ohm at 0 °C,
+# 0.00672 ohm/ohm/°C nominal TCR). Minco publishes this as twelve cubic
+# source intervals in *Resistance Thermometry*, page 6:
+# https://www.minco.com/wp-content/uploads/Resistance-Thermometry.pdf
+#
+# Each tuple below is copied directly from Minco's A/B/C/D table for
+#     R(T) / R0 = A + B*T + C*T**2 + D*T**3.
+#
+# The independently rounded segment coefficients miss exact continuity at a
+# few joins by tiny amounts. The largest constant stitching offset required
+# after anchoring R(0 °C) exactly is about 7.2e-6 in normalized resistance,
+# or 0.000864 ohm for a 120-ohm element. Authorizing at most 1e-5 therefore
+# preserves Minco's published segment shapes while making the intended single
+# monotonic characteristic well-defined for inverse conversion. Applied
+# offsets remain available on the curve for auditability.
+NI_6720_NORTH_AMERICAN = PiecewisePolynomialRTDCurve(
+    name="North American nickel 120 ohm 6720 ppm/K curve",
+    segments=(
+        PolynomialRTDSegment(
+            minimum_temperature_c=-80.0,
+            maximum_temperature_c=-60.0,
+            coefficients=(
+                9.980384367e-1,
+                5.779005438e-3,
+                4.519218356e-6,
+                1.883007648e-8,
+            ),
+        ),
+        PolynomialRTDSegment(
+            minimum_temperature_c=-60.0,
+            maximum_temperature_c=-30.0,
+            coefficients=(
+                9.995545058e-1,
+                5.854808892e-3,
+                5.782609262e-6,
+                2.584891485e-8,
+            ),
+        ),
+        PolynomialRTDSegment(
+            minimum_temperature_c=-30.0,
+            maximum_temperature_c=0.0,
+            coefficients=(
+                1.0,
+                5.899358312e-3,
+                7.267589932e-6,
+                4.234870007e-8,
+            ),
+        ),
+        PolynomialRTDSegment(
+            minimum_temperature_c=0.0,
+            maximum_temperature_c=30.0,
+            coefficients=(
+                1.0,
+                5.899358312e-3,
+                7.267589932e-6,
+                1.154640832e-8,
+            ),
+        ),
+        PolynomialRTDSegment(
+            minimum_temperature_c=30.0,
+            maximum_temperature_c=60.0,
+            coefficients=(
+                1.000118847,
+                5.887473643e-3,
+                7.663745572e-6,
+                7.144678985e-9,
+            ),
+        ),
+        PolynomialRTDSegment(
+            minimum_temperature_c=60.0,
+            maximum_temperature_c=90.0,
+            coefficients=(
+                1.002329124,
+                5.776959768e-3,
+                9.505643490e-6,
+                -3.088087226e-9,
+            ),
+        ),
+        PolynomialRTDSegment(
+            minimum_temperature_c=90.0,
+            maximum_temperature_c=120.0,
+            coefficients=(
+                9.940315172e-1,
+                6.053466667e-3,
+                6.432455728e-6,
+                8.294089672e-9,
+            ),
+        ),
+        PolynomialRTDSegment(
+            minimum_temperature_c=120.0,
+            maximum_temperature_c=150.0,
+            coefficients=(
+                1.007022904,
+                5.728761999e-3,
+                9.138994624e-6,
+                7.759260700e-10,
+            ),
+        ),
+        PolynomialRTDSegment(
+            minimum_temperature_c=150.0,
+            maximum_temperature_c=180.0,
+            coefficients=(
+                8.918592090e-1,
+                8.032035898e-3,
+                -6.216164699e-6,
+                3.489850234e-8,
+            ),
+        ),
+        PolynomialRTDSegment(
+            minimum_temperature_c=180.0,
+            maximum_temperature_c=210.0,
+            coefficients=(
+                9.060247382e-1,
+                7.795943744e-3,
+                -4.904541625e-6,
+                3.246957072e-8,
+            ),
+        ),
+        PolynomialRTDSegment(
+            minimum_temperature_c=210.0,
+            maximum_temperature_c=240.0,
+            coefficients=(
+                1.103473241,
+                4.975250849e-3,
+                8.527329303e-6,
+                1.114941068e-8,
+            ),
+        ),
+        PolynomialRTDSegment(
+            minimum_temperature_c=240.0,
+            maximum_temperature_c=260.0,
+            coefficients=(
+                1.437355995,
+                8.017164189e-4,
+                2.591705610e-5,
+                -1.300325764e-8,
+            ),
+        ),
+    ),
+    reference_temperature_c=0.0,
+    maximum_continuity_adjustment_ratio=1.0e-5,
 )
 
 

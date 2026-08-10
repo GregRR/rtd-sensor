@@ -4,6 +4,7 @@
 
 from rtd import (
     models,
+    ni120,
     ni1000,
     ni1000_tk5000,
     pt100,
@@ -40,6 +41,11 @@ def test_package_exports_ni1000_tk5000_module() -> None:
 
     assert imported_ni1000_tk5000 is ni1000_tk5000
 
+def test_package_exports_ni120_module() -> None:
+    from rtd import ni120 as imported_ni120
+
+    assert imported_ni120 is ni120
+
 
 def test_package_exports_models_module() -> None:
     from rtd import models as imported_models
@@ -58,6 +64,7 @@ def test_package_public_api() -> None:
         "models",
         "ni1000",
         "ni1000_tk5000",
+        "ni120",
         "pt100",
         "pt500",
         "pt1000",
@@ -98,6 +105,18 @@ def test_ni1000_tk5000_public_api() -> None:
         "temperature_sensitivity_celsius_per_ohm",
     }
     assert not hasattr(ni1000_tk5000, "NI1000_TK5000")
+
+def test_ni120_public_api() -> None:
+    assert set(ni120.__all__) == {
+        "MAX_TEMPERATURE_C",
+        "MIN_TEMPERATURE_C",
+        "R0_OHMS",
+        "celsius_to_resistance",
+        "resistance_sensitivity_ohms_per_celsius",
+        "resistance_to_celsius",
+        "temperature_sensitivity_celsius_per_ohm",
+    }
+    assert not hasattr(ni120, "NI120_6720")
 
 
 def test_pt100_public_api() -> None:

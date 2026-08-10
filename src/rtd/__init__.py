@@ -15,6 +15,7 @@ Example:
 
 from . import (
     models,
+    ni120,
     ni1000,
     ni1000_tk5000,
     pt100,
@@ -29,6 +30,7 @@ __all__ = [
     "models",
     "ni1000",
     "ni1000_tk5000",
+    "ni120",
     "pt100",
     "pt500",
     "pt1000",

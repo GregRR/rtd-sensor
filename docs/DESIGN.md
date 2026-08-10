@@ -168,11 +168,36 @@ They share the same nominal resistance at 0 °C but differ materially away from
 that reference point, so nominal resistance alone cannot select a nickel RTD
 characteristic safely.
 
+### 4.3 North American Ni120 / 6720 ppm/K characteristic
+
+The built-in `rtd.ni120` module represents Minco's `NA` nickel characteristic
+with `R0 = 120 Ω` at 0 °C and nominal TCR 0.00672 Ω/Ω/°C. Minco publishes a
+stepwise approximation using twelve temperature intervals from -80 °C through
+260 °C:
+
+```text
+R(T) = R0 × (A + B×T + C×T² + D×T³)
+```
+
+The coefficients are interval-specific and must be preserved as source data;
+they must not be replaced by a convenient two-segment or global fit. Minco's
+printed coefficients leave tiny discontinuities at several joins. The built-in
+curve therefore uses the generic piecewise model's explicit bounded continuity
+stitching, anchored at 0 °C. Only normalized constant offsets are applied, so
+the published segment derivatives and higher-order shapes are unchanged. The
+largest adjustment is below `1e-5` in normalized resistance (below 0.001 Ω for
+Ni120), and the applied offsets remain inspectable on the internal curve.
+
+Pyromation's independent 120 Ω / 0.00672 table validates the implemented
+characteristic. The -80 °C through 260 °C model range comes from the published
+piecewise equation/table and remains separate from any individual product's
+physical operating range.
+
 ## 5. Supported public API
 
 The supported built-in model modules are `rtd.pt100`, `rtd.pt500`,
-`rtd.pt1000`, `rtd.ni1000`, and `rtd.ni1000_tk5000`. Each exposes the same
-conversion interface:
+`rtd.pt1000`, `rtd.ni1000`, `rtd.ni1000_tk5000`, and `rtd.ni120`. Each
+exposes the same conversion interface:
 
 ```python
 def resistance_to_celsius(resistance_ohms: float) -> float:
@@ -228,8 +253,8 @@ This is sufficient for deterministic tests of application behavior.
 The simulation module currently provides fixed resistance readings, finite and
 repeating resistance sequences, temperature-defined sequences, and reproducible
 seeded temperature noise. Temperature-based readers are model-aware and support
-Pt100, Pt500, Pt1000, the former-DIN Ni1000 6180 characteristic, and Ni1000
-TK5000. Pt100
+Pt100, Pt500, Pt1000, the former-DIN Ni1000 6180 characteristic, Ni1000
+TK5000, and North American Ni120. Pt100
 remains the default for backward compatibility.
 
 A reader that declares an RTD type establishes a model-identity invariant: its declared type must not diverge from the model used to validate or generate its resistance values. Built-in readers therefore keep `rtd_type` read-only after construction. `read_temperature_celsius()` also rejects an explicit RTD type that conflicts with a model-aware reader's declaration. Generic readers that expose only resistance remain supported; callers may select their RTD type explicitly, and untyped readers still default to Pt100 for backward compatibility.
@@ -518,7 +543,11 @@ The scientific conversion layer must not require a wire-count parameter.
 
 ### Planned characteristic expansion
 
-The current development roadmap is maintained in [`ROADMAP.md`](ROADMAP.md). The 0.4.x work has added the generic polynomial infrastructure and distinct built-in Ni1000 6180 and TK5000 characteristics. The next characteristic-infrastructure target is piecewise-polynomial support for the specifically identified North-American Ni120 characteristic. Later research includes additional nickel/Balco variants and Cu10/Cu100 candidates.
+The current development roadmap is maintained in [`ROADMAP.md`](ROADMAP.md).
+The 0.4.x work has added generic single- and piecewise-polynomial infrastructure
+plus distinct built-in Ni1000 6180, Ni1000 TK5000, and North American Ni120
+characteristics. Later research includes additional nickel/Balco variants and
+Cu10/Cu100 candidates.
 
 A nominal resistance or TCR value alone is not sufficient evidence that two RTDs share one characteristic. Every built-in characteristic must retain explicit identity and provenance, and apparently similar manufacturer curves must remain distinct when their published resistance/temperature behavior differs.
 

@@ -81,9 +81,10 @@ Likely near-term targets:
 - **Ni1000 TK5000 / 5000 ppm/K** — implemented as `rtd.ni1000_tk5000`
   using the IST Nickel NL cubic and independently validated against the E+E
   TK5000 R/T table. It remains a distinct identity from `rtd.ni1000`.
-- **Ni120 North-American 6720 ppm/K** — implement the specific documented
-  Minco/Pyromation-style characteristic rather than assuming every 120-ohm or
-  6720-ppm nickel sensor shares one global polynomial.
+- **Ni120 North-American 6720 ppm/K** — implemented as `rtd.ni120` using
+  Minco's twelve-segment `NA` characteristic from -80 °C through 260 °C, with
+  explicit bounded stitching for printed-coefficient join mismatches and
+  independent Pyromation R/T validation.
 
 Before each characteristic is publicly exported, require:
 
@@ -213,10 +214,9 @@ characteristic unless that provenance is actually established.
 
 ## Simulation and model identity
 
-The current simulation type registry is appropriate for the small set of
-built-in platinum models but should be generalized before many nickel/copper
-characteristics are added. The future design should avoid an ever-growing
-hard-coded binary/ternary decision tree and should preserve the existing rule
+The current simulation type registry now covers six built-in RTD identities and
+should be generalized before further nickel/copper characteristics are added.
+The future design should avoid an ever-growing hard-coded binary/ternary decision tree and should preserve the existing rule
 that a model-aware reader cannot be silently interpreted using a contradictory
 sensor identity.
 

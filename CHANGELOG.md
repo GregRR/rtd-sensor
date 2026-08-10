@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+* Added built-in North American Ni120 / 6720 ppm/K conversion using Minco's
+  twelve-segment nickel characteristic, with auditable continuity stitching,
+  simulation and uncertainty support, and independent Pyromation R/T tests.
 * Added public `PiecewisePolynomialRTDModel` and `PiecewisePolynomialSegment`
   infrastructure for traceable multi-interval RTD characteristics, including
   analytical segment validation, bounded inversion, deterministic boundary

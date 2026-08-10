@@ -2,7 +2,8 @@
 
 A small, platform-independent Python library for resistance temperature detectors (RTDs).
 Its verified built-in sensor modules currently cover IEC 60751 Pt100, Pt500, Pt1000,
-the former-DIN Ni1000 6178/6180 ppm/K characteristic, and Ni1000 TK5000. The library
+the former-DIN Ni1000 6178/6180 ppm/K characteristic, Ni1000 TK5000, and the
+North American Ni120 / 6720 ppm/K characteristic. The library
 also provides configurable and calibrated Callendar–Van Dusen models, generic
 single- and piecewise-polynomial RTD models for traceable manufacturer/user
 characteristics, standard platinum tolerance calculations, measurement-uncertainty
@@ -18,6 +19,7 @@ Pt500 resistance in ohms  ↔ temperature in Celsius
 Pt1000 resistance in ohms ↔ temperature in Celsius
 Ni1000 6180 resistance in ohms ↔ temperature in Celsius
 Ni1000 TK5000 resistance in ohms ↔ temperature in Celsius
+Ni120 6720 resistance in ohms ↔ temperature in Celsius
 ```
 
 The Pt100/Pt500/Pt1000 modules use the IEC 60751 PT-385 platinum curve:
@@ -42,7 +44,7 @@ Hardware-specific concerns such as ADC readings, GPIO, SPI, I²C, excitation cir
 ## Basic usage
 
 ```python
-from rtd import ni1000, ni1000_tk5000, pt100, pt500, pt1000
+from rtd import ni1000, ni1000_tk5000, ni120, pt100, pt500, pt1000
 
 pt100_temperature_c = pt100.resistance_to_celsius(119.3971)
 pt100_resistance_ohms = pt100.celsius_to_resistance(50.0)
@@ -58,6 +60,9 @@ ni1000_resistance_ohms = ni1000.celsius_to_resistance(100.0)
 
 tk5000_temperature_c = ni1000_tk5000.resistance_to_celsius(1500.00)
 tk5000_resistance_ohms = ni1000_tk5000.celsius_to_resistance(100.0)
+
+ni120_temperature_c = ni120.resistance_to_celsius(200.64)
+ni120_resistance_ohms = ni120.celsius_to_resistance(100.0)
 ```
 
 Physical numerical inputs such as temperature, resistance, coefficients, and uncertainty values reject Python Boolean values. This prevents `True`/`False` from being silently interpreted as `1.0`/`0.0`, while ordinary integer, floating-point, and other float-convertible numeric inputs continue to work normally. Boolean control options such as simulation `repeat=True` are unaffected.
@@ -99,6 +104,30 @@ operating range than the mathematical characteristic represented here.
 The explicit module name is intentional: `Ni1000` alone does not uniquely
 identify an R/T curve, so the package must not silently choose TK5000 when a
 user actually has the former-DIN 6180 characteristic, or vice versa.
+
+## Ni120 / North American 6720 ppm/K
+
+`rtd.ni120` implements Minco's `NA` nickel characteristic: 120 Ω at 0 °C
+with nominal TCR 0.00672 Ω/Ω/°C. Minco publishes this characteristic as
+twelve cubic intervals from -80 °C through 260 °C rather than as one global
+polynomial:
+
+```text
+R(T) / R0 = A + B*T + C*T² + D*T³
+```
+
+The A/B/C/D coefficients change at the published interval boundaries. The
+library preserves those source coefficient tuples exactly. Because Minco's
+printed interval fits contain tiny join mismatches at their published
+precision, the built-in characteristic uses the generic piecewise model's
+explicit bounded constant-offset stitching. The largest applied normalized
+adjustment is about 7.2e-6, equivalent to less than 0.001 Ω for this 120 Ω
+characteristic; slopes and higher-order shape remain the published Minco
+values.
+
+Pyromation's independently published 120 Ω / 0.00672 R/T table is used for
+validation. As with the other built-ins, the characteristic range is distinct
+from narrower operating limits that a particular packaged sensor may specify.
 
 ## Configurable IEC 60751 models
 
