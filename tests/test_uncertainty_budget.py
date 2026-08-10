@@ -6,7 +6,15 @@ import math
 
 import pytest
 
-from rtd import ni1000, pt100, pt500, pt1000, tolerance, uncertainty
+from rtd import (
+    ni1000,
+    ni1000_tk5000,
+    pt100,
+    pt500,
+    pt1000,
+    tolerance,
+    uncertainty,
+)
 from rtd.models import CallendarVanDusenRTDModel, IEC60751RTDModel
 
 
@@ -129,6 +137,21 @@ def test_propagate_ni1000_uses_nickel_sensitivity() -> None:
     )
 
     expected = ni1000.temperature_sensitivity_celsius_per_ohm(100.0) * 0.1
+    assert result.temperature_c == pytest.approx(100.0, abs=1e-10)
+    assert result.temperature_standard_uncertainty_c == pytest.approx(expected)
+
+
+def test_propagate_ni1000_tk5000_uses_tk5000_sensitivity() -> None:
+    resistance = ni1000_tk5000.celsius_to_resistance(100.0)
+    result = uncertainty.propagate_resistance_uncertainty(
+        resistance,
+        0.1,
+        model=ni1000_tk5000,
+    )
+
+    expected = (
+        ni1000_tk5000.temperature_sensitivity_celsius_per_ohm(100.0) * 0.1
+    )
     assert result.temperature_c == pytest.approx(100.0, abs=1e-10)
     assert result.temperature_standard_uncertainty_c == pytest.approx(expected)
 

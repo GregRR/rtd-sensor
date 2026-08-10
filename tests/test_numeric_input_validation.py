@@ -6,7 +6,16 @@ from collections.abc import Callable
 
 import pytest
 
-from rtd import ni1000, pt100, pt500, pt1000, simulation, tolerance, uncertainty
+from rtd import (
+    ni1000,
+    ni1000_tk5000,
+    pt100,
+    pt500,
+    pt1000,
+    simulation,
+    tolerance,
+    uncertainty,
+)
 from rtd.models import (
     CallendarVanDusenRTDModel,
     IEC60751RTDModel,
@@ -31,6 +40,10 @@ from rtd.models import (
         ni1000.resistance_to_celsius,
         ni1000.resistance_sensitivity_ohms_per_celsius,
         ni1000.temperature_sensitivity_celsius_per_ohm,
+        ni1000_tk5000.celsius_to_resistance,
+        ni1000_tk5000.resistance_to_celsius,
+        ni1000_tk5000.resistance_sensitivity_ohms_per_celsius,
+        ni1000_tk5000.temperature_sensitivity_celsius_per_ohm,
     ],
 )
 def test_builtin_conversion_apis_reject_boolean_measurements(

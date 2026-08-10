@@ -16,6 +16,7 @@ from ._validation import as_float as _as_float
 __all__ = [
     "CallendarVanDusenCurve",
     "IEC_60751_PT385",
+    "NI_5000_TK5000",
     "NI_6180_DIN_43760",
     "PolynomialRTDCurve",
     "RTDCurve",
@@ -695,6 +696,26 @@ NI_6180_DIN_43760 = PolynomialRTDCurve(
         2.805e-11,
         0.0,
         -2.000e-17,
+    ),
+    reference_temperature_c=0.0,
+    minimum_temperature_c=-60.0,
+    maximum_temperature_c=250.0,
+)
+
+
+# Ni1000 TK5000 / Nickel NL characteristic.  IST AG publishes this cubic
+# coefficient set for its 5000 ppm/K nickel curve:
+# https://www.mouser.com/datasheet/2/1426/nl1k0_520_2fw_b_007-2950467.pdf
+# The E+E Elektronik
+# Ni1000 TK5000 table is used independently in tests rather than deriving
+# expected values from these same coefficients.  Full source URLs and the
+# characteristic-selection rationale live in rtd.ni1000_tk5000.
+NI_5000_TK5000 = PolynomialRTDCurve(
+    name="Ni1000 TK5000 nickel 5000 ppm/K curve",
+    coefficients=(
+        4.427e-3,
+        5.172e-6,
+        5.585e-9,
     ),
     reference_temperature_c=0.0,
     minimum_temperature_c=-60.0,

@@ -61,7 +61,7 @@ The implementation should identify the standard, equation, constants, assumption
 The public interfaces for supported RTD models should remain parallel and simple:
 
 ```python
-from rtd import ni1000, pt100, pt1000
+from rtd import ni1000, ni1000_tk5000, pt100, pt1000
 
 temperature_c = pt100.resistance_to_celsius(resistance_ohms)
 resistance_ohms = pt100.celsius_to_resistance(temperature_c)
@@ -71,6 +71,9 @@ pt1000_resistance_ohms = pt1000.celsius_to_resistance(temperature_c)
 
 ni1000_temperature_c = ni1000.resistance_to_celsius(resistance_ohms)
 ni1000_resistance_ohms = ni1000.celsius_to_resistance(temperature_c)
+
+tk5000_temperature_c = ni1000_tk5000.resistance_to_celsius(resistance_ohms)
+tk5000_resistance_ohms = ni1000_tk5000.celsius_to_resistance(temperature_c)
 ```
 
 ### 3.4 Simulation as a first-class use case
@@ -141,10 +144,35 @@ mathematical characteristic range, not a guarantee that every physical Ni1000
 product can operate or conform across the entire interval. Ni1000 TK5000 is a
 different characteristic and must use a separate model identity.
 
+### 4.2 Ni1000 TK5000 / Nickel NL 5000 ppm/K characteristic
+
+The built-in `rtd.ni1000_tk5000` module represents the distinct TK5000 nickel
+characteristic. IST AG publishes the forward coefficients under the name
+`Nickel NL (5000 ppm/K)`:
+
+```text
+R(T) = R0 × (1 + A×T + B×T² + C×T³)
+
+A = 4.427 × 10⁻³ °C⁻¹
+B = 5.172 × 10⁻⁶ °C⁻²
+C = 5.585 × 10⁻⁹ °C⁻³
+```
+
+The model uses `R0 = 1000 Ω` at 0 °C and a supported characteristic range of
+-60 °C through 250 °C. The E+E Elektronik Ni1000 TK5000 R/T table provides an
+independent validation source. Product-specific operating limits remain
+separate from the characteristic range.
+
+`rtd.ni1000` and `rtd.ni1000_tk5000` must remain separate model identities.
+They share the same nominal resistance at 0 °C but differ materially away from
+that reference point, so nominal resistance alone cannot select a nickel RTD
+characteristic safely.
+
 ## 5. Supported public API
 
 The supported built-in model modules are `rtd.pt100`, `rtd.pt500`,
-`rtd.pt1000`, and `rtd.ni1000`. Each exposes the same conversion interface:
+`rtd.pt1000`, `rtd.ni1000`, and `rtd.ni1000_tk5000`. Each exposes the same
+conversion interface:
 
 ```python
 def resistance_to_celsius(resistance_ohms: float) -> float:
@@ -200,7 +228,8 @@ This is sufficient for deterministic tests of application behavior.
 The simulation module currently provides fixed resistance readings, finite and
 repeating resistance sequences, temperature-defined sequences, and reproducible
 seeded temperature noise. Temperature-based readers are model-aware and support
-Pt100, Pt500, Pt1000, and the former-DIN Ni1000 6180 characteristic. Pt100
+Pt100, Pt500, Pt1000, the former-DIN Ni1000 6180 characteristic, and Ni1000
+TK5000. Pt100
 remains the default for backward compatibility.
 
 A reader that declares an RTD type establishes a model-identity invariant: its declared type must not diverge from the model used to validate or generate its resistance values. Built-in readers therefore keep `rtd_type` read-only after construction. `read_temperature_celsius()` also rejects an explicit RTD type that conflicts with a model-aware reader's declaration. Generic readers that expose only resistance remain supported; callers may select their RTD type explicitly, and untyped readers still default to Pt100 for backward compatibility.
@@ -276,6 +305,7 @@ src/rtd/
 ├── _validation.py
 ├── models.py
 ├── ni1000.py
+├── ni1000_tk5000.py
 ├── pt100.py
 ├── pt500.py
 ├── pt1000.py
@@ -288,6 +318,7 @@ tests/
 ├── test_custom_cvd_models.py
 ├── test_models.py
 ├── test_ni1000.py
+├── test_ni1000_tk5000.py
 ├── test_numeric_input_validation.py
 ├── test_package_api.py
 ├── test_polynomial_models.py
@@ -475,7 +506,7 @@ The scientific conversion layer must not require a wire-count parameter.
 
 ### Planned characteristic expansion
 
-The current development roadmap is maintained in [`ROADMAP.md`](ROADMAP.md). Near-term work is expected to add characteristic infrastructure and then researched nickel support, including distinct Ni1000 6180 and TK5000 characteristics plus a specifically identified North-American Ni120 characteristic. Later research includes additional nickel/Balco variants and Cu10/Cu100 candidates.
+The current development roadmap is maintained in [`ROADMAP.md`](ROADMAP.md). The 0.4.x work has added the generic polynomial infrastructure and distinct built-in Ni1000 6180 and TK5000 characteristics. The next characteristic-infrastructure target is piecewise-polynomial support for the specifically identified North-American Ni120 characteristic. Later research includes additional nickel/Balco variants and Cu10/Cu100 candidates.
 
 A nominal resistance or TCR value alone is not sufficient evidence that two RTDs share one characteristic. Every built-in characteristic must retain explicit identity and provenance, and apparently similar manufacturer curves must remain distinct when their published resistance/temperature behavior differs.
 

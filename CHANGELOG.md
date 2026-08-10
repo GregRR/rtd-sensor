@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+* Added built-in Ni1000 TK5000 / 5000 ppm/K conversion as a characteristic
+  distinct from the former-DIN 6180 Ni1000 model, with analytical sensitivity,
+  simulation support, and independent E+E resistance-table tests.
 * Added built-in Ni1000 6178/6180 ppm/K conversion for the former DIN 43760
   nickel characteristic, including analytical sensitivity, -60 °C through
   250 °C range validation, simulation support, and independently sourced

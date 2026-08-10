@@ -13,11 +13,22 @@ Example:
     temperature_c = simulation.read_temperature_celsius(reader)
 """
 
-from . import models, ni1000, pt100, pt500, pt1000, simulation, tolerance, uncertainty
+from . import (
+    models,
+    ni1000,
+    ni1000_tk5000,
+    pt100,
+    pt500,
+    pt1000,
+    simulation,
+    tolerance,
+    uncertainty,
+)
 
 __all__ = [
     "models",
     "ni1000",
+    "ni1000_tk5000",
     "pt100",
     "pt500",
     "pt1000",

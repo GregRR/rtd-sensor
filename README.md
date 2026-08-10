@@ -2,7 +2,7 @@
 
 A small, platform-independent Python library for resistance temperature detectors (RTDs).
 Its verified built-in sensor modules currently cover IEC 60751 Pt100, Pt500, Pt1000,
-and the former-DIN Ni1000 6178/6180 ppm/K nickel characteristic. The library
+the former-DIN Ni1000 6178/6180 ppm/K characteristic, and Ni1000 TK5000. The library
 also provides configurable and calibrated Callendar–Van Dusen models, a generic
 polynomial RTD model for traceable manufacturer/user characteristics, standard platinum
 tolerance calculations, measurement-uncertainty tools, and simulation support.
@@ -16,6 +16,7 @@ Pt100 resistance in ohms  ↔ temperature in Celsius
 Pt500 resistance in ohms  ↔ temperature in Celsius
 Pt1000 resistance in ohms ↔ temperature in Celsius
 Ni1000 6180 resistance in ohms ↔ temperature in Celsius
+Ni1000 TK5000 resistance in ohms ↔ temperature in Celsius
 ```
 
 The Pt100/Pt500/Pt1000 modules use the IEC 60751 PT-385 platinum curve:
@@ -29,8 +30,8 @@ The Pt100/Pt500/Pt1000 modules use the IEC 60751 PT-385 platinum curve:
 `rtd.ni1000` implements the distinct former DIN 43760 nickel characteristic with
 1000 Ω at 0 °C, approximately 6178/6180 ppm/K over 0–100 °C, and a
 supported characteristic range of -60 °C through 250 °C. It must not be
-interchanged with Ni1000 TK5000, which uses a different resistance-temperature
-curve.
+interchanged with `rtd.ni1000_tk5000`, which uses a different
+resistance-temperature curve.
 
 The conversion modules describe ideal characteristics rather than a particular
 sensor manufacturer's packaging or probe construction.
@@ -40,7 +41,7 @@ Hardware-specific concerns such as ADC readings, GPIO, SPI, I²C, excitation cir
 ## Basic usage
 
 ```python
-from rtd import ni1000, pt100, pt500, pt1000
+from rtd import ni1000, ni1000_tk5000, pt100, pt500, pt1000
 
 pt100_temperature_c = pt100.resistance_to_celsius(119.3971)
 pt100_resistance_ohms = pt100.celsius_to_resistance(50.0)
@@ -53,6 +54,9 @@ pt1000_resistance_ohms = pt1000.celsius_to_resistance(50.0)
 
 ni1000_temperature_c = ni1000.resistance_to_celsius(1617.8)
 ni1000_resistance_ohms = ni1000.celsius_to_resistance(100.0)
+
+tk5000_temperature_c = ni1000_tk5000.resistance_to_celsius(1500.00)
+tk5000_resistance_ohms = ni1000_tk5000.celsius_to_resistance(100.0)
 ```
 
 Physical numerical inputs such as temperature, resistance, coefficients, and uncertainty values reject Python Boolean values. This prevents `True`/`False` from being silently interpreted as `1.0`/`0.0`, while ordinary integer, floating-point, and other float-convertible numeric inputs continue to work normally. Boolean control options such as simulation `repeat=True` are unaffected.
@@ -75,6 +79,25 @@ characteristic.
 
 Ni1000 TK5000 is a different characteristic and is not interchangeable with
 `rtd.ni1000`.
+
+## Ni1000 TK5000 / Nickel NL 5000 ppm/K
+
+`rtd.ni1000_tk5000` implements the distinct TK5000 characteristic. IST AG
+publishes the same cubic as `Nickel NL (5000 ppm/K)`:
+
+```text
+R(T) / R0 = 1 + 4.427e-3 T + 5.172e-6 T² + 5.585e-9 T³
+```
+
+with `R0 = 1000 Ω` at 0 °C and a supported characteristic range of -60 °C
+through 250 °C. E+E Elektronik's independently published Ni1000 TK5000 R/T
+table is used by the test suite to validate the coefficient implementation.
+As with the 6180 characteristic, a packaged sensor may have a narrower physical
+operating range than the mathematical characteristic represented here.
+
+The explicit module name is intentional: `Ni1000` alone does not uniquely
+identify an R/T curve, so the package must not silently choose TK5000 when a
+user actually has the former-DIN 6180 characteristic, or vice versa.
 
 ## Configurable IEC 60751 models
 

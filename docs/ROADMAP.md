@@ -75,8 +75,9 @@ Likely near-term targets:
 - **Ni1000 6180 ppm/K** — implemented as `rtd.ni1000` using the former DIN
   43760 / Nickel ND characteristic. The mathematical -60 °C through 250 °C
   range is kept separate from narrower physical-product ratings.
-- **Ni1000 TK5000 / 5000 ppm/K** — a distinct Landis & Gyr / Siemens-family
-  HVAC characteristic. Do not alias it to the 6180 characteristic.
+- **Ni1000 TK5000 / 5000 ppm/K** — implemented as `rtd.ni1000_tk5000`
+  using the IST Nickel NL cubic and independently validated against the E+E
+  TK5000 R/T table. It remains a distinct identity from `rtd.ni1000`.
 - **Ni120 North-American 6720 ppm/K** — implement the specific documented
   Minco/Pyromation-style characteristic rather than assuming every 120-ohm or
   6720-ppm nickel sensor shares one global polynomial.
@@ -244,7 +245,11 @@ A source appearing here does not by itself make a characteristic supported.
   for the linear term and a positive sixth-order term). Retain this as a
   documented source discrepancy rather than silently averaging coefficients:
   https://www.mouser.com/datasheet/2/619/hera_s_a0009182606_1-2289114.pdf
-- E+E Ni1000 TK5000 resistance/temperature table:
+- IST AG nickel application note with the Nickel NL (5000 ppm/K) cubic
+  coefficients used by `rtd.ni1000_tk5000`:
+  https://www.mouser.com/datasheet/2/1426/nl1k0_520_2fw_b_007-2950467.pdf
+- E+E Ni1000 TK5000 resistance/temperature table used for independent
+  implementation validation:
   https://www.epluse.com/fileadmin/data/product/r-t_characteristics/R_T_Characteristics_Ni1000_TK5000.pdf
 - Minco resistance-thermometry engineering material and North-American nickel
   characteristic tables:
