@@ -31,6 +31,9 @@ project history and will need a documented migration path.
 - Model-aware simulation.
 - Generic single-polynomial RTD characteristics with an explicit reference
   resistance and reference temperature.
+- Generic piecewise-polynomial RTD characteristics with preserved source
+  segments, analytical validation, bounded inversion, and explicit auditable
+  continuity stitching for independently rounded source fits.
 
 ### Characteristic architecture
 
@@ -44,7 +47,7 @@ The target internal/public model family is:
 RTD characteristic
 ├── Callendar-Van Dusen platinum characteristic
 ├── single polynomial characteristic
-├── piecewise polynomial characteristic          planned
+├── piecewise polynomial characteristic          implemented foundation
 └── tabulated characteristic                     planned
 
 RTD model
@@ -136,16 +139,31 @@ inversion.
 
 ### Piecewise polynomial models
 
-Planned. Some authoritative RTD characteristics are published as different
-polynomials over different temperature intervals. Future support should:
+Implemented foundation. Some authoritative RTD characteristics are published
+as different polynomials over different temperature intervals. The public
+model now:
 
-- retain segment boundaries and coefficient provenance;
-- validate every segment independently;
-- validate continuity at segment boundaries when the published model is
-  expected to be continuous;
-- reject gaps and ambiguous overlaps unless explicitly supported;
-- provide one monotonic inverse across the complete declared characteristic;
-- preserve exact endpoint and segment-boundary round trips.
+- retains source segment boundaries, complete coefficient tuples, local
+  temperature origins, and coefficient provenance;
+- validates every segment analytically for positive resistance and strict
+  monotonicity;
+- rejects temperature gaps and overlaps;
+- preserves the reference-temperature segment as the continuity anchor;
+- rejects source-level join discontinuities by default;
+- can explicitly authorize bounded constant-term stitching when independently
+  rounded source fits are demonstrably intended to represent one continuous
+  characteristic;
+- exposes every applied continuity adjustment for auditability;
+- provides one monotonic bounded inverse across the complete stitched
+  characteristic; and
+- preserves exact endpoint, reference-temperature, and segment-boundary round
+  trips.
+
+The Minco North-American 120-ohm nickel stepwise approximation is the first
+planned built-in consumer. Its published 12-segment cubic coefficients motivate
+the explicit stitching policy because printed coefficient precision leaves very
+small join mismatches even though the source describes one standard nickel
+curve.
 
 ### Tabulated characteristics
 

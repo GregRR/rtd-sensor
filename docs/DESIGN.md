@@ -377,7 +377,7 @@ The low-level curve and model infrastructure remains internal. Public modules sh
 
 ### Public configurable and calibrated models
 
-The public advanced-model API has three deliberately distinct levels.
+The public advanced-model API has four deliberately distinct levels.
 
 `rtd.models.IEC60751RTDModel` represents an RTD that retains the standardized IEC 60751 PT-385 curve while allowing:
 
@@ -389,7 +389,7 @@ The built-in `rtd.pt100`, `rtd.pt500`, and `rtd.pt1000` modules remain the prefe
 
 `rtd.models.CallendarVanDusenRTDModel` represents a **platinum RTD** for which a calibration certificate, manufacturer, or other traceable technical source provides an IEC-style `R0`, `A`, `B`, `C` Callendar–Van Dusen coefficient set. It requires an explicit valid temperature range because custom coefficients have no package-defined universal range.
 
-Callendar–Van Dusen is intentionally a platinum-specific abstraction in this package. Nickel, copper, and other non-platinum characteristics must not be forced into `CallendarVanDusenRTDModel` merely because their published resistance-temperature relationship is polynomial. They should use `PolynomialRTDModel` or a future characteristic type, such as the planned piecewise-polynomial and tabulated representations, that faithfully matches the source definition.
+Callendar–Van Dusen is intentionally a platinum-specific abstraction in this package. Nickel, copper, and other non-platinum characteristics must not be forced into `CallendarVanDusenRTDModel` merely because their published resistance-temperature relationship is polynomial. They should use `PolynomialRTDModel`, `PiecewisePolynomialRTDModel`, or a future characteristic type such as a tabulated representation that faithfully matches the source definition.
 
 The custom-CVD model follows these rules:
 
@@ -426,7 +426,19 @@ The slope is evaluated analytically. Its extrema are located from roots of the p
 
 Once the curve is proven strictly increasing, resistance-to-temperature conversion uses bounded bisection on the authoritative forward polynomial. The library does not require SciPy and does not substitute a lower-accuracy approximate inverse polynomial merely for speed.
 
-The single-polynomial model must not be used to distort an authoritative piecewise or tabulated characteristic. Piecewise-polynomial and table-backed representations are planned as separate characteristic types and are recorded in `ROADMAP.md`.
+The single-polynomial model must not be used to distort an authoritative piecewise or tabulated characteristic. Piecewise-polynomial characteristics use the separate representation described below; table-backed characteristics remain planned and are recorded in `ROADMAP.md`.
+
+### Piecewise polynomial characteristics
+
+`rtd.models.PiecewisePolynomialRTDModel` represents one characteristic as an ordered set of contiguous polynomial intervals. A public `PiecewisePolynomialSegment` stores the complete normalized coefficient set `(c0, c1, ..., cn)` because published piecewise equations commonly assign an independent constant term to each interval. Each segment may also declare its own temperature origin.
+
+Every source segment is validated analytically for finite positive resistance and strictly positive slope over its entire interval. Segment partitions may not contain gaps or overlaps. The complete model is then inverted with bounded bisection only after the joins have been made continuous, preserving the library invariant that a supported resistance maps to one temperature.
+
+The continuity policy is deliberately explicit. Some authoritative engineering references publish independently rounded polynomial fits whose values differ slightly at a shared boundary even though the underlying physical characteristic is intended to be continuous. Minco's published 120-ohm nickel stepwise approximation is a concrete motivating example. The source coefficient tuples are preserved unchanged. By default, source-level discontinuities are rejected; an explicit `maximum_continuity_adjustment_ratio` may authorize a bounded additive normalized-ratio offset to a segment constant term. Stitching is anchored at the declared reference-temperature segment and propagated outward, and the applied offsets remain available as model metadata. Pure floating-point roundoff at an otherwise continuous join is tolerated automatically.
+
+Only constant offsets are used for stitching, so source-segment slopes and higher derivatives are not altered. If adjacent source segments are continuous in value but not exactly in first derivative, the public sensitivity convention uses the right-hand segment at an interior boundary and the final segment at the global maximum. This is a deterministic one-sided convention, not a claim that a non-C1 source fit has a unique derivative at the join.
+
+This bounded-stitching mechanism must not be used to conceal genuinely incompatible equations. The permitted adjustment is part of the model definition and should be justified from source precision or an equivalent traceable reason.
 
 The generic model also deliberately supports a reference temperature other than 0 °C. That capability is architectural future-proofing; it does not imply that any particular future Cu10 or other characteristic is supported until its provenance and reference definition are independently established.
 

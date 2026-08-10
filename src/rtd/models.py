@@ -21,13 +21,17 @@ from dataclasses import dataclass, field
 
 from . import _curves
 from ._curves import CallendarVanDusenCurve as _CallendarVanDusenCurve
+from ._curves import PiecewisePolynomialRTDCurve as _PiecewisePolynomialRTDCurve
 from ._curves import PolynomialRTDCurve as _PolynomialRTDCurve
+from ._curves import PolynomialRTDSegment as _PolynomialRTDSegment
 from ._models import RTDModel as _RTDModel
 from ._validation import as_float as _as_float
 
 __all__ = [
     "CallendarVanDusenRTDModel",
     "IEC60751RTDModel",
+    "PiecewisePolynomialRTDModel",
+    "PiecewisePolynomialSegment",
     "PolynomialRTDModel",
 ]
 
@@ -513,6 +517,201 @@ class PolynomialRTDModel:
         temperature_c: float,
     ) -> float:
         """Return the exact local inverse sensitivity dT/dR."""
+        return self._model.temperature_sensitivity_celsius_per_ohm(
+            temperature_c
+        )
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class PiecewisePolynomialSegment:
+    """One source polynomial interval for :class:`PiecewisePolynomialRTDModel`.
+
+    Unlike :class:`PolynomialRTDModel`, ``coefficients`` includes the constant
+    term because published piecewise characteristics commonly provide an
+    independent full polynomial for each interval. For
+    ``x = T - temperature_origin_c`` the normalized segment equation is
+
+    ``R(T) / Rref = c0 + c1*x + c2*x**2 + ... + cn*x**n``.
+
+    Segment bounds are closed as source metadata. During routing, an interior
+    boundary belongs to the segment on its right; the final maximum belongs to
+    the last segment. This deterministic convention also defines which
+    one-sided analytical sensitivity is reported at a non-C1 join.
+    """
+
+    minimum_temperature_c: float
+    maximum_temperature_c: float
+    coefficients: Sequence[float]
+    temperature_origin_c: float = 0.0
+
+    def __post_init__(self) -> None:
+        internal = _PolynomialRTDSegment(
+            minimum_temperature_c=self.minimum_temperature_c,
+            maximum_temperature_c=self.maximum_temperature_c,
+            coefficients=tuple(self.coefficients),
+            temperature_origin_c=self.temperature_origin_c,
+        )
+        object.__setattr__(
+            self, "minimum_temperature_c", internal.minimum_temperature_c
+        )
+        object.__setattr__(
+            self, "maximum_temperature_c", internal.maximum_temperature_c
+        )
+        object.__setattr__(self, "coefficients", internal.coefficients)
+        object.__setattr__(
+            self, "temperature_origin_c", internal.temperature_origin_c
+        )
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class PiecewisePolynomialRTDModel:
+    """RTD model composed of contiguous polynomial source intervals.
+
+    This representation is intended for documented characteristics whose
+    source publishes a different polynomial over each temperature interval.
+    It preserves the source segment coefficients rather than fitting a new
+    global equation.
+
+    Some manufacturer piecewise fits are independently rounded and therefore
+    miss exact continuity by a tiny amount even though they approximate one
+    continuous physical characteristic. By default this model permits only
+    machine-roundoff reconciliation at joins. A nonzero
+    ``maximum_continuity_adjustment_ratio`` explicitly
+    authorizes the model to add a bounded constant offset to normalized
+    segment ratios solely to stitch those joins. Stitching is anchored at the
+    reference temperature and propagated outward, so ``Rref`` remains exact
+    and all source-segment derivatives are preserved. The applied offsets are
+    exposed as ``continuity_adjustments`` for auditability.
+
+    Args:
+        reference_resistance_ohms: Resistance in ohms at
+            ``reference_temperature_c``.
+        segments: Ordered, contiguous source polynomial intervals.
+        reference_temperature_c: Temperature associated with the reference
+            resistance. Defaults to 0 °C.
+        name: Human-readable model or characteristic name.
+        coefficient_source: Optional provenance for the segment equations.
+        maximum_continuity_adjustment_ratio: Largest absolute normalized-ratio
+            constant offset permitted for any segment beyond automatic
+            machine-roundoff reconciliation. The default of zero rejects any
+            source-level discontinuity.
+
+    Notes:
+        A nonzero continuity adjustment changes only a segment's constant term;
+        it does not alter its slope or higher-order shape. This option exists
+        for traceable published approximations with demonstrated rounding at
+        joins, not as a general mechanism for repairing incompatible curves.
+    """
+
+    reference_resistance_ohms: float
+    segments: Sequence[PiecewisePolynomialSegment]
+    reference_temperature_c: float = 0.0
+    name: str = "Piecewise polynomial RTD"
+    coefficient_source: str | None = None
+    maximum_continuity_adjustment_ratio: float = 0.0
+    continuity_adjustments: tuple[float, ...] = field(
+        init=False, repr=False, compare=False
+    )
+    _model: _RTDModel = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        reference_resistance_ohms = _as_float(
+            self.reference_resistance_ohms,
+            name="Reference resistance",
+        )
+        reference_temperature_c = _as_float(
+            self.reference_temperature_c,
+            name="Reference temperature",
+        )
+        maximum_adjustment = _as_float(
+            self.maximum_continuity_adjustment_ratio,
+            name="Maximum continuity adjustment ratio",
+        )
+        segments = tuple(self.segments)
+        if not all(
+            isinstance(segment, PiecewisePolynomialSegment)
+            for segment in segments
+        ):
+            raise TypeError(
+                "Segments must be PiecewisePolynomialSegment values"
+            )
+
+        coefficient_source = self.coefficient_source
+        if coefficient_source is not None:
+            coefficient_source = coefficient_source.strip()
+            if not coefficient_source:
+                raise ValueError("Coefficient source must not be empty")
+
+        curve = _PiecewisePolynomialRTDCurve(
+            name=f"{self.name} piecewise polynomial characteristic",
+            segments=tuple(
+                _PolynomialRTDSegment(
+                    minimum_temperature_c=segment.minimum_temperature_c,
+                    maximum_temperature_c=segment.maximum_temperature_c,
+                    coefficients=tuple(segment.coefficients),
+                    temperature_origin_c=segment.temperature_origin_c,
+                )
+                for segment in segments
+            ),
+            reference_temperature_c=reference_temperature_c,
+            maximum_continuity_adjustment_ratio=maximum_adjustment,
+        )
+        model = _RTDModel(
+            name=self.name,
+            reference_resistance_ohms=reference_resistance_ohms,
+            curve=curve,
+        )
+
+        object.__setattr__(
+            self,
+            "reference_resistance_ohms",
+            model.reference_resistance_ohms,
+        )
+        object.__setattr__(self, "segments", segments)
+        object.__setattr__(
+            self, "reference_temperature_c", reference_temperature_c
+        )
+        object.__setattr__(
+            self, "coefficient_source", coefficient_source
+        )
+        object.__setattr__(
+            self, "maximum_continuity_adjustment_ratio", maximum_adjustment
+        )
+        object.__setattr__(
+            self, "continuity_adjustments", curve.continuity_adjustments
+        )
+        object.__setattr__(self, "_model", model)
+
+    @property
+    def minimum_temperature_c(self) -> float:
+        """Return the complete characteristic's minimum temperature."""
+        return self._model.minimum_temperature_c
+
+    @property
+    def maximum_temperature_c(self) -> float:
+        """Return the complete characteristic's maximum temperature."""
+        return self._model.maximum_temperature_c
+
+    def celsius_to_resistance(self, temperature_c: float) -> float:
+        """Convert Celsius to resistance using the piecewise model."""
+        return self._model.celsius_to_resistance(temperature_c)
+
+    def resistance_to_celsius(self, resistance_ohms: float) -> float:
+        """Convert resistance in ohms to Celsius using the piecewise model."""
+        return self._model.resistance_to_celsius(resistance_ohms)
+
+    def resistance_sensitivity_ohms_per_celsius(
+        self, temperature_c: float
+    ) -> float:
+        """Return the active segment's analytical dR/dT sensitivity."""
+        return self._model.resistance_sensitivity_ohms_per_celsius(
+            temperature_c
+        )
+
+    def temperature_sensitivity_celsius_per_ohm(
+        self, temperature_c: float
+    ) -> float:
+        """Return the active segment's analytical dT/dR sensitivity."""
         return self._model.temperature_sensitivity_celsius_per_ohm(
             temperature_c
         )

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from ._validation import as_float as _as_float
@@ -18,7 +18,9 @@ __all__ = [
     "IEC_60751_PT385",
     "NI_5000_TK5000",
     "NI_6180_DIN_43760",
+    "PiecewisePolynomialRTDCurve",
     "PolynomialRTDCurve",
+    "PolynomialRTDSegment",
     "RTDCurve",
 ]
 
@@ -490,6 +492,462 @@ def _polynomial_roots_in_interval(
         roots.append((left + right) / 2.0)
 
     return _deduplicate_sorted_roots(roots)
+
+
+@dataclass(frozen=True, slots=True)
+class PolynomialRTDSegment:
+    """One normalized polynomial segment of a piecewise RTD characteristic.
+
+    ``coefficients`` includes the constant term. For
+    ``x = T - temperature_origin_c``, a segment evaluates
+
+    ``R(T) / Rref = c0 + c1*x + c2*x**2 + ... + cn*x**n``.
+
+    Piecewise source equations often publish an independent constant for each
+    interval, so this representation intentionally differs from
+    :class:`PolynomialRTDCurve`, whose constant is fixed at 1 at one global
+    reference temperature.
+    """
+
+    minimum_temperature_c: float
+    maximum_temperature_c: float
+    coefficients: tuple[float, ...]
+    temperature_origin_c: float = 0.0
+
+    def __post_init__(self) -> None:
+        minimum_temperature_c = _as_float(
+            self.minimum_temperature_c,
+            name="Segment minimum temperature",
+        )
+        maximum_temperature_c = _as_float(
+            self.maximum_temperature_c,
+            name="Segment maximum temperature",
+        )
+        temperature_origin_c = _as_float(
+            self.temperature_origin_c,
+            name="Segment temperature origin",
+        )
+        coefficients = tuple(
+            _as_float(value, name=f"Segment coefficient c{index}")
+            for index, value in enumerate(self.coefficients)
+        )
+
+        if not coefficients:
+            raise ValueError("At least one segment coefficient is required")
+        if len(coefficients) > 13:
+            raise ValueError("Segment polynomial degree must not exceed 12")
+        if not all(math.isfinite(value) for value in coefficients):
+            raise ValueError("Segment polynomial coefficients must be finite")
+        if not math.isfinite(minimum_temperature_c):
+            raise ValueError("Segment minimum temperature must be finite")
+        if not math.isfinite(maximum_temperature_c):
+            raise ValueError("Segment maximum temperature must be finite")
+        if not math.isfinite(temperature_origin_c):
+            raise ValueError("Segment temperature origin must be finite")
+        if minimum_temperature_c >= maximum_temperature_c:
+            raise ValueError(
+                "Segment minimum temperature must be below maximum temperature"
+            )
+
+        object.__setattr__(
+            self, "minimum_temperature_c", minimum_temperature_c
+        )
+        object.__setattr__(
+            self, "maximum_temperature_c", maximum_temperature_c
+        )
+        object.__setattr__(self, "temperature_origin_c", temperature_origin_c)
+        object.__setattr__(self, "coefficients", coefficients)
+        self._validate_shape()
+
+    def resistance_ratio_unchecked(self, temperature_c: float) -> float:
+        """Evaluate this source segment without range routing."""
+        x = temperature_c - self.temperature_origin_c
+        return _polynomial_value(self.coefficients, x)
+
+    def resistance_ratio_slope_unchecked(self, temperature_c: float) -> float:
+        """Evaluate the analytical source-segment slope."""
+        x = temperature_c - self.temperature_origin_c
+        slope_coefficients = _polynomial_derivative(self.coefficients)
+        return _polynomial_value(slope_coefficients, x)
+
+    def _validate_shape(self) -> None:
+        lower_x = self.minimum_temperature_c - self.temperature_origin_c
+        upper_x = self.maximum_temperature_c - self.temperature_origin_c
+        slope_coefficients = _polynomial_derivative(self.coefficients)
+        second_derivative_coefficients = _polynomial_derivative(
+            slope_coefficients
+        )
+
+        try:
+            minimum_ratio = _polynomial_value(self.coefficients, lower_x)
+            maximum_ratio = _polynomial_value(self.coefficients, upper_x)
+            slope_extrema_x = _polynomial_roots_in_interval(
+                second_derivative_coefficients,
+                lower_x,
+                upper_x,
+            )
+        except OverflowError as exc:
+            raise ValueError(
+                "Piecewise polynomial calculations must remain finite"
+            ) from exc
+
+        if not math.isfinite(minimum_ratio) or not math.isfinite(maximum_ratio):
+            raise ValueError(
+                "Piecewise polynomial resistance ratio must remain finite"
+            )
+        if minimum_ratio <= 0.0:
+            raise ValueError(
+                "Piecewise polynomial resistance ratio must remain positive"
+            )
+
+        for x in (lower_x, *slope_extrema_x, upper_x):
+            try:
+                slope = _polynomial_value(slope_coefficients, x)
+            except OverflowError as exc:
+                raise ValueError(
+                    "Piecewise polynomial slope must remain finite"
+                ) from exc
+            if not math.isfinite(slope):
+                raise ValueError("Piecewise polynomial slope must remain finite")
+            if slope <= 0.0:
+                raise ValueError(
+                    "Piecewise polynomial segment must be strictly increasing "
+                    "over its supported range"
+                )
+
+
+@dataclass(frozen=True, slots=True)
+class PiecewisePolynomialRTDCurve:
+    """Normalized RTD characteristic composed of polynomial segments.
+
+    Source segments are preserved exactly. When a published piecewise fit is
+    intended to represent one continuous characteristic but its independently
+    rounded segment coefficients leave tiny numerical discontinuities,
+    ``maximum_continuity_adjustment_ratio`` can explicitly authorize bounded
+    additive adjustments to the normalized constant term of each segment.
+
+    Stitching is anchored at ``reference_temperature_c`` so the declared
+    reference resistance remains exact, then propagated outward. Derivatives
+    are unchanged because only constant terms are shifted. This is preferable
+    to silently accepting gaps/overlaps, which would make resistance-to-
+    temperature inversion non-unique or undefined near a join.
+
+    At an interior segment boundary, ``resistance_ratio_slope`` returns the
+    right-hand segment slope. The final endpoint uses the last segment. This
+    makes sensitivity deterministic even when a source fit is C0-continuous
+    but not exactly C1-continuous at printed coefficient precision.
+    """
+
+    name: str
+    segments: tuple[PolynomialRTDSegment, ...]
+    reference_temperature_c: float
+    maximum_continuity_adjustment_ratio: float = 0.0
+    _continuity_adjustments: tuple[float, ...] = field(
+        init=False, repr=False, compare=False
+    )
+    _join_temperatures: tuple[float, ...] = field(
+        init=False, repr=False, compare=False
+    )
+    _join_ratios: tuple[float, ...] = field(
+        init=False, repr=False, compare=False
+    )
+
+    def __post_init__(self) -> None:
+        segments = tuple(self.segments)
+        reference_temperature_c = _as_float(
+            self.reference_temperature_c,
+            name="Reference temperature",
+        )
+        maximum_adjustment = _as_float(
+            self.maximum_continuity_adjustment_ratio,
+            name="Maximum continuity adjustment ratio",
+        )
+
+        if not segments:
+            raise ValueError("At least one piecewise polynomial segment is required")
+        if not all(
+            isinstance(segment, PolynomialRTDSegment) for segment in segments
+        ):
+            raise TypeError(
+                "Piecewise curve segments must be PolynomialRTDSegment values"
+            )
+        if not math.isfinite(reference_temperature_c):
+            raise ValueError("Reference temperature must be finite")
+        if not math.isfinite(maximum_adjustment):
+            raise ValueError("Maximum continuity adjustment ratio must be finite")
+        if maximum_adjustment < 0.0:
+            raise ValueError(
+                "Maximum continuity adjustment ratio must not be negative"
+            )
+
+        for previous, current in zip(segments, segments[1:], strict=False):
+            if previous.maximum_temperature_c < current.minimum_temperature_c:
+                raise ValueError(
+                    "Piecewise polynomial segments must not contain temperature gaps"
+                )
+            if previous.maximum_temperature_c > current.minimum_temperature_c:
+                raise ValueError(
+                    "Piecewise polynomial segments must not overlap"
+                )
+
+        minimum_temperature_c = segments[0].minimum_temperature_c
+        maximum_temperature_c = segments[-1].maximum_temperature_c
+        if not (
+            minimum_temperature_c
+            <= reference_temperature_c
+            <= maximum_temperature_c
+        ):
+            raise ValueError(
+                "Reference temperature must lie within the piecewise range"
+            )
+
+        anchor_index = self._segment_index_for_temperature_in(
+            segments, reference_temperature_c
+        )
+        adjustments = [0.0] * len(segments)
+
+        anchor_ratio = segments[anchor_index].resistance_ratio_unchecked(
+            reference_temperature_c
+        )
+        reference_error = anchor_ratio - 1.0
+        reference_roundoff = 64.0 * math.ulp(max(abs(anchor_ratio), 1.0))
+        if abs(reference_error) > reference_roundoff:
+            raise ValueError(
+                "The segment containing the reference temperature must evaluate "
+                "to a normalized resistance ratio of 1"
+            )
+        # Normalize only machine-roundoff at the semantic Rref anchor. A
+        # source-level reference mismatch is rejected above even when join
+        # stitching is enabled, because changing Rref would change the model's
+        # stated physical meaning rather than merely reconciling rounded joins.
+        adjustments[anchor_index] = -reference_error
+
+        for index in range(anchor_index + 1, len(segments)):
+            boundary_c = segments[index].minimum_temperature_c
+            previous_ratio = (
+                segments[index - 1].resistance_ratio_unchecked(boundary_c)
+                + adjustments[index - 1]
+            )
+            current_ratio = segments[index].resistance_ratio_unchecked(boundary_c)
+            adjustment = previous_ratio - current_ratio
+            self._validate_adjustment(
+                adjustment,
+                maximum_adjustment=maximum_adjustment,
+                scale=max(abs(previous_ratio), abs(current_ratio), 1.0),
+                context=f"segment join at {boundary_c:g} °C",
+            )
+            adjustments[index] = adjustment
+
+        for index in range(anchor_index - 1, -1, -1):
+            boundary_c = segments[index].maximum_temperature_c
+            next_ratio = (
+                segments[index + 1].resistance_ratio_unchecked(boundary_c)
+                + adjustments[index + 1]
+            )
+            current_ratio = segments[index].resistance_ratio_unchecked(boundary_c)
+            adjustment = next_ratio - current_ratio
+            self._validate_adjustment(
+                adjustment,
+                maximum_adjustment=maximum_adjustment,
+                scale=max(abs(next_ratio), abs(current_ratio), 1.0),
+                context=f"segment join at {boundary_c:g} °C",
+            )
+            adjustments[index] = adjustment
+
+        for segment, adjustment in zip(segments, adjustments, strict=True):
+            minimum_ratio = (
+                segment.resistance_ratio_unchecked(segment.minimum_temperature_c)
+                + adjustment
+            )
+            maximum_ratio = (
+                segment.resistance_ratio_unchecked(segment.maximum_temperature_c)
+                + adjustment
+            )
+            if not math.isfinite(minimum_ratio) or not math.isfinite(maximum_ratio):
+                raise ValueError(
+                    "Adjusted piecewise resistance ratio must remain finite"
+                )
+            if minimum_ratio <= 0.0:
+                raise ValueError(
+                    "Adjusted piecewise resistance ratio must remain positive"
+                )
+
+        join_temperatures = tuple(
+            segment.maximum_temperature_c for segment in segments[:-1]
+        )
+        join_ratios = tuple(
+            segments[index].resistance_ratio_unchecked(boundary_c)
+            + adjustments[index]
+            for index, boundary_c in enumerate(join_temperatures)
+        )
+
+        object.__setattr__(self, "segments", segments)
+        object.__setattr__(
+            self, "reference_temperature_c", reference_temperature_c
+        )
+        object.__setattr__(
+            self, "maximum_continuity_adjustment_ratio", maximum_adjustment
+        )
+        object.__setattr__(self, "_continuity_adjustments", tuple(adjustments))
+        object.__setattr__(self, "_join_temperatures", join_temperatures)
+        object.__setattr__(self, "_join_ratios", join_ratios)
+
+    @property
+    def minimum_temperature_c(self) -> float:
+        """Return the first segment's lower temperature bound."""
+        return self.segments[0].minimum_temperature_c
+
+    @property
+    def maximum_temperature_c(self) -> float:
+        """Return the final segment's upper temperature bound."""
+        return self.segments[-1].maximum_temperature_c
+
+    @property
+    def continuity_adjustments(self) -> tuple[float, ...]:
+        """Return additive normalized-ratio offsets applied to source segments."""
+        return self._continuity_adjustments
+
+    def resistance_ratio(self, temperature_c: float) -> float:
+        """Return the stitched normalized resistance ratio R(T) / Rref."""
+        temperature = _as_float(temperature_c, name="Temperature")
+        self._validate_temperature(temperature)
+
+        if temperature == self.reference_temperature_c:
+            return 1.0
+        for boundary_c, boundary_ratio in zip(
+            self._join_temperatures, self._join_ratios, strict=True
+        ):
+            if temperature == boundary_c:
+                return boundary_ratio
+
+        index = self._segment_index_for_temperature(temperature)
+        return self._resistance_ratio_unchecked(index, temperature)
+
+    def resistance_ratio_slope(self, temperature_c: float) -> float:
+        """Return the active segment's analytical slope d(R/Rref)/dT."""
+        temperature = _as_float(temperature_c, name="Temperature")
+        self._validate_temperature(temperature)
+        index = self._segment_index_for_temperature(temperature)
+        return self.segments[index].resistance_ratio_slope_unchecked(temperature)
+
+    def temperature_from_resistance_ratio(
+        self, resistance_ratio: float
+    ) -> float:
+        """Invert the stitched characteristic by bounded global bisection."""
+        ratio = _as_float(resistance_ratio, name="Resistance ratio")
+        minimum_ratio, maximum_ratio = self._resistance_ratio_bounds()
+        ratio = _validated_resistance_ratio_at_bounds(
+            ratio,
+            minimum_ratio=minimum_ratio,
+            maximum_ratio=maximum_ratio,
+        )
+
+        if ratio == minimum_ratio:
+            return self.minimum_temperature_c
+        if ratio == maximum_ratio:
+            return self.maximum_temperature_c
+        if ratio == 1.0:
+            return self.reference_temperature_c
+        for boundary_c, boundary_ratio in zip(
+            self._join_temperatures, self._join_ratios, strict=True
+        ):
+            if ratio == boundary_ratio:
+                return boundary_c
+
+        lower_c = self.minimum_temperature_c
+        upper_c = self.maximum_temperature_c
+        for _ in range(_BISECTION_ITERATIONS):
+            midpoint_c = (lower_c + upper_c) / 2.0
+            midpoint_ratio = self._resistance_ratio_at_temperature(midpoint_c)
+            if midpoint_ratio < ratio:
+                lower_c = midpoint_c
+            else:
+                upper_c = midpoint_c
+        return (lower_c + upper_c) / 2.0
+
+    @staticmethod
+    def _validate_adjustment(
+        adjustment: float,
+        *,
+        maximum_adjustment: float,
+        scale: float,
+        context: str,
+    ) -> None:
+        if not math.isfinite(adjustment):
+            raise ValueError("Continuity adjustment must remain finite")
+
+        # Even algebraically continuous source polynomials can evaluate a join
+        # a few representable floats apart because each side follows a different
+        # operation sequence.  That machine-roundoff allowance is automatic; a
+        # larger source-level discontinuity requires explicit opt-in.
+        roundoff_allowance = 64.0 * math.ulp(scale)
+        permitted = max(maximum_adjustment, roundoff_allowance)
+        if abs(adjustment) > permitted:
+            raise ValueError(
+                f"Piecewise polynomial {context} requires normalized-ratio "
+                f"adjustment {adjustment:.12g}, exceeding the declared maximum "
+                f"{maximum_adjustment:.12g}"
+            )
+
+    @staticmethod
+    def _segment_index_for_temperature_in(
+        segments: tuple[PolynomialRTDSegment, ...],
+        temperature_c: float,
+    ) -> int:
+        for index, segment in enumerate(segments):
+            is_last = index == len(segments) - 1
+            if segment.minimum_temperature_c <= temperature_c and (
+                temperature_c < segment.maximum_temperature_c
+                or (is_last and temperature_c <= segment.maximum_temperature_c)
+            ):
+                return index
+        raise ValueError("Temperature is outside the piecewise segment range")
+
+    def _segment_index_for_temperature(self, temperature_c: float) -> int:
+        return self._segment_index_for_temperature_in(self.segments, temperature_c)
+
+    def _resistance_ratio_unchecked(
+        self, index: int, temperature_c: float
+    ) -> float:
+        return (
+            self.segments[index].resistance_ratio_unchecked(temperature_c)
+            + self._continuity_adjustments[index]
+        )
+
+    def _resistance_ratio_at_temperature(self, temperature_c: float) -> float:
+        if temperature_c == self.reference_temperature_c:
+            return 1.0
+        for boundary_c, boundary_ratio in zip(
+            self._join_temperatures, self._join_ratios, strict=True
+        ):
+            if temperature_c == boundary_c:
+                return boundary_ratio
+        index = self._segment_index_for_temperature(temperature_c)
+        return self._resistance_ratio_unchecked(index, temperature_c)
+
+    def _validate_temperature(self, temperature_c: float) -> None:
+        if not math.isfinite(temperature_c):
+            raise ValueError("Temperature must be finite")
+        if not (
+            self.minimum_temperature_c
+            <= temperature_c
+            <= self.maximum_temperature_c
+        ):
+            raise ValueError(
+                "Temperature must be between "
+                f"{self.minimum_temperature_c:g} °C and "
+                f"{self.maximum_temperature_c:g} °C"
+            )
+
+    def _resistance_ratio_bounds(self) -> tuple[float, float]:
+        return (
+            self._resistance_ratio_unchecked(
+                0, self.minimum_temperature_c
+            ),
+            self._resistance_ratio_unchecked(
+                len(self.segments) - 1, self.maximum_temperature_c
+            ),
+        )
 
 
 @dataclass(frozen=True, slots=True)

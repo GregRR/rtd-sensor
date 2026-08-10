@@ -3,9 +3,10 @@
 A small, platform-independent Python library for resistance temperature detectors (RTDs).
 Its verified built-in sensor modules currently cover IEC 60751 Pt100, Pt500, Pt1000,
 the former-DIN Ni1000 6178/6180 ppm/K characteristic, and Ni1000 TK5000. The library
-also provides configurable and calibrated Callendar–Van Dusen models, a generic
-polynomial RTD model for traceable manufacturer/user characteristics, standard platinum
-tolerance calculations, measurement-uncertainty tools, and simulation support.
+also provides configurable and calibrated Callendar–Van Dusen models, generic
+single- and piecewise-polynomial RTD models for traceable manufacturer/user
+characteristics, standard platinum tolerance calculations, measurement-uncertainty
+tools, and simulation support.
 
 ## Scope
 
@@ -167,7 +168,43 @@ R(T) = Rref × (1 + c1*x + c2*x² + ... + cn*xⁿ)
 
 The model analytically differentiates the polynomial, validates that resistance stays finite and positive, and locates derivative extrema to prove the characteristic remains strictly increasing over its declared range. Resistance-to-temperature conversion then uses dependency-free bounded bisection on that validated curve instead of an approximate inverse polynomial.
 
-Do not force a published piecewise or tabulated characteristic into this single-polynomial API. Piecewise-polynomial and authoritative table-based characteristics are separate planned model types.
+Do not force a published piecewise or tabulated characteristic into this single-polynomial API. Use `PiecewisePolynomialRTDModel` for a source that publishes separate interval equations; authoritative table-based characteristics remain a separate planned model type.
+
+## Piecewise polynomial RTD models
+
+`PiecewisePolynomialRTDModel` preserves documented characteristics that publish a different polynomial over each temperature interval. Each `PiecewisePolynomialSegment` stores the complete normalized polynomial for one interval, including its constant term:
+
+```text
+R(T) / Rref = c0 + c1*x + c2*x² + ... + cn*xⁿ
+x = T - segment_temperature_origin
+```
+
+For example:
+
+```python
+from rtd.models import PiecewisePolynomialRTDModel, PiecewisePolynomialSegment
+
+example = PiecewisePolynomialRTDModel(
+    reference_resistance_ohms=100.0,
+    segments=(
+        PiecewisePolynomialSegment(
+            minimum_temperature_c=-10.0,
+            maximum_temperature_c=0.0,
+            coefficients=(1.0, 0.01),
+        ),
+        PiecewisePolynomialSegment(
+            minimum_temperature_c=0.0,
+            maximum_temperature_c=10.0,
+            coefficients=(1.0, 0.02),
+        ),
+    ),
+    coefficient_source="Example only — not a real sensor characteristic",
+)
+```
+
+Segments must be contiguous, positive-resistance, and strictly increasing. The model preserves each source coefficient tuple and provides one bounded inverse across the complete characteristic. Interior temperature boundaries route to the segment on their right; if adjacent segments have different slopes, sensitivity at the boundary therefore reports that right-hand slope.
+
+Published piecewise fits are sometimes independently rounded and miss exact continuity by a tiny amount. The default API does not hide such a mismatch. A caller may explicitly set `maximum_continuity_adjustment_ratio` to authorize only a bounded additive correction to each segment's normalized constant term. The reference-temperature segment remains the anchor, derivatives are unchanged, and the applied offsets are exposed as `continuity_adjustments` for auditability. This mechanism is for documented source-rounding effects, not for making genuinely incompatible segments appear valid.
 
 ## IEC 60751 tolerance classes
 

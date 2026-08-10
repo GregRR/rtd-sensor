@@ -70,6 +70,8 @@ def test_models_public_api() -> None:
     assert set(models.__all__) == {
         "CallendarVanDusenRTDModel",
         "IEC60751RTDModel",
+        "PiecewisePolynomialRTDModel",
+        "PiecewisePolynomialSegment",
         "PolynomialRTDModel",
     }
 
