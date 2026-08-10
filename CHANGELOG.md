@@ -14,6 +14,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+* Model-aware simulation readers now reject conflicting explicit RTD-type overrides, preventing a Pt1000 resistance stream from being silently interpreted with the Pt100 model (or vice versa).
+* Built-in simulation readers keep their RTD identity read-only after construction so their declared `rtd_type` cannot diverge from the model cached during initialization.
 * Exact model-boundary resistance round trips no longer fail when floating-point `R0 × ratio` followed by `R / R0` lands one representable value outside the normalized curve boundary.
 * Positive-temperature CVD inversion now uses a numerically stable quadratic form to reduce cancellation near resistance-ratio boundaries.
 

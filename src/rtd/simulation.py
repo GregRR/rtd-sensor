@@ -58,8 +58,34 @@ class _ModelAwareResistanceReader(ResistanceReader, Protocol):
         ...
 
 
+class _FixedRTDIdentity:
+    """Prevent a reader's declared RTD type from diverging from its model.
+
+    Built-in readers resolve and cache their conversion model during
+    construction. Allowing ``rtd_type`` to change afterward would leave the
+    public identity and cached model inconsistent, so only the initial
+    dataclass assignment is permitted. Other reader state remains mutable
+    where required, such as a sequence reader's internal index.
+    """
+
+    __slots__ = ()
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if name == "rtd_type":
+            try:
+                object.__getattribute__(self, name)
+            except AttributeError:
+                pass
+            else:
+                raise AttributeError(
+                    "rtd_type is read-only after reader construction"
+                )
+
+        object.__setattr__(self, name, value)
+
+
 @dataclass(slots=True)
-class FixedResistanceReader:
+class FixedResistanceReader(_FixedRTDIdentity):
     """Return the same resistance for every reading."""
 
     resistance_ohms: float
@@ -82,7 +108,7 @@ class FixedResistanceReader:
 
 
 @dataclass(slots=True)
-class ResistanceSequenceReader:
+class ResistanceSequenceReader(_FixedRTDIdentity):
     """Return resistance values from a finite or repeating sequence."""
 
     readings_ohms: Sequence[float]
@@ -135,7 +161,7 @@ class ResistanceSequenceReader:
 
 
 @dataclass(slots=True)
-class TemperatureSequenceReader:
+class TemperatureSequenceReader(_FixedRTDIdentity):
     """Simulate RTD resistance from a temperature sequence."""
 
     temperatures_c: Sequence[float]
@@ -174,7 +200,7 @@ class TemperatureSequenceReader:
 
 
 @dataclass(slots=True)
-class NoisyTemperatureReader:
+class NoisyTemperatureReader(_FixedRTDIdentity):
     """Simulate a temperature with reproducible Gaussian noise.
 
     Noise is applied in degrees Celsius before the simulated temperature
@@ -244,17 +270,31 @@ def read_temperature_celsius(
     reader that exposes only resistance, pass ``rtd_type`` explicitly.
 
     Readers without a declared RTD type default to Pt100 for backward
-    compatibility.
+    compatibility. If a reader declares its RTD type, an explicit conflicting
+    ``rtd_type`` is rejected rather than silently interpreting the resistance
+    with the wrong model.
     """
-    selected_type = rtd_type
+    declared_type: RTDType | None = None
 
-    if selected_type is None:
-        if isinstance(reader, _ModelAwareResistanceReader):
-            selected_type = reader.rtd_type
-        else:
-            selected_type = "pt100"
+    if isinstance(reader, _ModelAwareResistanceReader):
+        declared_type = reader.rtd_type
+        # A model-aware reader's declaration is part of the conversion
+        # contract. Validate it even when the caller also supplies a type so
+        # an invalid or stale declaration cannot be silently bypassed.
+        _model_for_rtd_type(declared_type)
 
-    model = _model_for_rtd_type(selected_type)
+    if rtd_type is not None:
+        model = _model_for_rtd_type(rtd_type)
+
+        if declared_type is not None and rtd_type != declared_type:
+            raise ValueError(
+                f"Explicit RTD type {rtd_type!r} conflicts with "
+                f"reader-declared RTD type {declared_type!r}"
+            )
+    else:
+        selected_type = declared_type or "pt100"
+        model = _model_for_rtd_type(selected_type)
+
     resistance = reader.read_resistance_ohms()
     return model.resistance_to_celsius(resistance)
 

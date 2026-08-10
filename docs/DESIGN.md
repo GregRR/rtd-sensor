@@ -172,6 +172,8 @@ This is sufficient for deterministic tests of application behavior.
 
 The simulation module currently provides fixed resistance readings, finite and repeating resistance sequences, temperature-defined sequences, and reproducible seeded temperature noise. Temperature-based readers are model-aware and support both Pt100 and Pt1000. Pt100 remains the default for backward compatibility.
 
+A reader that declares an RTD type establishes a model-identity invariant: its declared type must not diverge from the model used to validate or generate its resistance values. Built-in readers therefore keep `rtd_type` read-only after construction. `read_temperature_celsius()` also rejects an explicit RTD type that conflicts with a model-aware reader's declaration. Generic readers that expose only resistance remain supported; callers may select their RTD type explicitly, and untyped readers still default to Pt100 for backward compatibility.
+
 Future simulation additions may include ramps, heating and cooling profiles, and injected open-circuit or short-circuit faults.
 
 Simulation components expose resistance values so they exercise the same application path as real hardware.

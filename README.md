@@ -242,6 +242,8 @@ temperature_c = simulation.read_temperature_celsius(
 )
 ```
 
+Built-in model-aware readers keep their RTD identity fixed after construction. If a reader declares `rtd_type="pt1000"`, passing a conflicting explicit `rtd_type="pt100"` to `read_temperature_celsius()` raises `ValueError` instead of silently interpreting the resistance with the wrong model. Supplying the same explicit type remains valid.
+
 ## Development setup
 
 The project targets Python 3.14 and uses [uv](https://docs.astral.sh/uv/) for development environments and dependency locking.
