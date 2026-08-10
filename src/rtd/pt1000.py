@@ -25,7 +25,7 @@ measurement-circuit errors.
 
 from __future__ import annotations
 
-from ._models import PT1000_IEC_60751
+from . import _models
 
 __all__ = [
     "MAX_TEMPERATURE_C",
@@ -37,7 +37,7 @@ __all__ = [
     "temperature_sensitivity_celsius_per_ohm",
 ]
 
-_MODEL = PT1000_IEC_60751
+_MODEL = _models.PT1000_IEC_60751
 
 R0_OHMS = _MODEL.r0_ohms
 MIN_TEMPERATURE_C = _MODEL.minimum_temperature_c

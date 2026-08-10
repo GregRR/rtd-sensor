@@ -22,6 +22,8 @@ import math
 from dataclasses import dataclass
 from typing import Literal
 
+from ._validation import as_float as _as_float
+
 __all__ = [
     "PlatinumResistorToleranceClass",
     "RTDConstruction",
@@ -193,7 +195,7 @@ def _temperature_tolerance_c(
     that bounded limit into a statistical uncertainty.
     """
 
-    temperature = float(temperature_c)
+    temperature = _as_float(temperature_c, name="Temperature")
     if not math.isfinite(temperature):
         raise ValueError("Temperature must be finite")
     if not (

@@ -10,6 +10,8 @@ import math
 from dataclasses import dataclass
 from typing import Protocol
 
+from ._validation import as_float as _as_float
+
 __all__ = [
     "CallendarVanDusenCurve",
     "IEC_60751_PT385",
@@ -159,7 +161,7 @@ class CallendarVanDusenCurve:
 
     def resistance_ratio(self, temperature_c: float) -> float:
         """Return the normalized resistance ratio R(T) / R0."""
-        temperature = float(temperature_c)
+        temperature = _as_float(temperature_c, name="Temperature")
         self._validate_temperature(temperature)
         return self._resistance_ratio_unchecked(temperature)
 
@@ -172,7 +174,7 @@ class CallendarVanDusenCurve:
         the model's actual coefficients rather than a finite-difference
         approximation.
         """
-        temperature = float(temperature_c)
+        temperature = _as_float(temperature_c, name="Temperature")
         self._validate_temperature(temperature)
         return self._resistance_ratio_slope_unchecked(temperature)
 
@@ -181,7 +183,7 @@ class CallendarVanDusenCurve:
         resistance_ratio: float,
     ) -> float:
         """Invert a normalized resistance ratio to Celsius."""
-        ratio = float(resistance_ratio)
+        ratio = _as_float(resistance_ratio, name="Resistance ratio")
         ratio = self._validated_resistance_ratio(ratio)
 
         minimum_ratio, maximum_ratio = self._resistance_ratio_bounds()

@@ -19,7 +19,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import Literal, Protocol, runtime_checkable
 
-from ._models import PT100_IEC_60751, PT1000_IEC_60751, RTDModel
+from . import _models
+from ._validation import as_float as _as_float
 
 __all__ = [
     "FixedResistanceReader",
@@ -34,9 +35,9 @@ __all__ = [
 
 type RTDType = Literal["pt100", "pt1000"]
 
-_SUPPORTED_MODELS: dict[RTDType, RTDModel] = {
-    "pt100": PT100_IEC_60751,
-    "pt1000": PT1000_IEC_60751,
+_SUPPORTED_MODELS: dict[RTDType, _models.RTDModel] = {
+    "pt100": _models.PT100_IEC_60751,
+    "pt1000": _models.PT1000_IEC_60751,
 }
 
 
@@ -90,7 +91,7 @@ class FixedResistanceReader(_FixedRTDIdentity):
 
     resistance_ohms: float
     rtd_type: RTDType = "pt100"
-    _model: RTDModel = field(
+    _model: _models.RTDModel = field(
         init=False,
         repr=False,
     )
@@ -114,7 +115,7 @@ class ResistanceSequenceReader(_FixedRTDIdentity):
     readings_ohms: Sequence[float]
     repeat: bool = False
     rtd_type: RTDType = "pt100"
-    _model: RTDModel = field(
+    _model: _models.RTDModel = field(
         init=False,
         repr=False,
     )
@@ -167,7 +168,7 @@ class TemperatureSequenceReader(_FixedRTDIdentity):
     temperatures_c: Sequence[float]
     repeat: bool = False
     rtd_type: RTDType = "pt100"
-    _model: RTDModel = field(
+    _model: _models.RTDModel = field(
         init=False,
         repr=False,
     )
@@ -213,7 +214,7 @@ class NoisyTemperatureReader(_FixedRTDIdentity):
     noise_standard_deviation_c: float = 0.05
     seed: int | None = None
     rtd_type: RTDType = "pt100"
-    _model: RTDModel = field(
+    _model: _models.RTDModel = field(
         init=False,
         repr=False,
     )
@@ -229,8 +230,9 @@ class NoisyTemperatureReader(_FixedRTDIdentity):
         # exercises the same range rules as real conversion calls.
         self._model.celsius_to_resistance(self.temperature_c)
 
-        standard_deviation = float(
-            self.noise_standard_deviation_c
+        standard_deviation = _as_float(
+            self.noise_standard_deviation_c,
+            name="Noise standard deviation",
         )
 
         if not math.isfinite(standard_deviation):
@@ -299,7 +301,7 @@ def read_temperature_celsius(
     return model.resistance_to_celsius(resistance)
 
 
-def _model_for_rtd_type(rtd_type: RTDType) -> RTDModel:
+def _model_for_rtd_type(rtd_type: RTDType) -> _models.RTDModel:
     try:
         return _SUPPORTED_MODELS[rtd_type]
     except KeyError as error:
@@ -311,9 +313,9 @@ def _model_for_rtd_type(rtd_type: RTDType) -> RTDModel:
 
 def _validate_resistance(
     resistance_ohms: float,
-    model: RTDModel,
+    model: _models.RTDModel,
 ) -> float:
-    resistance = float(resistance_ohms)
+    resistance = _as_float(resistance_ohms, name="Resistance")
 
     if not math.isfinite(resistance):
         raise ValueError("Resistance must be finite")

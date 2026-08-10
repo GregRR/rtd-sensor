@@ -122,3 +122,12 @@ def test_simulation_public_api() -> None:
         "TemperatureSequenceReader",
         "read_temperature_celsius",
     }
+
+
+def test_public_modules_do_not_leak_internal_model_singletons() -> None:
+    assert not hasattr(pt100, "PT100_IEC_60751")
+    assert not hasattr(pt1000, "PT1000_IEC_60751")
+    assert not hasattr(models, "IEC_60751_PT385")
+    assert not hasattr(simulation, "PT100_IEC_60751")
+    assert not hasattr(simulation, "PT1000_IEC_60751")
+    assert not hasattr(simulation, "RTDModel")

@@ -27,6 +27,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
+from ._validation import as_float as _as_float
+
 __all__ = [
     "BoundDistribution",
     "EvaluationMethod",
@@ -306,12 +308,16 @@ def propagate_resistance_uncertainty(
         name="Resistance standard uncertainty",
     )
 
-    temperature_c = float(model.resistance_to_celsius(resistance))
+    temperature_c = _as_float(
+        model.resistance_to_celsius(resistance),
+        name="Converted temperature",
+    )
     if not math.isfinite(temperature_c):
         raise ValueError("Converted temperature must remain finite")
 
-    sensitivity = float(
-        model.temperature_sensitivity_celsius_per_ohm(temperature_c)
+    sensitivity = _as_float(
+        model.temperature_sensitivity_celsius_per_ohm(temperature_c),
+        name="Temperature sensitivity",
     )
     if not math.isfinite(sensitivity):
         raise ValueError("Temperature sensitivity must remain finite")
@@ -410,7 +416,7 @@ def temperature_uncertainty_budget(
 
 
 def _validate_nonnegative_finite(value: float, *, name: str) -> float:
-    number = float(value)
+    number = _as_float(value, name=name)
     if not math.isfinite(number):
         raise ValueError(f"{name} must be finite")
     if number < 0.0:
@@ -419,7 +425,7 @@ def _validate_nonnegative_finite(value: float, *, name: str) -> float:
 
 
 def _validate_positive_finite(value: float, *, name: str) -> float:
-    number = float(value)
+    number = _as_float(value, name=name)
     if not math.isfinite(number):
         raise ValueError(f"{name} must be finite")
     if number <= 0.0:

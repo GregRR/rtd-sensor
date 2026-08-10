@@ -10,6 +10,7 @@ import math
 from dataclasses import dataclass
 
 from ._curves import IEC_60751_PT385, RTDCurve
+from ._validation import as_float as _as_float
 
 __all__ = [
     "PT100_IEC_60751",
@@ -27,7 +28,7 @@ class RTDModel:
     curve: RTDCurve
 
     def __post_init__(self) -> None:
-        r0_ohms = float(self.r0_ohms)
+        r0_ohms = _as_float(self.r0_ohms, name="R0")
         if not math.isfinite(r0_ohms):
             raise ValueError("R0 must be finite")
         if r0_ohms <= 0.0:
@@ -51,7 +52,7 @@ class RTDModel:
 
     def resistance_to_celsius(self, resistance_ohms: float) -> float:
         """Convert RTD resistance in ohms to Celsius."""
-        resistance = float(resistance_ohms)
+        resistance = _as_float(resistance_ohms, name="Resistance")
         self._validate_resistance(resistance)
         resistance_ratio = resistance / self.r0_ohms
         return self.curve.temperature_from_resistance_ratio(

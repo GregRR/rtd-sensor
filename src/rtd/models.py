@@ -15,9 +15,10 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from ._curves import IEC_60751_PT385
+from . import _curves
 from ._curves import CallendarVanDusenCurve as _CallendarVanDusenCurve
 from ._models import RTDModel as _RTDModel
+from ._validation import as_float as _as_float
 
 __all__ = [
     "CallendarVanDusenRTDModel",
@@ -51,13 +52,23 @@ class IEC60751RTDModel:
 
     r0_ohms: float
     name: str = "IEC 60751 RTD"
-    minimum_temperature_c: float = IEC_60751_PT385.minimum_temperature_c
-    maximum_temperature_c: float = IEC_60751_PT385.maximum_temperature_c
+    minimum_temperature_c: float = (
+        _curves.IEC_60751_PT385.minimum_temperature_c
+    )
+    maximum_temperature_c: float = (
+        _curves.IEC_60751_PT385.maximum_temperature_c
+    )
     _model: _RTDModel = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        minimum_temperature_c = float(self.minimum_temperature_c)
-        maximum_temperature_c = float(self.maximum_temperature_c)
+        minimum_temperature_c = _as_float(
+            self.minimum_temperature_c,
+            name="Minimum temperature",
+        )
+        maximum_temperature_c = _as_float(
+            self.maximum_temperature_c,
+            name="Maximum temperature",
+        )
 
         if not math.isfinite(minimum_temperature_c):
             raise ValueError("Minimum temperature must be finite")
@@ -67,11 +78,17 @@ class IEC60751RTDModel:
             raise ValueError(
                 "Minimum temperature must be below maximum temperature"
             )
-        if minimum_temperature_c < IEC_60751_PT385.minimum_temperature_c:
+        if (
+            minimum_temperature_c
+            < _curves.IEC_60751_PT385.minimum_temperature_c
+        ):
             raise ValueError(
                 "Minimum temperature is below the IEC 60751 PT-385 range"
             )
-        if maximum_temperature_c > IEC_60751_PT385.maximum_temperature_c:
+        if (
+            maximum_temperature_c
+            > _curves.IEC_60751_PT385.maximum_temperature_c
+        ):
             raise ValueError(
                 "Maximum temperature is above the IEC 60751 PT-385 range"
             )
@@ -79,7 +96,7 @@ class IEC60751RTDModel:
         model = _RTDModel(
             name=self.name,
             r0_ohms=self.r0_ohms,
-            curve=IEC_60751_PT385,
+            curve=_curves.IEC_60751_PT385,
         )
 
         object.__setattr__(self, "r0_ohms", model.r0_ohms)
@@ -97,13 +114,13 @@ class IEC60751RTDModel:
 
     def celsius_to_resistance(self, temperature_c: float) -> float:
         """Convert Celsius to resistance using this RTD model."""
-        temperature = float(temperature_c)
+        temperature = _as_float(temperature_c, name="Temperature")
         self._validate_temperature(temperature)
         return self._model.celsius_to_resistance(temperature)
 
     def resistance_to_celsius(self, resistance_ohms: float) -> float:
         """Convert resistance in ohms to Celsius using this RTD model."""
-        resistance = float(resistance_ohms)
+        resistance = _as_float(resistance_ohms, name="Resistance")
         self._validate_resistance(resistance)
         return self._model.resistance_to_celsius(resistance)
 
@@ -112,7 +129,7 @@ class IEC60751RTDModel:
         temperature_c: float,
     ) -> float:
         """Return the exact local resistance sensitivity dR/dT."""
-        temperature = float(temperature_c)
+        temperature = _as_float(temperature_c, name="Temperature")
         self._validate_temperature(temperature)
         return self._model.resistance_sensitivity_ohms_per_celsius(temperature)
 
@@ -121,7 +138,7 @@ class IEC60751RTDModel:
         temperature_c: float,
     ) -> float:
         """Return the exact local inverse sensitivity dT/dR."""
-        temperature = float(temperature_c)
+        temperature = _as_float(temperature_c, name="Temperature")
         self._validate_temperature(temperature)
         return self._model.temperature_sensitivity_celsius_per_ohm(temperature)
 
@@ -212,12 +229,18 @@ class CallendarVanDusenRTDModel:
     _model: _RTDModel = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        r0_ohms = float(self.r0_ohms)
-        a = float(self.a)
-        b = float(self.b)
-        minimum_temperature_c = float(self.minimum_temperature_c)
-        maximum_temperature_c = float(self.maximum_temperature_c)
-        c = None if self.c is None else float(self.c)
+        r0_ohms = _as_float(self.r0_ohms, name="R0")
+        a = _as_float(self.a, name="A coefficient")
+        b = _as_float(self.b, name="B coefficient")
+        minimum_temperature_c = _as_float(
+            self.minimum_temperature_c,
+            name="Minimum temperature",
+        )
+        maximum_temperature_c = _as_float(
+            self.maximum_temperature_c,
+            name="Maximum temperature",
+        )
+        c = None if self.c is None else _as_float(self.c, name="C coefficient")
 
         if not math.isfinite(r0_ohms):
             raise ValueError("R0 must be finite")
@@ -287,13 +310,13 @@ class CallendarVanDusenRTDModel:
 
     def celsius_to_resistance(self, temperature_c: float) -> float:
         """Convert Celsius to resistance using this coefficient set."""
-        temperature = float(temperature_c)
+        temperature = _as_float(temperature_c, name="Temperature")
         self._validate_temperature(temperature)
         return self._model.celsius_to_resistance(temperature)
 
     def resistance_to_celsius(self, resistance_ohms: float) -> float:
         """Convert resistance in ohms to Celsius using this coefficient set."""
-        resistance = float(resistance_ohms)
+        resistance = _as_float(resistance_ohms, name="Resistance")
         self._validate_resistance(resistance)
         return self._model.resistance_to_celsius(resistance)
 
@@ -302,7 +325,7 @@ class CallendarVanDusenRTDModel:
         temperature_c: float,
     ) -> float:
         """Return the exact local resistance sensitivity dR/dT."""
-        temperature = float(temperature_c)
+        temperature = _as_float(temperature_c, name="Temperature")
         self._validate_temperature(temperature)
         return self._model.resistance_sensitivity_ohms_per_celsius(temperature)
 
@@ -311,7 +334,7 @@ class CallendarVanDusenRTDModel:
         temperature_c: float,
     ) -> float:
         """Return the exact local inverse sensitivity dT/dR."""
-        temperature = float(temperature_c)
+        temperature = _as_float(temperature_c, name="Temperature")
         self._validate_temperature(temperature)
         return self._model.temperature_sensitivity_celsius_per_ohm(temperature)
 

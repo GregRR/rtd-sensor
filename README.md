@@ -36,6 +36,8 @@ pt1000_temperature_c = pt1000.resistance_to_celsius(1193.971)
 pt1000_resistance_ohms = pt1000.celsius_to_resistance(50.0)
 ```
 
+Physical numerical inputs such as temperature, resistance, coefficients, and uncertainty values reject Python Boolean values. This prevents `True`/`False` from being silently interpreted as `1.0`/`0.0`, while ordinary integer, floating-point, and other float-convertible numeric inputs continue to work normally. Boolean control options such as simulation `repeat=True` are unaffected.
+
 ## Configurable IEC 60751 models
 
 For an individual Pt100, Pt1000, or other IEC 60751 PT-385 sensor with a characterized resistance at 0 °C, use `IEC60751RTDModel`:
@@ -266,6 +268,7 @@ uv run --locked mypy
 src/rtd/
     _curves.py
     _models.py
+    _validation.py
     models.py
     pt100.py
     pt1000.py

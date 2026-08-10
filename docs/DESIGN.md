@@ -150,9 +150,11 @@ The conversion functions should reject:
 - temperatures outside the documented supported range
 - resistance values that cannot represent a temperature inside that range
 
-Errors should use clear `ValueError` messages unless a dedicated exception hierarchy becomes justified.
+Domain/range failures should use clear `ValueError` messages unless a dedicated exception hierarchy becomes justified. Type-category mistakes may use `TypeError`; in particular, Boolean values passed as physical numerical quantities are rejected as the wrong input type rather than coerced to numbers.
 
 The package should not silently clamp physical measurements. One narrow numerical exception is permitted at normalized curve boundaries: converting an exact endpoint through `R0 × ratio` and then back through `R / R0` can land exactly one representable floating-point value beyond the original ratio. The curve layer may normalize that one-ULP artifact back to the mathematical endpoint, while the public resistance-in-ohms validation remains strict. Values farther outside the supported range must still be rejected.
+
+Physical numerical inputs also reject Python Boolean values explicitly. Although `bool` is a subclass of `int`, silently interpreting `True` as `1.0` or `False` as `0.0` can turn a programming flag into a plausible resistance, temperature, coefficient, or uncertainty. Boolean control parameters such as simulation `repeat` remain ordinary booleans. Other float-convertible numeric inputs retain the existing coercion behavior.
 
 ## 7. Simulation
 
@@ -242,6 +244,7 @@ src/rtd/
 ├── __init__.py
 ├── _curves.py
 ├── _models.py
+├── _validation.py
 ├── models.py
 ├── pt100.py
 ├── pt1000.py
@@ -253,6 +256,7 @@ tests/
 ├── test_boundary_roundtrips.py
 ├── test_custom_cvd_models.py
 ├── test_models.py
+├── test_numeric_input_validation.py
 ├── test_package_api.py
 ├── test_pt100.py
 ├── test_pt1000.py
@@ -300,7 +304,7 @@ This permits multiple RTD models to share one verified standardized curve withou
 
 The implementation defines the IEC 60751 PT-385 Callendar–Van Dusen curve once and combines it with model-specific `R0` values. Pt100 uses `R0 = 100 Ω`; Pt1000 uses `R0 = 1000 Ω`.
 
-The low-level curve and model infrastructure remains internal. Public wrappers expose the supported configurable and calibrated-model capabilities without making the internal numerical abstractions part of the compatibility contract.
+The low-level curve and model infrastructure remains internal. Public modules should therefore reference internal singletons through private/module-qualified names rather than exposing those implementation objects as accidental module attributes. Public wrappers expose the supported configurable and calibrated-model capabilities without making the internal numerical abstractions part of the compatibility contract.
 
 
 ### Public configurable and calibrated models

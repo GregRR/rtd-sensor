@@ -12,6 +12,11 @@ All notable changes to this project will be documented in this file.
 * GUM-style measurement-uncertainty primitives for bounded Type B conversions, independent root-sum-square combination, expanded uncertainty, and exact analytical RTD sensitivity.
 * Structured RTD resistance-to-temperature uncertainty propagation and named independent-component temperature uncertainty budgets with optional coverage-factor reporting and provenance metadata.
 
+### Changed
+
+* Public physical/numerical inputs now reject Boolean values instead of silently coercing `True`/`False` to `1.0`/`0.0`.
+* Public modules no longer expose imported internal RTD model/curve singletons as accidental module attributes; supported public exports remain unchanged.
+
 ### Fixed
 
 * Model-aware simulation readers now reject conflicting explicit RTD-type overrides, preventing a Pt1000 resistance stream from being silently interpreted with the Pt100 model (or vice versa).
