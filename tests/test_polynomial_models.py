@@ -180,6 +180,33 @@ def test_polynomial_model_rejects_nonpositive_resistance_ratio() -> None:
         )
 
 
+def test_sixth_degree_monotonic_polynomial_constructs_and_round_trips() -> None:
+    # Adjacent root-partition intervals intentionally use sequences whose
+    # lengths differ by one. This real-world sixth-degree shape exercises the
+    # recursive derivative partition deeply enough to catch an accidental
+    # strict zip of those offset interval endpoints.
+    model = PolynomialRTDModel(
+        reference_resistance_ohms=1000.0,
+        coefficients=(
+            5.485e-3,
+            6.650e-6,
+            0.0,
+            2.805e-11,
+            0.0,
+            -2.000e-17,
+        ),
+        minimum_temperature_c=-60.0,
+        maximum_temperature_c=250.0,
+    )
+
+    for temperature_c in (-60.0, -20.0, 0.0, 100.0, 200.0, 250.0):
+        resistance = model.celsius_to_resistance(temperature_c)
+        assert model.resistance_to_celsius(resistance) == pytest.approx(
+            temperature_c,
+            abs=1e-9,
+        )
+
+
 def test_polynomial_model_rejects_decreasing_curve() -> None:
     with pytest.raises(ValueError, match="strictly increasing"):
         PolynomialRTDModel(

@@ -450,7 +450,7 @@ def _polynomial_roots_in_interval(
         if _polynomial_value_is_roundoff_zero(value, polynomial, point):
             roots.append(point)
 
-    for interval_lower, interval_upper in zip(partition, partition[1:], strict=True):
+    for interval_lower, interval_upper in zip(partition, partition[1:], strict=False):
         lower_value = _polynomial_value(polynomial, interval_lower)
         upper_value = _polynomial_value(polynomial, interval_upper)
 
