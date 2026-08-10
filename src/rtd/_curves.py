@@ -69,7 +69,14 @@ class RTDCurve(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class CallendarVanDusenCurve:
-    """A normalized Callendar-Van Dusen platinum RTD curve."""
+    """A normalized Callendar-Van Dusen platinum RTD curve.
+
+    The normalized equation remains referenced to R0 at 0 °C, but a custom
+    characteristic may intentionally declare a narrower validity interval
+    that does not include 0 °C. The supported interval therefore describes
+    where conversion is valid, not where the equation's reference resistance
+    is defined.
+    """
 
     name: str
     a: float
@@ -94,9 +101,6 @@ class CallendarVanDusenCurve:
             raise ValueError("Maximum temperature must be finite")
         if self.minimum_temperature_c >= self.maximum_temperature_c:
             raise ValueError("Minimum temperature must be below maximum temperature")
-        if not (self.minimum_temperature_c <= 0.0 <= self.maximum_temperature_c):
-            raise ValueError("Curve temperature range must include 0 °C")
-
         self._validate_curve_shape()
 
     def _validate_curve_shape(self) -> None:
@@ -197,13 +201,31 @@ class CallendarVanDusenCurve:
             return self.minimum_temperature_c
         if ratio == maximum_ratio:
             return self.maximum_temperature_c
+        # A characterized CVD model may declare a validity interval that does
+        # not include 0 °C even though R0 remains the equation's reference
+        # resistance.  In a wholly one-sided interval, resistance relative to
+        # R0 does not reliably identify the temperature side: custom
+        # coefficients can cross R/R0 == 1 away from 0 °C.  Bisection over the
+        # already-validated declared interval therefore gives the unique
+        # supported root without relying on standard IEC coefficient behavior.
+        if self.minimum_temperature_c >= 0.0 or self.maximum_temperature_c <= 0.0:
+            return self._bounded_ratio_to_celsius(
+                ratio,
+                lower_c=self.minimum_temperature_c,
+                upper_c=self.maximum_temperature_c,
+            )
+
         if ratio == 1.0:
             return 0.0
 
         if ratio > 1.0:
             return self._nonnegative_ratio_to_celsius(ratio)
 
-        return self._negative_ratio_to_celsius(ratio)
+        return self._bounded_ratio_to_celsius(
+            ratio,
+            lower_c=self.minimum_temperature_c,
+            upper_c=0.0,
+        )
 
     def _resistance_ratio_unchecked(self, temperature_c: float) -> float:
         resistance_ratio = 1.0 + self.a * temperature_c + self.b * temperature_c**2
@@ -245,13 +267,14 @@ class CallendarVanDusenCurve:
         # inverse-rounding noise near the endpoint into a false rejection.
         return temperature_c
 
-    def _negative_ratio_to_celsius(
+    def _bounded_ratio_to_celsius(
         self,
         resistance_ratio: float,
+        *,
+        lower_c: float,
+        upper_c: float,
     ) -> float:
-        lower_c = self.minimum_temperature_c
-        upper_c = 0.0
-
+        """Invert on a known strictly increasing CVD temperature interval."""
         for _ in range(_BISECTION_ITERATIONS):
             midpoint_c = (lower_c + upper_c) / 2.0
             midpoint_ratio = self._resistance_ratio_unchecked(midpoint_c)

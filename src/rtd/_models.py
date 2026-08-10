@@ -57,6 +57,8 @@ class RTDModel:
             raise ValueError("Reference resistance must be greater than zero")
         object.__setattr__(self, "reference_resistance_ohms", reference_resistance_ohms)
 
+        if self.identity is not None and not isinstance(self.identity, str):
+            raise TypeError("RTD model identity must be a string")
         if self.identity is not None and (
             not self.identity or self.identity != self.identity.strip()
         ):
@@ -152,6 +154,8 @@ def _built_in_model(
     authoritative identity-to-model mapping and prevents a new RTD from being
     added to conversion APIs while simulation silently retains a stale list.
     """
+    if not isinstance(identity, str):
+        raise TypeError("RTD model identity must be a string")
     if identity in _BUILTIN_RTD_MODELS:
         raise RuntimeError(f"Duplicate built-in RTD identity: {identity!r}")
 

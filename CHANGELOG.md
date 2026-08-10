@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+* Fixed custom Callendar-Van Dusen models so coefficient-shape validation and inversion honor exactly the caller-declared validity interval rather than silently widening one-sided calibration ranges to include the 0 °C R0 reference point.
+* Hardened the built-in RTD identity registry with regression coverage for immutability, duplicate registration, invalid/whitespace identities, and clean type errors for non-string identities.
 * Generalized simulation model identity around one immutable built-in RTD
   registry, with discoverable supported identities and registry-driven
   mismatch/immutability regression coverage that expands automatically as new

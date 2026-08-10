@@ -423,7 +423,8 @@ The custom-CVD model follows these rules:
 * `R0`, `A`, and `B` are required;
 * `C` is required when the declared range includes temperatures below 0 °C and may be omitted for a wholly non-negative range;
 * all numerical inputs must be finite and `R0` must be positive;
-* the supplied coefficients must define a finite, positive-resistance, strictly increasing curve over the interval required for inversion;
+* the supplied coefficients must define a finite, positive-resistance, strictly increasing curve over exactly the declared validity interval;
+* `R0` remains the equation's reference resistance at 0 °C, but that reference point does not silently widen a positive-only or negative-only validity interval; behavior outside the traceable interval is deliberately neither validated nor accepted for conversion;
 * the declared range is enforced in both conversion directions; and
 * optional `coefficient_source` metadata may retain a calibration-certificate identifier, manufacturer document, or other provenance label.
 

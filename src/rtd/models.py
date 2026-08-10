@@ -183,10 +183,13 @@ class CallendarVanDusenRTDModel:
     range requires an explicit ``C`` value.
 
     The supplied coefficients must produce a finite, positive-resistance,
-    strictly increasing curve over the interval needed to invert the declared
-    model range. This validates the mathematical behavior actually required by
-    the converter rather than assuming that custom coefficients have the same
-    signs as the standard IEC coefficient set.
+    strictly increasing curve over the declared model range. ``R0`` remains
+    the equation's resistance reference at 0 °C even when that reference
+    temperature lies outside the declared validity interval; behavior outside
+    the traceable interval is not treated as part of the model. This validates
+    the mathematical behavior actually required by the converter rather than
+    assuming that custom coefficients have the same signs or validity range as
+    the standard IEC coefficient set.
 
     Args:
         r0_ohms: Sensor resistance at 0 °C in ohms.
@@ -208,7 +211,7 @@ class CallendarVanDusenRTDModel:
         ValueError: If any numerical input is invalid, if the range is
             reversed, if ``C`` is missing for a negative-temperature range,
             or if the coefficients do not define a finite, positive, strictly
-            increasing RTD curve over the required inversion interval.
+            increasing RTD curve over the declared validity interval.
     """
 
     r0_ohms: float
@@ -258,16 +261,21 @@ class CallendarVanDusenRTDModel:
             )
 
         effective_c = 0.0 if c is None else c
-        curve_minimum_c = min(minimum_temperature_c, 0.0)
-        curve_maximum_c = max(maximum_temperature_c, 0.0)
 
+        # R0 is the CVD equation's 0 °C reference resistance, but a traceable
+        # calibration or manufacturer fit may be declared valid only over a
+        # narrower interval that does not include 0 °C.  Expanding that interval
+        # merely to include the reference point would validate behavior the
+        # source never claimed and can falsely reject an otherwise valid
+        # restricted fit.  Keep the mathematical validation and inversion
+        # domain exactly equal to the caller's declared validity interval.
         curve = _CallendarVanDusenCurve(
             name=f"{self.name} Callendar-Van Dusen curve",
             a=a,
             b=b,
             c=effective_c,
-            minimum_temperature_c=curve_minimum_c,
-            maximum_temperature_c=curve_maximum_c,
+            minimum_temperature_c=minimum_temperature_c,
+            maximum_temperature_c=maximum_temperature_c,
         )
 
         coefficient_source = self.coefficient_source

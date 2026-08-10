@@ -156,6 +156,68 @@ def test_negative_only_declared_range_is_supported() -> None:
     assert model.resistance_to_celsius(resistance) == pytest.approx(-40.0)
 
 
+def test_positive_only_model_validates_only_declared_range() -> None:
+    # This synthetic quadratic decreases near 0 °C but is strictly increasing
+    # over 50..100 °C. R0 is still the equation's 0 °C reference; it must not
+    # silently expand a calibration's declared validity interval.
+    model = CallendarVanDusenRTDModel(
+        r0_ohms=100.0,
+        a=-5.0e-4,
+        b=1.0e-5,
+        minimum_temperature_c=50.0,
+        maximum_temperature_c=100.0,
+    )
+
+    for temperature_c in (50.0, 75.0, 100.0):
+        resistance = model.celsius_to_resistance(temperature_c)
+        assert model.resistance_to_celsius(resistance) == pytest.approx(
+            temperature_c,
+            abs=1e-9,
+        )
+
+    with pytest.raises(ValueError, match="strictly increasing"):
+        CallendarVanDusenRTDModel(
+            r0_ohms=100.0,
+            a=-5.0e-4,
+            b=1.0e-5,
+            minimum_temperature_c=0.0,
+            maximum_temperature_c=100.0,
+        )
+
+
+def test_negative_only_model_validates_only_declared_range() -> None:
+    # This synthetic quadratic is strictly increasing over -100..-50 °C but
+    # turns downward before 0 °C. Inversion must remain bounded to the declared
+    # negative interval even when R/R0 is greater than 1 there.
+    model = CallendarVanDusenRTDModel(
+        r0_ohms=100.0,
+        a=-8.0e-4,
+        b=-1.0e-5,
+        c=0.0,
+        minimum_temperature_c=-100.0,
+        maximum_temperature_c=-50.0,
+    )
+
+    temperature_c = -75.0
+    resistance = model.celsius_to_resistance(temperature_c)
+
+    assert resistance > model.r0_ohms
+    assert model.resistance_to_celsius(resistance) == pytest.approx(
+        temperature_c,
+        abs=1e-9,
+    )
+
+    with pytest.raises(ValueError, match="strictly increasing"):
+        CallendarVanDusenRTDModel(
+            r0_ohms=100.0,
+            a=-8.0e-4,
+            b=-1.0e-5,
+            c=0.0,
+            minimum_temperature_c=-100.0,
+            maximum_temperature_c=0.0,
+        )
+
+
 @pytest.mark.parametrize("r0_ohms", [0.0, -1.0])
 def test_custom_model_rejects_nonpositive_r0(r0_ohms: float) -> None:
     with pytest.raises(ValueError):

@@ -3,9 +3,11 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 import math
+from typing import cast
 
 import pytest
 
+import rtd._models as _models
 from rtd._curves import IEC_60751_PT385
 from rtd._models import (
     BUILTIN_RTD_MODELS,
@@ -140,3 +142,67 @@ def test_builtin_models_carry_registered_identity(
 ) -> None:
     assert model.identity == identity
     assert BUILTIN_RTD_MODELS[identity] is model
+
+
+def test_builtin_registry_is_immutable() -> None:
+    mutable_view = cast(dict[str, RTDModel], BUILTIN_RTD_MODELS)
+
+    with pytest.raises(TypeError):
+        mutable_view["replacement"] = PT100_IEC_60751
+
+    assert "replacement" not in BUILTIN_RTD_MODELS
+
+
+@pytest.mark.parametrize("identity", ["", "   ", " pt100", "pt100 "])
+def test_builtin_registration_rejects_invalid_identity(identity: str) -> None:
+    before = dict(BUILTIN_RTD_MODELS)
+
+    with pytest.raises(ValueError, match="non-empty, trimmed string"):
+        _models._built_in_model(
+            identity=identity,
+            name="invalid built-in",
+            reference_resistance_ohms=100.0,
+            curve=IEC_60751_PT385,
+        )
+
+    assert dict(BUILTIN_RTD_MODELS) == before
+
+
+def test_builtin_registration_rejects_nonstring_identity() -> None:
+    before = dict(BUILTIN_RTD_MODELS)
+
+    with pytest.raises(TypeError, match="identity must be a string"):
+        _models._built_in_model(
+            identity=cast(str, 123),
+            name="invalid built-in",
+            reference_resistance_ohms=100.0,
+            curve=IEC_60751_PT385,
+        )
+
+    assert dict(BUILTIN_RTD_MODELS) == before
+
+
+def test_internal_model_rejects_nonstring_identity() -> None:
+    with pytest.raises(TypeError, match="identity must be a string"):
+        RTDModel(
+            name="invalid identity",
+            reference_resistance_ohms=100.0,
+            curve=IEC_60751_PT385,
+            identity=cast(str, 123),
+        )
+
+
+def test_duplicate_builtin_identity_does_not_replace_registered_model() -> None:
+    original = BUILTIN_RTD_MODELS["pt100"]
+    before = dict(BUILTIN_RTD_MODELS)
+
+    with pytest.raises(RuntimeError, match="Duplicate built-in RTD identity"):
+        _models._built_in_model(
+            identity="pt100",
+            name="duplicate Pt100",
+            reference_resistance_ohms=100.0,
+            curve=IEC_60751_PT385,
+        )
+
+    assert BUILTIN_RTD_MODELS["pt100"] is original
+    assert dict(BUILTIN_RTD_MODELS) == before
