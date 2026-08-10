@@ -8,7 +8,8 @@ All simulated readers expose resistance in ohms. This allows application
 code to use the same interface for simulated data and physical hardware.
 
 Simulation defaults to Pt100 for backward compatibility. Pass
-``rtd_type="pt1000"`` to simulate a Pt1000 sensor.
+``rtd_type="pt500"`` or ``rtd_type="pt1000"`` to select another
+supported platinum RTD.
 """
 
 from __future__ import annotations
@@ -33,10 +34,11 @@ __all__ = [
 ]
 
 
-type RTDType = Literal["pt100", "pt1000"]
+type RTDType = Literal["pt100", "pt500", "pt1000"]
 
 _SUPPORTED_MODELS: dict[RTDType, _models.RTDModel] = {
     "pt100": _models.PT100_IEC_60751,
+    "pt500": _models.PT500_IEC_60751,
     "pt1000": _models.PT1000_IEC_60751,
 }
 

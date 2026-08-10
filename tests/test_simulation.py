@@ -7,7 +7,7 @@ from typing import cast
 
 import pytest
 
-from rtd import pt100, pt1000, simulation
+from rtd import pt100, pt500, pt1000, simulation
 
 
 def test_fixed_resistance_reader_repeats_value() -> None:
@@ -41,6 +41,18 @@ def test_fixed_reader_supports_pt1000_resistance() -> None:
     reader = simulation.FixedResistanceReader(
         resistance,
         rtd_type="pt1000",
+    )
+
+    assert simulation.read_temperature_celsius(
+        reader
+    ) == pytest.approx(65.0, abs=1e-9)
+
+
+def test_fixed_reader_supports_pt500_resistance() -> None:
+    resistance = pt500.celsius_to_resistance(65.0)
+    reader = simulation.FixedResistanceReader(
+        resistance,
+        rtd_type="pt500",
     )
 
     assert simulation.read_temperature_celsius(
@@ -201,6 +213,17 @@ def test_read_temperature_celsius_uses_reader_interface() -> None:
     )
 
 
+def test_read_temperature_celsius_accepts_explicit_pt500_type() -> None:
+    class Reader:
+        def read_resistance_ohms(self) -> float:
+            return pt500.celsius_to_resistance(65.0)
+
+    assert simulation.read_temperature_celsius(
+        Reader(),
+        rtd_type="pt500",
+    ) == pytest.approx(65.0, abs=1e-9)
+
+
 def test_read_temperature_celsius_accepts_explicit_pt1000_type() -> None:
     class BareResistanceReader:
         def read_resistance_ohms(self) -> float:
@@ -349,8 +372,25 @@ def test_noisy_reader_rejects_invalid_temperature(
         )
 
 
+def test_pt500_temperature_sequence_round_trip() -> None:
+    reader = simulation.TemperatureSequenceReader(
+        [-100.0, 0.0, 123.5],
+        rtd_type="pt500",
+    )
+
+    assert simulation.read_temperature_celsius(reader) == pytest.approx(
+        -100.0, abs=1e-9
+    )
+    assert simulation.read_temperature_celsius(reader) == pytest.approx(
+        0.0, abs=1e-9
+    )
+    assert simulation.read_temperature_celsius(reader) == pytest.approx(
+        123.5, abs=1e-9
+    )
+
+
 def test_unsupported_rtd_type_is_rejected() -> None:
-    unsupported = cast(simulation.RTDType, "pt500")
+    unsupported = cast(simulation.RTDType, "ni1000")
 
     with pytest.raises(ValueError, match="Unsupported RTD type"):
         simulation.TemperatureSequenceReader(
@@ -414,7 +454,7 @@ def test_external_model_aware_reader_rejects_conflicting_type() -> None:
 
 def test_external_model_aware_reader_rejects_unsupported_declaration() -> None:
     class InvalidDeclaredReader:
-        rtd_type = cast(simulation.RTDType, "pt500")
+        rtd_type = cast(simulation.RTDType, "ni1000")
 
         def read_resistance_ohms(self) -> float:
             return pt100.celsius_to_resistance(65.0)

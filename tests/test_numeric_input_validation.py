@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 import pytest
 
-from rtd import pt100, pt1000, simulation, tolerance, uncertainty
+from rtd import pt100, pt500, pt1000, simulation, tolerance, uncertainty
 from rtd.models import CallendarVanDusenRTDModel, IEC60751RTDModel
 
 
@@ -17,6 +17,10 @@ from rtd.models import CallendarVanDusenRTDModel, IEC60751RTDModel
         pt100.resistance_to_celsius,
         pt100.resistance_sensitivity_ohms_per_celsius,
         pt100.temperature_sensitivity_celsius_per_ohm,
+        pt500.celsius_to_resistance,
+        pt500.resistance_to_celsius,
+        pt500.resistance_sensitivity_ohms_per_celsius,
+        pt500.temperature_sensitivity_celsius_per_ohm,
         pt1000.celsius_to_resistance,
         pt1000.resistance_to_celsius,
     ],

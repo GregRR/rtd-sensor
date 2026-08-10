@@ -119,7 +119,7 @@ The implementation must document numerical tolerances and must avoid silently ex
 
 ## 5. Supported public API
 
-The supported model modules are `rtd.pt100` and `rtd.pt1000`. Each exposes the same conversion interface:
+The supported nominal model modules are `rtd.pt100`, `rtd.pt500`, and `rtd.pt1000`. Each exposes the same conversion interface:
 
 ```python
 def resistance_to_celsius(resistance_ohms: float) -> float:
@@ -172,7 +172,7 @@ This is sufficient for deterministic tests of application behavior.
 
 ### 7.2 Measurement-stream simulation
 
-The simulation module currently provides fixed resistance readings, finite and repeating resistance sequences, temperature-defined sequences, and reproducible seeded temperature noise. Temperature-based readers are model-aware and support both Pt100 and Pt1000. Pt100 remains the default for backward compatibility.
+The simulation module currently provides fixed resistance readings, finite and repeating resistance sequences, temperature-defined sequences, and reproducible seeded temperature noise. Temperature-based readers are model-aware and support Pt100, Pt500, and Pt1000. Pt100 remains the default for backward compatibility.
 
 A reader that declares an RTD type establishes a model-identity invariant: its declared type must not diverge from the model used to validate or generate its resistance values. Built-in readers therefore keep `rtd_type` read-only after construction. `read_temperature_celsius()` also rejects an explicit RTD type that conflicts with a model-aware reader's declaration. Generic readers that expose only resistance remain supported; callers may select their RTD type explicitly, and untyped readers still default to Pt100 for backward compatibility.
 
@@ -199,7 +199,7 @@ Round-trip tests alone are insufficient because the forward and inverse implemen
 
 ## 9. Accuracy boundaries
 
-The built-in Pt100 and Pt1000 conversion functions describe the ideal standardized IEC curve. The advanced model APIs can represent an individually characterized `R0` or a traceable custom Callendar–Van Dusen coefficient set, and `rtd.tolerance` can calculate the numerical IEC class limit. These layers remain distinct: none of them, by themselves, establishes the total measurement accuracy of a physical installation.
+The built-in Pt100, Pt500, and Pt1000 conversion functions describe the ideal standardized IEC curve. The advanced model APIs can represent an individually characterized `R0` or a traceable custom Callendar–Van Dusen coefficient set, and `rtd.tolerance` can calculate the numerical IEC class limit. These layers remain distinct: none of them, by themselves, establishes the total measurement accuracy of a physical installation.
 
 Effects that remain outside nominal curve conversion include:
 
@@ -247,6 +247,7 @@ src/rtd/
 ├── _validation.py
 ├── models.py
 ├── pt100.py
+├── pt500.py
 ├── pt1000.py
 ├── simulation.py
 ├── tolerance.py
@@ -259,6 +260,7 @@ tests/
 ├── test_numeric_input_validation.py
 ├── test_package_api.py
 ├── test_pt100.py
+├── test_pt500.py
 ├── test_pt1000.py
 ├── test_public_models.py
 ├── test_simulation.py
@@ -302,7 +304,7 @@ An RTD model combines:
 
 This permits multiple RTD models to share one verified standardized curve without duplicating conversion logic.
 
-The implementation defines the IEC 60751 PT-385 Callendar–Van Dusen curve once and combines it with model-specific `R0` values. Pt100 uses `R0 = 100 Ω`; Pt1000 uses `R0 = 1000 Ω`.
+The implementation defines the IEC 60751 PT-385 Callendar–Van Dusen curve once and combines it with model-specific `R0` values. Pt100 uses `R0 = 100 Ω`, Pt500 uses `R0 = 500 Ω`, and Pt1000 uses `R0 = 1000 Ω`.
 
 The low-level curve and model infrastructure remains internal. Public modules should therefore reference internal singletons through private/module-qualified names rather than exposing those implementation objects as accidental module attributes. Public wrappers expose the supported configurable and calibrated-model capabilities without making the internal numerical abstractions part of the compatibility contract.
 
@@ -317,7 +319,7 @@ The public advanced-model API has two deliberately distinct levels.
 * a human-readable model or probe name; and
 * a declared valid temperature range that may be narrower than the full IEC curve.
 
-The built-in `rtd.pt100` and `rtd.pt1000` modules remain the preferred APIs for nominal standard sensors. `IEC60751RTDModel` is for cases where an individual probe's `R0` is known more precisely or its usable/calibrated range should be enforced. A declared range constrains use of the model; it does not modify the underlying IEC curve.
+The built-in `rtd.pt100`, `rtd.pt500`, and `rtd.pt1000` modules remain the preferred APIs for nominal standard sensors. `IEC60751RTDModel` is for cases where an individual probe's `R0` is known more precisely or its usable/calibrated range should be enforced. A declared range constrains use of the model; it does not modify the underlying IEC curve.
 
 `rtd.models.CallendarVanDusenRTDModel` represents an RTD for which a calibration certificate, manufacturer, or other traceable technical source provides an IEC-style `R0`, `A`, `B`, `C` Callendar–Van Dusen coefficient set. It requires an explicit valid temperature range because custom coefficients have no package-defined universal range.
 
@@ -410,11 +412,15 @@ The scientific conversion layer must not require a wire-count parameter.
 
 Potential future additions include:
 
-* Pt500
-* alternate standardized platinum curves
-* structured RTD uncertainty budgets and covariance-aware propagation
-* vectorized conversion
-* tabular or lookup-based conversion for constrained systems
+* Ni1000 nickel RTD characteristic(s), after the supported curve/standard is identified and independently validated;
+* Ni120 nickel RTD support, with its characteristic, valid range, and tolerance semantics documented independently of IEC platinum classes;
+* Cu10 copper RTD support, after the applicable characteristic/standard and useful range are verified;
+* alternate standardized platinum curves;
+* structured RTD uncertainty budgets with covariance-aware propagation;
+* vectorized conversion; and
+* tabular or lookup-based conversion for constrained systems.
+
+The likely 0.4 development direction is Pt500 plus researched nickel support, followed by a project/distribution/import rename to the broader `rtd-sensor` / `rtd_sensor` identity. The rename is a migration decision and does not change the scientific requirement that every newly supported RTD characteristic have explicit provenance, range, independent reference values, and tests.
 
 Nominal conversion, calibration, tolerance, and uncertainty are related but separate concerns. Basic resistance-temperature conversion should continue to return the ideal value represented by the selected model. Calibration, tolerance, and uncertainty should be layered on top rather than silently altering nominal conversion behavior.
 
@@ -454,7 +460,12 @@ Pt1000 is now implemented as a verified public RTD type. The milestone establish
 No additional RTD type should be added merely because the shared engine can represent it. Each future type must independently satisfy the support-readiness policy above.
 
 
-Pt500 and other RTD variants should follow the same process rather than being assumed supported merely because they can share the generalized calculation engine.
+Pt500 now follows that process as a verified public type. Nickel, copper, and other future RTD characteristics must follow the same process rather than being assumed supported merely because the generalized model layer can be extended.
+
+
+### Completed Pt500 milestone
+
+Pt500 is implemented as the third verified IEC 60751 PT-385 nominal platinum RTD. It reuses the same normalized curve as Pt100 and Pt1000 with `R0 = 500 Ω`, but its public support is independently validated against a published Pt500 resistance table rather than inferred solely from scaling the existing models. Simulation and uncertainty propagation accept Pt500 through the same model-aware interfaces used by the other built-in platinum RTDs.
 
 
 ## 13. Related future repositories
@@ -551,6 +562,14 @@ is a copyrighted publication available from the IEC.
 
   Accessed August 4, 2026.
 
+* UST Umweltsensortechnik GmbH. **Platinum thinfilm temperature sensor elements - Pt500 series: Basic resistance values**.
+
+  The manufacturer-published Pt500 table states that its values are calculated according to DIN EN 60751, publishes the PT-385 `A`, `B`, and `C` coefficients, and spans -200 °C through 850 °C. Selected rounded values are used as the primary independent Pt500 reference dataset.
+
+  https://www.umweltsensortechnik.de/fileadmin/assets/downloads/platin/datenblaetter/pt500-basic-resistance-values-202201-Rev00.pdf
+
+  Accessed August 10, 2026.
+
 * Italcoppie Sensori. **Pt1000 Resistance Chart**.
 
   The manufacturer-published table states that its values are according
@@ -606,6 +625,7 @@ The currently supported models are:
 
 ```text
 Pt100:  R0 = 100.0 Ω
+Pt500:  R0 = 500.0 Ω
 Pt1000: R0 = 1000.0 Ω
 ```
 
@@ -621,7 +641,7 @@ For temperatures from -200 °C through 0 °C:
 R(t) = R0 × [1 + A×t + B×t² + C×(t - 100)×t³]
 ```
 
-The built-in Pt100 and Pt1000 modules model the ideal standardized curve.
+The built-in Pt100, Pt500, and Pt1000 modules model the ideal standardized curve.
 Public model objects can consume an individually characterized `R0` or a
 traceable custom Callendar–Van Dusen coefficient set, but the library does
 not currently fit calibration coefficients from observations. Sensor
@@ -632,9 +652,10 @@ errors remain separate concerns.
 
 Pt100 reference-value tests use selected, rounded PT-385 values independently
 checked against the Fluke PT100 calculator and published standard-compatible
-tables. Pt1000 reference-value tests use selected rounded values from the
-Italcoppie Pt1000 resistance chart, with ABB values providing an additional
-independent cross-check over part of the range.
+tables. Pt500 reference-value tests use selected rounded values from the UST
+Umweltsensortechnik Pt500 table. Pt1000 reference-value tests use selected
+rounded values from the Italcoppie Pt1000 resistance chart, with ABB values
+providing an additional independent cross-check over part of the range.
 
 Exact supported-range boundary tests use values calculated from the full
 Callendar–Van Dusen equation rather than rounded two-decimal table

@@ -30,13 +30,16 @@ def test_zero_celsius_equals_r0() -> None:
 def test_models_on_same_curve_have_same_resistance_ratio(
     temperature_c: float,
 ) -> None:
-    first = _model(100.0)
-    second = _model(1000.0)
+    pt100_model = _model(100.0)
+    pt500_model = _model(500.0)
+    pt1000_model = _model(1000.0)
 
-    first_ratio = first.celsius_to_resistance(temperature_c) / 100.0
-    second_ratio = second.celsius_to_resistance(temperature_c) / 1000.0
+    pt100_ratio = pt100_model.celsius_to_resistance(temperature_c) / 100.0
+    pt500_ratio = pt500_model.celsius_to_resistance(temperature_c) / 500.0
+    pt1000_ratio = pt1000_model.celsius_to_resistance(temperature_c) / 1000.0
 
-    assert first_ratio == pytest.approx(second_ratio, abs=1e-15)
+    assert pt500_ratio == pytest.approx(pt100_ratio, abs=1e-15)
+    assert pt1000_ratio == pytest.approx(pt100_ratio, abs=1e-15)
 
 
 @pytest.mark.parametrize(

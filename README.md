@@ -1,7 +1,7 @@
 # pt100-core
 
 A small, platform-independent Python library for platinum resistance temperature detectors (RTDs).
-It provides IEC 60751 Pt100 and Pt1000 resistance↔temperature conversion, configurable and
+It provides IEC 60751 Pt100, Pt500, and Pt1000 resistance↔temperature conversion, configurable and
 calibrated Callendar–Van Dusen models, standard tolerance calculations, measurement-uncertainty
 tools, and simulation support.
 
@@ -11,12 +11,14 @@ tools, and simulation support.
 
 ```text
 Pt100 resistance in ohms  ↔ temperature in Celsius
+Pt500 resistance in ohms  ↔ temperature in Celsius
 Pt1000 resistance in ohms ↔ temperature in Celsius
 ```
 
 The supported models use the IEC 60751 PT-385 platinum curve:
 
 * Pt100: 100 Ω at 0 °C
+* Pt500: 500 Ω at 0 °C
 * Pt1000: 1000 Ω at 0 °C
 * α ≈ 0.00385
 * ideal standardized curve from -200 °C through 850 °C
@@ -28,10 +30,13 @@ Hardware-specific concerns such as ADC readings, GPIO, SPI, I²C, excitation cir
 ## Basic usage
 
 ```python
-from rtd import pt100, pt1000
+from rtd import pt100, pt500, pt1000
 
 pt100_temperature_c = pt100.resistance_to_celsius(119.3971)
 pt100_resistance_ohms = pt100.celsius_to_resistance(50.0)
+
+pt500_temperature_c = pt500.resistance_to_celsius(596.99)
+pt500_resistance_ohms = pt500.celsius_to_resistance(50.0)
 
 pt1000_temperature_c = pt1000.resistance_to_celsius(1193.971)
 pt1000_resistance_ohms = pt1000.celsius_to_resistance(50.0)
@@ -41,7 +46,7 @@ Physical numerical inputs such as temperature, resistance, coefficients, and unc
 
 ## Configurable IEC 60751 models
 
-For an individual Pt100, Pt1000, or other IEC 60751 PT-385 sensor with a characterized resistance at 0 °C, use `IEC60751RTDModel`:
+For an individual Pt100, Pt500, Pt1000, or other IEC 60751 PT-385 sensor with a characterized resistance at 0 °C, use `IEC60751RTDModel`:
 
 ```python
 from rtd.models import IEC60751RTDModel
@@ -219,11 +224,11 @@ print(budget.expanded_uncertainty_c)
 
 `TemperatureUncertaintyComponent` can optionally retain a Type A/Type B evaluation-method label, source, and note. Those fields are provenance only; all supplied components must already be standard uncertainties in °C. The current budget combines the resistance contribution and additional components as **uncorrelated** terms. It does not yet support covariance matrices, coefficient covariance, effective degrees of freedom, or Monte Carlo propagation.
 
-The built-in `pt100` and `pt1000` modules and both public configurable-model classes can be passed as the `model`. Third-party models may also participate if they provide compatible resistance-to-temperature conversion and local `dT/dR` sensitivity methods.
+The built-in `pt100`, `pt500`, and `pt1000` modules and both public configurable-model classes can be passed as the `model`. Third-party models may also participate if they provide compatible resistance-to-temperature conversion and local `dT/dR` sensitivity methods.
 
 ## Simulation
 
-Simulation readers support both Pt100 and Pt1000. Pt100 remains the default for backward compatibility.
+Simulation readers support Pt100, Pt500, and Pt1000. Pt100 remains the default for backward compatibility.
 
 ```python
 from rtd import simulation
@@ -287,13 +292,13 @@ See [`docs/DESIGN.md`](docs/DESIGN.md) for detailed architecture, mathematical a
 
 ## Current capabilities
 
-Version 0.3.0 provides:
+The current development branch provides:
 
 - IEC 60751 Pt100 resistance-to-temperature and temperature-to-resistance conversion
 - IEC 60751 Pt1000 resistance-to-temperature and temperature-to-resistance conversion
 - independently sourced reference-value tests for both supported RTD types
 - shared internal RTD curve and model infrastructure
-- model-aware Pt100/Pt1000 simulation while preserving Pt100 defaults
+- model-aware Pt100/Pt500/Pt1000 simulation while preserving Pt100 defaults
 - public configurable IEC 60751 models for individually characterized `R0` values and declared temperature ranges
 - public Callendar–Van Dusen models for traceable user-supplied `R0`, `A`, `B`, and optional `C` coefficient sets
 - IEC 60751:2022 tolerance calculations for standard thermometer and platinum-resistor classes

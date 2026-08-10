@@ -6,7 +6,7 @@ import math
 
 import pytest
 
-from rtd import pt100, pt1000, tolerance, uncertainty
+from rtd import pt100, pt500, pt1000, tolerance, uncertainty
 from rtd.models import CallendarVanDusenRTDModel, IEC60751RTDModel
 
 
@@ -90,6 +90,19 @@ def test_propagate_pt100_resistance_uncertainty_at_zero() -> None:
     assert result.temperature_standard_uncertainty_c == pytest.approx(
         expected_sensitivity * 0.01
     )
+
+
+def test_propagate_pt500_uses_pt500_sensitivity() -> None:
+    resistance = pt500.celsius_to_resistance(100.0)
+    result = uncertainty.propagate_resistance_uncertainty(
+        resistance,
+        0.05,
+        model=pt500,
+    )
+
+    expected = pt500.temperature_sensitivity_celsius_per_ohm(100.0) * 0.05
+    assert result.temperature_c == pytest.approx(100.0, abs=1e-10)
+    assert result.temperature_standard_uncertainty_c == pytest.approx(expected)
 
 
 def test_propagate_pt1000_uses_pt1000_sensitivity() -> None:

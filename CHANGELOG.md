@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+* IEC 60751 Pt500 resistance-to-temperature and temperature-to-resistance conversion using the shared PT-385 curve with `R0 = 500 Ω`.
+* Independently sourced Pt500 reference-value tests using the UST Umweltsensortechnik Pt500 resistance table, plus round-trip, boundary, scaling, simulation, and uncertainty-propagation coverage.
+
 ## 0.3.0 — 2026-08-09
 
 ### Added

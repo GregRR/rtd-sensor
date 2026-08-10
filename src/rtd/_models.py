@@ -14,6 +14,7 @@ from ._validation import as_float as _as_float
 
 __all__ = [
     "PT100_IEC_60751",
+    "PT500_IEC_60751",
     "PT1000_IEC_60751",
     "RTDModel",
 ]
@@ -102,6 +103,13 @@ class RTDModel:
 PT100_IEC_60751 = RTDModel(
     name="Pt100",
     r0_ohms=100.0,
+    curve=IEC_60751_PT385,
+)
+
+
+PT500_IEC_60751 = RTDModel(
+    name="Pt500",
+    r0_ohms=500.0,
     curve=IEC_60751_PT385,
 )
 
