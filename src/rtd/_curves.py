@@ -16,6 +16,7 @@ from ._validation import as_float as _as_float
 __all__ = [
     "CallendarVanDusenCurve",
     "IEC_60751_PT385",
+    "NI_6180_DIN_43760",
     "PolynomialRTDCurve",
     "RTDCurve",
 ]
@@ -679,6 +680,26 @@ class PolynomialRTDCurve:
             self._resistance_ratio_unchecked(self.maximum_temperature_c),
         )
 
+
+
+# Former DIN 43760 nickel characteristic (6178/6180 ppm/K).  ABB, IST,
+# TE Connectivity, and Honeywell publish the same normalized coefficients.
+# Missing odd-power terms are retained explicitly as zeros so the stored
+# tuple maps directly onto c1..c6 in PolynomialRTDCurve.
+NI_6180_DIN_43760 = PolynomialRTDCurve(
+    name="Former DIN 43760 nickel 6180 ppm/K curve",
+    coefficients=(
+        5.485e-3,
+        6.650e-6,
+        0.0,
+        2.805e-11,
+        0.0,
+        -2.000e-17,
+    ),
+    reference_temperature_c=0.0,
+    minimum_temperature_c=-60.0,
+    maximum_temperature_c=250.0,
+)
 
 
 IEC_60751_PT385 = CallendarVanDusenCurve(

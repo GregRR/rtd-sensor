@@ -7,7 +7,7 @@ from typing import cast
 
 import pytest
 
-from rtd import pt100, pt500, pt1000, simulation
+from rtd import ni1000, pt100, pt500, pt1000, simulation
 
 
 def test_fixed_resistance_reader_repeats_value() -> None:
@@ -35,7 +35,6 @@ def test_fixed_reader_rejects_invalid_resistance(
     with pytest.raises(ValueError):
         simulation.FixedResistanceReader(resistance_ohms)
 
-
 def test_fixed_reader_supports_pt1000_resistance() -> None:
     resistance = pt1000.celsius_to_resistance(65.0)
     reader = simulation.FixedResistanceReader(
@@ -46,7 +45,6 @@ def test_fixed_reader_supports_pt1000_resistance() -> None:
     assert simulation.read_temperature_celsius(
         reader
     ) == pytest.approx(65.0, abs=1e-9)
-
 
 def test_fixed_reader_supports_pt500_resistance() -> None:
     resistance = pt500.celsius_to_resistance(65.0)
@@ -59,7 +57,6 @@ def test_fixed_reader_supports_pt500_resistance() -> None:
         reader
     ) == pytest.approx(65.0, abs=1e-9)
 
-
 def test_resistance_sequence_returns_values_in_order() -> None:
     reader = simulation.ResistanceSequenceReader(
         [100.0, 109.734656, 119.397125]
@@ -69,7 +66,6 @@ def test_resistance_sequence_returns_values_in_order() -> None:
     assert reader.read_resistance_ohms() == 109.734656
     assert reader.read_resistance_ohms() == 119.397125
 
-
 def test_resistance_sequence_stops_when_exhausted() -> None:
     reader = simulation.ResistanceSequenceReader([100.0])
 
@@ -77,7 +73,6 @@ def test_resistance_sequence_stops_when_exhausted() -> None:
 
     with pytest.raises(StopIteration):
         reader.read_resistance_ohms()
-
 
 def test_resistance_sequence_can_repeat() -> None:
     reader = simulation.ResistanceSequenceReader(
@@ -89,7 +84,6 @@ def test_resistance_sequence_can_repeat() -> None:
     assert reader.read_resistance_ohms() == 119.397125
     assert reader.read_resistance_ohms() == 100.0
     assert reader.read_resistance_ohms() == 119.397125
-
 
 def test_resistance_sequence_can_repeat_pt1000_values() -> None:
     readings = [
@@ -112,16 +106,13 @@ def test_resistance_sequence_can_repeat_pt1000_values() -> None:
         abs=1e-9,
     )
 
-
 def test_resistance_sequence_rejects_empty_sequence() -> None:
     with pytest.raises(ValueError):
         simulation.ResistanceSequenceReader([])
 
-
 def test_resistance_sequence_rejects_invalid_reading() -> None:
     with pytest.raises(ValueError):
         simulation.ResistanceSequenceReader([100.0, 0.0])
-
 
 def test_temperature_sequence_generates_pt100_resistance() -> None:
     reader = simulation.TemperatureSequenceReader(
@@ -137,7 +128,6 @@ def test_temperature_sequence_generates_pt100_resistance() -> None:
     assert reader.read_resistance_ohms() == pytest.approx(
         pt100.celsius_to_resistance(50.0)
     )
-
 
 def test_temperature_sequence_generates_pt1000_resistance() -> None:
     reader = simulation.TemperatureSequenceReader(
@@ -155,7 +145,6 @@ def test_temperature_sequence_generates_pt1000_resistance() -> None:
         pt1000.celsius_to_resistance(50.0)
     )
 
-
 def test_temperature_sequence_can_repeat() -> None:
     reader = simulation.TemperatureSequenceReader(
         [0.0, 100.0],
@@ -171,7 +160,6 @@ def test_temperature_sequence_can_repeat() -> None:
         [0.0, 100.0, 0.0, 100.0],
         abs=1e-9,
     )
-
 
 def test_pt1000_temperature_sequence_can_repeat() -> None:
     reader = simulation.TemperatureSequenceReader(
@@ -190,16 +178,13 @@ def test_pt1000_temperature_sequence_can_repeat() -> None:
         abs=1e-9,
     )
 
-
 def test_temperature_sequence_rejects_empty_sequence() -> None:
     with pytest.raises(ValueError):
         simulation.TemperatureSequenceReader([])
 
-
 def test_temperature_sequence_rejects_invalid_temperature() -> None:
     with pytest.raises(ValueError):
         simulation.TemperatureSequenceReader([0.0, 851.0])
-
 
 def test_read_temperature_celsius_uses_reader_interface() -> None:
     resistance = pt100.celsius_to_resistance(65.0)
@@ -212,7 +197,6 @@ def test_read_temperature_celsius_uses_reader_interface() -> None:
         abs=1e-9,
     )
 
-
 def test_read_temperature_celsius_accepts_explicit_pt500_type() -> None:
     class Reader:
         def read_resistance_ohms(self) -> float:
@@ -222,7 +206,6 @@ def test_read_temperature_celsius_accepts_explicit_pt500_type() -> None:
         Reader(),
         rtd_type="pt500",
     ) == pytest.approx(65.0, abs=1e-9)
-
 
 def test_read_temperature_celsius_accepts_explicit_pt1000_type() -> None:
     class BareResistanceReader:
@@ -236,7 +219,6 @@ def test_read_temperature_celsius_accepts_explicit_pt1000_type() -> None:
         rtd_type="pt1000",
     ) == pytest.approx(65.0, abs=1e-9)
 
-
 def test_untyped_external_reader_defaults_to_pt100() -> None:
     class BareResistanceReader:
         def read_resistance_ohms(self) -> float:
@@ -247,7 +229,6 @@ def test_untyped_external_reader_defaults_to_pt100() -> None:
     assert simulation.read_temperature_celsius(
         reader
     ) == pytest.approx(65.0, abs=1e-9)
-
 
 def test_zero_noise_returns_exact_temperature() -> None:
     reader = simulation.NoisyTemperatureReader(
@@ -266,7 +247,6 @@ def test_zero_noise_returns_exact_temperature() -> None:
         abs=1e-9,
     )
 
-
 def test_pt1000_zero_noise_returns_exact_temperature() -> None:
     reader = simulation.NoisyTemperatureReader(
         temperature_c=65.0,
@@ -284,7 +264,6 @@ def test_pt1000_zero_noise_returns_exact_temperature() -> None:
         [65.0] * 5,
         abs=1e-9,
     )
-
 
 def test_seeded_noise_is_reproducible() -> None:
     first = simulation.NoisyTemperatureReader(
@@ -308,7 +287,6 @@ def test_seeded_noise_is_reproducible() -> None:
     ]
 
     assert first_readings == second_readings
-
 
 def test_different_seeds_produce_different_sequences() -> None:
     first = simulation.NoisyTemperatureReader(
@@ -371,7 +349,6 @@ def test_noisy_reader_rejects_invalid_temperature(
             temperature_c=temperature_c
         )
 
-
 def test_pt500_temperature_sequence_round_trip() -> None:
     reader = simulation.TemperatureSequenceReader(
         [-100.0, 0.0, 123.5],
@@ -388,9 +365,33 @@ def test_pt500_temperature_sequence_round_trip() -> None:
         123.5, abs=1e-9
     )
 
+def test_ni1000_temperature_sequence_round_trip() -> None:
+    reader = simulation.TemperatureSequenceReader(
+        [-60.0, 0.0, 100.0, 250.0],
+        rtd_type="ni1000",
+    )
+
+    temperatures = [
+        simulation.read_temperature_celsius(reader)
+        for _ in range(4)
+    ]
+    assert temperatures == pytest.approx(
+        [-60.0, 0.0, 100.0, 250.0],
+        abs=1e-9,
+    )
+
+def test_explicit_ni1000_type_converts_bare_reader() -> None:
+    class BareResistanceReader:
+        def read_resistance_ohms(self) -> float:
+            return ni1000.celsius_to_resistance(65.0)
+
+    assert simulation.read_temperature_celsius(
+        BareResistanceReader(),
+        rtd_type="ni1000",
+    ) == pytest.approx(65.0, abs=1e-9)
 
 def test_unsupported_rtd_type_is_rejected() -> None:
-    unsupported = cast(simulation.RTDType, "ni1000")
+    unsupported = cast(simulation.RTDType, "cu10")
 
     with pytest.raises(ValueError, match="Unsupported RTD type"):
         simulation.TemperatureSequenceReader(
@@ -408,6 +409,12 @@ def test_unsupported_rtd_type_is_rejected() -> None:
         ("pt500", "pt1000"),
         ("pt1000", "pt100"),
         ("pt1000", "pt500"),
+        ("pt100", "ni1000"),
+        ("pt500", "ni1000"),
+        ("pt1000", "ni1000"),
+        ("ni1000", "pt100"),
+        ("ni1000", "pt500"),
+        ("ni1000", "pt1000"),
     ],
 )
 def test_model_aware_reader_rejects_conflicting_explicit_type(
@@ -435,7 +442,7 @@ def test_model_aware_reader_rejects_conflicting_explicit_type(
     )
 
 
-@pytest.mark.parametrize("rtd_type", ["pt100", "pt500", "pt1000"])
+@pytest.mark.parametrize("rtd_type", ["pt100", "pt500", "pt1000", "ni1000"])
 def test_model_aware_reader_accepts_matching_explicit_type(
     rtd_type: simulation.RTDType,
 ) -> None:
@@ -459,6 +466,12 @@ def test_model_aware_reader_accepts_matching_explicit_type(
         ("pt500", "pt1000"),
         ("pt1000", "pt100"),
         ("pt1000", "pt500"),
+        ("pt100", "ni1000"),
+        ("pt500", "ni1000"),
+        ("pt1000", "ni1000"),
+        ("ni1000", "pt100"),
+        ("ni1000", "pt500"),
+        ("ni1000", "pt1000"),
     ],
 )
 def test_external_model_aware_reader_rejects_conflicting_type(
@@ -483,10 +496,9 @@ def test_external_model_aware_reader_rejects_conflicting_type(
             rtd_type=explicit_type,
         )
 
-
 def test_external_model_aware_reader_rejects_unsupported_declaration() -> None:
     class InvalidDeclaredReader:
-        rtd_type = cast(simulation.RTDType, "ni1000")
+        rtd_type = cast(simulation.RTDType, "cu10")
 
         def read_resistance_ohms(self) -> float:
             return pt100.celsius_to_resistance(65.0)
@@ -501,6 +513,7 @@ def test_external_model_aware_reader_rejects_unsupported_declaration() -> None:
         ("pt100", "pt500", 100.0),
         ("pt500", "pt1000", 500.0),
         ("pt1000", "pt100", 1000.0),
+        ("ni1000", "pt100", 1000.0),
     ],
 )
 def test_builtin_reader_rtd_identity_is_read_only(

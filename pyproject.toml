@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "pt100-core"
 version = "0.3.0"
-description = "RTD conversion and modeling for Python, including IEC 60751 platinum sensors, custom polynomial characteristics, tolerance, and uncertainty."
+description = "RTD conversion and modeling for Python, including IEC 60751 platinum and former-DIN nickel characteristics, tolerance, and uncertainty."
 readme = "README.md"
 requires-python = ">=3.14"
 license = "MPL-2.0"
@@ -17,6 +17,9 @@ keywords = [
 "pt100",
 "pt500",
 "pt1000",
+"ni1000",
+"nickel-rtd",
+"din-43760",
 "rtd",
 "platinum-rtd",
 "iec-60751",

@@ -61,13 +61,16 @@ The implementation should identify the standard, equation, constants, assumption
 The public interfaces for supported RTD models should remain parallel and simple:
 
 ```python
-from rtd import pt100, pt1000
+from rtd import ni1000, pt100, pt1000
 
 temperature_c = pt100.resistance_to_celsius(resistance_ohms)
 resistance_ohms = pt100.celsius_to_resistance(temperature_c)
 
 pt1000_temperature_c = pt1000.resistance_to_celsius(resistance_ohms)
 pt1000_resistance_ohms = pt1000.celsius_to_resistance(temperature_c)
+
+ni1000_temperature_c = ni1000.resistance_to_celsius(resistance_ohms)
+ni1000_resistance_ohms = ni1000.celsius_to_resistance(temperature_c)
 ```
 
 ### 3.4 Simulation as a first-class use case
@@ -84,7 +87,9 @@ Results must be tested against authoritative IEC 60751 reference values or indep
 
 ## 4. Mathematical model
 
-The current implementation and planned first stable major release use the IEC 60751 Callendar–Van Dusen relationship.
+The built-in platinum models use the IEC 60751 Callendar–Van Dusen
+relationship. Built-in non-platinum models use their own documented
+characteristic equations rather than being forced into CVD.
 
 For temperatures at or above 0 °C:
 
@@ -117,9 +122,29 @@ Resistance-to-temperature conversion above 0 °C may use the analytic inverse of
 
 The implementation must document numerical tolerances and must avoid silently extrapolating beyond its supported range.
 
+### 4.1 Former DIN 43760 Ni1000 6178/6180 characteristic
+
+The built-in `rtd.ni1000` module represents the former DIN 43760 nickel
+characteristic with `R0 = 1000 Ω` at 0 °C:
+
+```text
+R(T) = R0 × (1 + A×T + B×T² + D×T⁴ + F×T⁶)
+
+A = 5.485 × 10⁻³ °C⁻¹
+B = 6.650 × 10⁻⁶ °C⁻²
+D = 2.805 × 10⁻¹¹ °C⁻⁴
+F = -2.000 × 10⁻¹⁷ °C⁻⁶
+```
+
+The supported characteristic range is -60 °C through 250 °C. This is a
+mathematical characteristic range, not a guarantee that every physical Ni1000
+product can operate or conform across the entire interval. Ni1000 TK5000 is a
+different characteristic and must use a separate model identity.
+
 ## 5. Supported public API
 
-The supported nominal model modules are `rtd.pt100`, `rtd.pt500`, and `rtd.pt1000`. Each exposes the same conversion interface:
+The supported built-in model modules are `rtd.pt100`, `rtd.pt500`,
+`rtd.pt1000`, and `rtd.ni1000`. Each exposes the same conversion interface:
 
 ```python
 def resistance_to_celsius(resistance_ohms: float) -> float:
@@ -172,7 +197,11 @@ This is sufficient for deterministic tests of application behavior.
 
 ### 7.2 Measurement-stream simulation
 
-The simulation module currently provides fixed resistance readings, finite and repeating resistance sequences, temperature-defined sequences, and reproducible seeded temperature noise. Temperature-based readers are model-aware and support Pt100, Pt500, and Pt1000. Pt100 remains the default for backward compatibility.
+The simulation module currently provides fixed resistance readings, finite and
+repeating resistance sequences, temperature-defined sequences, and reproducible
+seeded temperature noise. Temperature-based readers are model-aware and support
+Pt100, Pt500, Pt1000, and the former-DIN Ni1000 6180 characteristic. Pt100
+remains the default for backward compatibility.
 
 A reader that declares an RTD type establishes a model-identity invariant: its declared type must not diverge from the model used to validate or generate its resistance values. Built-in readers therefore keep `rtd_type` read-only after construction. `read_temperature_celsius()` also rejects an explicit RTD type that conflicts with a model-aware reader's declaration. Generic readers that expose only resistance remain supported; callers may select their RTD type explicitly, and untyped readers still default to Pt100 for backward compatibility.
 
@@ -246,6 +275,7 @@ src/rtd/
 ├── _models.py
 ├── _validation.py
 ├── models.py
+├── ni1000.py
 ├── pt100.py
 ├── pt500.py
 ├── pt1000.py
@@ -257,6 +287,7 @@ tests/
 ├── test_boundary_roundtrips.py
 ├── test_custom_cvd_models.py
 ├── test_models.py
+├── test_ni1000.py
 ├── test_numeric_input_validation.py
 ├── test_package_api.py
 ├── test_polynomial_models.py

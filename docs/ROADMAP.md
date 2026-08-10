@@ -72,9 +72,9 @@ with equation provenance and independent reference values for each one.
 
 Likely near-term targets:
 
-- **Ni1000 6180 ppm/K** — the former DIN 43760 / common European nickel
-  characteristic. Confirm the supported characteristic range separately from
-  any individual sensor element's narrower product rating.
+- **Ni1000 6180 ppm/K** — implemented as `rtd.ni1000` using the former DIN
+  43760 / Nickel ND characteristic. The mathematical -60 °C through 250 °C
+  range is kept separate from narrower physical-product ratings.
 - **Ni1000 TK5000 / 5000 ppm/K** — a distinct Landis & Gyr / Siemens-family
   HVAC characteristic. Do not alias it to the 6180 characteristic.
 - **Ni120 North-American 6720 ppm/K** — implement the specific documented
@@ -238,6 +238,12 @@ A source appearing here does not by itself make a characteristic supported.
 - TE / Farnell Ni1000SOT technical data for the former-DIN 6178/6180 ppm/K
   characteristic:
   https://www.farnell.com/datasheets/2301873.pdf
+- Heraeus Nexensos 100489-6 Ni1000 data sheet: useful corroboration for the
+  -60 °C through 250 °C DIN 43760 range, but its printed polynomial differs
+  from the ABB/IST/TE/Honeywell coefficient consensus (including `5.481e-3`
+  for the linear term and a positive sixth-order term). Retain this as a
+  documented source discrepancy rather than silently averaging coefficients:
+  https://www.mouser.com/datasheet/2/619/hera_s_a0009182606_1-2289114.pdf
 - E+E Ni1000 TK5000 resistance/temperature table:
   https://www.epluse.com/fileadmin/data/product/r-t_characteristics/R_T_Characteristics_Ni1000_TK5000.pdf
 - Minco resistance-thermometry engineering material and North-American nickel

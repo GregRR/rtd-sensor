@@ -9,12 +9,13 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from ._curves import IEC_60751_PT385, RTDCurve
+from ._curves import IEC_60751_PT385, NI_6180_DIN_43760, RTDCurve
 from ._validation import as_float as _as_float
 
 __all__ = [
     "PT100_IEC_60751",
     "PT500_IEC_60751",
+    "NI1000_6180",
     "PT1000_IEC_60751",
     "RTDModel",
 ]
@@ -149,4 +150,11 @@ PT1000_IEC_60751 = RTDModel(
     name="Pt1000",
     reference_resistance_ohms=1000.0,
     curve=IEC_60751_PT385,
+)
+
+
+NI1000_6180 = RTDModel(
+    name="Ni1000 6180",
+    reference_resistance_ohms=1000.0,
+    curve=NI_6180_DIN_43760,
 )

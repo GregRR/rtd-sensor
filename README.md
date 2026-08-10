@@ -1,8 +1,9 @@
 # pt100-core
 
 A small, platform-independent Python library for resistance temperature detectors (RTDs).
-Its verified built-in sensor modules currently cover IEC 60751 Pt100, Pt500, and Pt1000. The
-library also provides configurable and calibrated Callendar–Van Dusen models, a generic
+Its verified built-in sensor modules currently cover IEC 60751 Pt100, Pt500, Pt1000,
+and the former-DIN Ni1000 6178/6180 ppm/K nickel characteristic. The library
+also provides configurable and calibrated Callendar–Van Dusen models, a generic
 polynomial RTD model for traceable manufacturer/user characteristics, standard platinum
 tolerance calculations, measurement-uncertainty tools, and simulation support.
 
@@ -14,9 +15,10 @@ tolerance calculations, measurement-uncertainty tools, and simulation support.
 Pt100 resistance in ohms  ↔ temperature in Celsius
 Pt500 resistance in ohms  ↔ temperature in Celsius
 Pt1000 resistance in ohms ↔ temperature in Celsius
+Ni1000 6180 resistance in ohms ↔ temperature in Celsius
 ```
 
-The supported models use the IEC 60751 PT-385 platinum curve:
+The Pt100/Pt500/Pt1000 modules use the IEC 60751 PT-385 platinum curve:
 
 * Pt100: 100 Ω at 0 °C
 * Pt500: 500 Ω at 0 °C
@@ -24,14 +26,21 @@ The supported models use the IEC 60751 PT-385 platinum curve:
 * α ≈ 0.00385
 * ideal standardized curve from -200 °C through 850 °C
 
-The conversion is not specific to a particular sensor manufacturer or probe construction.
+`rtd.ni1000` implements the distinct former DIN 43760 nickel characteristic with
+1000 Ω at 0 °C, approximately 6178/6180 ppm/K over 0–100 °C, and a
+supported characteristic range of -60 °C through 250 °C. It must not be
+interchanged with Ni1000 TK5000, which uses a different resistance-temperature
+curve.
+
+The conversion modules describe ideal characteristics rather than a particular
+sensor manufacturer's packaging or probe construction.
 
 Hardware-specific concerns such as ADC readings, GPIO, SPI, I²C, excitation circuits, two-/three-/four-wire topology, and lead-wire compensation belong in separate hardware layers.
 
 ## Basic usage
 
 ```python
-from rtd import pt100, pt500, pt1000
+from rtd import ni1000, pt100, pt500, pt1000
 
 pt100_temperature_c = pt100.resistance_to_celsius(119.3971)
 pt100_resistance_ohms = pt100.celsius_to_resistance(50.0)
@@ -41,9 +50,31 @@ pt500_resistance_ohms = pt500.celsius_to_resistance(50.0)
 
 pt1000_temperature_c = pt1000.resistance_to_celsius(1193.971)
 pt1000_resistance_ohms = pt1000.celsius_to_resistance(50.0)
+
+ni1000_temperature_c = ni1000.resistance_to_celsius(1617.8)
+ni1000_resistance_ohms = ni1000.celsius_to_resistance(100.0)
 ```
 
 Physical numerical inputs such as temperature, resistance, coefficients, and uncertainty values reject Python Boolean values. This prevents `True`/`False` from being silently interpreted as `1.0`/`0.0`, while ordinary integer, floating-point, and other float-convertible numeric inputs continue to work normally. Boolean control options such as simulation `repeat=True` are unaffected.
+
+## Ni1000 6180 / former DIN 43760
+
+`rtd.ni1000` means the former DIN 43760 / Nickel ND characteristic, not an
+arbitrary sensor whose nominal resistance happens to be 1000 Ω. Its normalized
+forward equation is:
+
+```text
+R(T) / R0 = 1 + 5.485e-3 T + 6.650e-6 T²
+              + 2.805e-11 T⁴ - 2.000e-17 T⁶
+```
+
+with `R0 = 1000 Ω` at 0 °C and a supported characteristic range of -60 °C
+through 250 °C. Published physical sensors may specify narrower operating or
+conformity ranges; those product limits are separate from the mathematical
+characteristic.
+
+Ni1000 TK5000 is a different characteristic and is not interchangeable with
+`rtd.ni1000`.
 
 ## Configurable IEC 60751 models
 
@@ -257,11 +288,15 @@ print(budget.expanded_uncertainty_c)
 
 `TemperatureUncertaintyComponent` can optionally retain a Type A/Type B evaluation-method label, source, and note. Those fields are provenance only; all supplied components must already be standard uncertainties in °C. The current budget combines the resistance contribution and additional components as **uncorrelated** terms. It does not yet support covariance matrices, coefficient covariance, effective degrees of freedom, or Monte Carlo propagation.
 
-The built-in `pt100`, `pt500`, and `pt1000` modules and the public configurable-model classes, including `PolynomialRTDModel`, can be passed as the `model`. Third-party models may also participate if they provide compatible resistance-to-temperature conversion and local `dT/dR` sensitivity methods.
+The built-in `pt100`, `pt500`, `pt1000`, and `ni1000` modules and the public
+configurable-model classes, including `PolynomialRTDModel`, can be passed as
+the `model`. Third-party models may also participate if they provide compatible
+resistance-to-temperature conversion and local `dT/dR` sensitivity methods.
 
 ## Simulation
 
-Simulation readers support Pt100, Pt500, and Pt1000. Pt100 remains the default for backward compatibility.
+Simulation readers support Pt100, Pt500, Pt1000, and the former-DIN Ni1000
+6180 characteristic. Pt100 remains the default for backward compatibility.
 
 ```python
 from rtd import simulation
@@ -309,7 +344,9 @@ src/rtd/
     _models.py
     _validation.py
     models.py
+    ni1000.py
     pt100.py
+    pt500.py
     pt1000.py
     simulation.py
     tolerance.py
@@ -328,10 +365,12 @@ See [`docs/DESIGN.md`](docs/DESIGN.md) for detailed architecture and mathematica
 The current development branch provides:
 
 - IEC 60751 Pt100 resistance-to-temperature and temperature-to-resistance conversion
+- IEC 60751 Pt500 resistance-to-temperature and temperature-to-resistance conversion
 - IEC 60751 Pt1000 resistance-to-temperature and temperature-to-resistance conversion
-- independently sourced reference-value tests for both supported RTD types
+- former-DIN Ni1000 6178/6180 ppm/K resistance-to-temperature and temperature-to-resistance conversion
+- independently sourced reference-value tests for all built-in RTD characteristics
 - shared internal RTD curve and model infrastructure
-- model-aware Pt100/Pt500/Pt1000 simulation while preserving Pt100 defaults
+- model-aware Pt100/Pt500/Pt1000/Ni1000 simulation while preserving Pt100 defaults
 - public configurable IEC 60751 models for individually characterized `R0` values and declared temperature ranges
 - public Callendar–Van Dusen models for traceable user-supplied `R0`, `A`, `B`, and optional `C` coefficient sets
 - generic polynomial RTD models with explicit reference resistance/temperature, provenance, analytical sensitivity, and validated monotonic inversion

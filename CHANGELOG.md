@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+* Added built-in Ni1000 6178/6180 ppm/K conversion for the former DIN 43760
+  nickel characteristic, including analytical sensitivity, -60 °C through
+  250 °C range validation, simulation support, and independently sourced
+  resistance-table tests.
 * Added a public `PolynomialRTDModel` for traceable single-polynomial RTD characteristics with an explicit reference resistance, reference temperature, declared range, coefficient provenance, analytical sensitivity, and dependency-free inverse conversion.
 * Added polynomial curve validation that checks finite positive resistance and locates analytical-slope extrema so non-monotonic regions cannot hide between arbitrary sampling points.
 * Generalized the internal RTD scaling model from a hard-coded 0 °C resistance assumption to an explicit curve reference resistance/temperature while preserving the existing Pt100/Pt500/Pt1000 and CVD public APIs.
