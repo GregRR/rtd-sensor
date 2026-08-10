@@ -325,7 +325,9 @@ The public advanced-model API has three deliberately distinct levels.
 
 The built-in `rtd.pt100`, `rtd.pt500`, and `rtd.pt1000` modules remain the preferred APIs for nominal standard sensors. `IEC60751RTDModel` is for cases where an individual probe's `R0` is known more precisely or its usable/calibrated range should be enforced. A declared range constrains use of the model; it does not modify the underlying IEC curve.
 
-`rtd.models.CallendarVanDusenRTDModel` represents an RTD for which a calibration certificate, manufacturer, or other traceable technical source provides an IEC-style `R0`, `A`, `B`, `C` Callendar–Van Dusen coefficient set. It requires an explicit valid temperature range because custom coefficients have no package-defined universal range.
+`rtd.models.CallendarVanDusenRTDModel` represents a **platinum RTD** for which a calibration certificate, manufacturer, or other traceable technical source provides an IEC-style `R0`, `A`, `B`, `C` Callendar–Van Dusen coefficient set. It requires an explicit valid temperature range because custom coefficients have no package-defined universal range.
+
+Callendar–Van Dusen is intentionally a platinum-specific abstraction in this package. Nickel, copper, and other non-platinum characteristics must not be forced into `CallendarVanDusenRTDModel` merely because their published resistance-temperature relationship is polynomial. They should use `PolynomialRTDModel` or a future characteristic type, such as the planned piecewise-polynomial and tabulated representations, that faithfully matches the source definition.
 
 The custom-CVD model follows these rules:
 

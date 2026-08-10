@@ -399,10 +399,24 @@ def test_unsupported_rtd_type_is_rejected() -> None:
         )
 
 
-def test_model_aware_reader_rejects_conflicting_explicit_type() -> None:
+@pytest.mark.parametrize(
+    ("declared_type", "explicit_type"),
+    [
+        ("pt100", "pt500"),
+        ("pt100", "pt1000"),
+        ("pt500", "pt100"),
+        ("pt500", "pt1000"),
+        ("pt1000", "pt100"),
+        ("pt1000", "pt500"),
+    ],
+)
+def test_model_aware_reader_rejects_conflicting_explicit_type(
+    declared_type: simulation.RTDType,
+    explicit_type: simulation.RTDType,
+) -> None:
     reader = simulation.TemperatureSequenceReader(
-        [-190.0],
-        rtd_type="pt1000",
+        [65.0],
+        rtd_type=declared_type,
     )
 
     with pytest.raises(
@@ -411,36 +425,54 @@ def test_model_aware_reader_rejects_conflicting_explicit_type() -> None:
     ):
         simulation.read_temperature_celsius(
             reader,
-            rtd_type="pt100",
+            rtd_type=explicit_type,
         )
 
     # Reject the mismatch before consuming the source reading.
     assert simulation.read_temperature_celsius(reader) == pytest.approx(
-        -190.0,
+        65.0,
         abs=1e-9,
     )
 
 
-def test_model_aware_reader_accepts_matching_explicit_type() -> None:
+@pytest.mark.parametrize("rtd_type", ["pt100", "pt500", "pt1000"])
+def test_model_aware_reader_accepts_matching_explicit_type(
+    rtd_type: simulation.RTDType,
+) -> None:
     reader = simulation.TemperatureSequenceReader(
         [65.0],
-        rtd_type="pt1000",
+        rtd_type=rtd_type,
     )
 
     assert simulation.read_temperature_celsius(
         reader,
-        rtd_type="pt1000",
+        rtd_type=rtd_type,
     ) == pytest.approx(65.0, abs=1e-9)
 
 
-def test_external_model_aware_reader_rejects_conflicting_type() -> None:
-    class DeclaredPt1000Reader:
-        rtd_type: simulation.RTDType = "pt1000"
+@pytest.mark.parametrize(
+    ("declared_type", "explicit_type"),
+    [
+        ("pt100", "pt500"),
+        ("pt100", "pt1000"),
+        ("pt500", "pt100"),
+        ("pt500", "pt1000"),
+        ("pt1000", "pt100"),
+        ("pt1000", "pt500"),
+    ],
+)
+def test_external_model_aware_reader_rejects_conflicting_type(
+    declared_type: simulation.RTDType,
+    explicit_type: simulation.RTDType,
+) -> None:
+    class DeclaredReader:
+        def __init__(self, rtd_type: simulation.RTDType) -> None:
+            self.rtd_type = rtd_type
 
         def read_resistance_ohms(self) -> float:
-            return pt1000.celsius_to_resistance(-190.0)
+            raise AssertionError("Conflicting model must fail before reading")
 
-    reader = DeclaredPt1000Reader()
+    reader = DeclaredReader(declared_type)
 
     with pytest.raises(
         ValueError,
@@ -448,7 +480,7 @@ def test_external_model_aware_reader_rejects_conflicting_type() -> None:
     ):
         simulation.read_temperature_celsius(
             reader,
-            rtd_type="pt100",
+            rtd_type=explicit_type,
         )
 
 
@@ -463,24 +495,46 @@ def test_external_model_aware_reader_rejects_unsupported_declaration() -> None:
         simulation.read_temperature_celsius(InvalidDeclaredReader())
 
 
-def test_builtin_reader_rtd_identity_is_read_only() -> None:
+@pytest.mark.parametrize(
+    ("rtd_type", "replacement_type", "reference_resistance_ohms"),
+    [
+        ("pt100", "pt500", 100.0),
+        ("pt500", "pt1000", 500.0),
+        ("pt1000", "pt100", 1000.0),
+    ],
+)
+def test_builtin_reader_rtd_identity_is_read_only(
+    rtd_type: simulation.RTDType,
+    replacement_type: simulation.RTDType,
+    reference_resistance_ohms: float,
+) -> None:
     readers = (
-        simulation.FixedResistanceReader(100.0),
-        simulation.ResistanceSequenceReader([100.0]),
-        simulation.TemperatureSequenceReader([0.0]),
+        simulation.FixedResistanceReader(
+            reference_resistance_ohms,
+            rtd_type=rtd_type,
+        ),
+        simulation.ResistanceSequenceReader(
+            [reference_resistance_ohms],
+            rtd_type=rtd_type,
+        ),
+        simulation.TemperatureSequenceReader(
+            [0.0],
+            rtd_type=rtd_type,
+        ),
         simulation.NoisyTemperatureReader(
             0.0,
             noise_standard_deviation_c=0.0,
+            rtd_type=rtd_type,
         ),
     )
 
     for reader in readers:
-        assert reader.rtd_type == "pt100"
+        assert reader.rtd_type == rtd_type
 
         with pytest.raises(
             AttributeError,
             match="read-only after reader construction",
         ):
-            reader.rtd_type = "pt1000"
+            reader.rtd_type = replacement_type
 
-        assert reader.rtd_type == "pt100"
+        assert reader.rtd_type == rtd_type

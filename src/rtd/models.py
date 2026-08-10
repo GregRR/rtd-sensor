@@ -8,7 +8,9 @@ The built-in :mod:`rtd.pt100`, :mod:`rtd.pt500`, and :mod:`rtd.pt1000`
 modules remain the simplest interfaces for nominal IEC 60751 sensors. This
 module provides advanced models for individually characterized RTDs, platinum
 RTDs with user-supplied Callendar-Van Dusen coefficient sets, and generic RTD
-characteristics defined by a traceable polynomial.
+characteristics defined by a traceable polynomial. Callendar-Van Dusen is a
+platinum-specific model; non-platinum RTDs should use a characteristic form
+that matches their documented resistance-temperature relationship.
 """
 
 from __future__ import annotations
