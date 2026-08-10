@@ -1,8 +1,9 @@
 # pt100-core
 
-A small, platform-independent Python library for converting resistance measurements from standard IEC 60751 Pt100 and Pt1000 resistance temperature detectors into temperature.
-
-It also supports the inverse conversion from temperature to ideal RTD resistance for simulation and testing.
+A small, platform-independent Python library for platinum resistance temperature detectors (RTDs).
+It provides IEC 60751 Pt100 and Pt1000 resistance↔temperature conversion, configurable and
+calibrated Callendar–Van Dusen models, standard tolerance calculations, measurement-uncertainty
+tools, and simulation support.
 
 ## Scope
 
@@ -284,9 +285,9 @@ The repository is named `pt100-core` for discoverability. The Python package use
 
 See [`docs/DESIGN.md`](docs/DESIGN.md) for detailed architecture, mathematical assumptions, testing requirements, and future plans.
 
-## Status
+## Current capabilities
 
-The current development branch provides:
+Version 0.3.0 provides:
 
 - IEC 60751 Pt100 resistance-to-temperature and temperature-to-resistance conversion
 - IEC 60751 Pt1000 resistance-to-temperature and temperature-to-resistance conversion

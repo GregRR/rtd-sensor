@@ -84,7 +84,7 @@ Results must be tested against authoritative IEC 60751 reference values or indep
 
 ## 4. Mathematical model
 
-Version 1 will use the IEC 60751 Callendar–Van Dusen relationship.
+The current implementation and planned first stable major release use the IEC 60751 Callendar–Van Dusen relationship.
 
 For temperatures at or above 0 °C:
 
@@ -480,9 +480,9 @@ pt100-examples
 
 These names are provisional. Hardware packages should be split by actual abstraction boundary rather than created in advance.
 
-## 14. Explicit non-goals for version 1
+## 14. Explicit non-goals for the first stable major release
 
-Version 1 will not include:
+The first stable major release will not include:
 
 - board-specific hardware drivers
 - ADC configuration
