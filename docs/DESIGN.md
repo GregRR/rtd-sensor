@@ -86,6 +86,10 @@ ni120_temperature_c = ni120.resistance_to_celsius(resistance_ohms)
 ni120_resistance_ohms = ni120.celsius_to_resistance(temperature_c)
 ```
 
+The public `rtd_sensor.models.RTDModel` protocol defines the common numerical behavior expected by code that accepts arbitrary RTD models: temperature-to-resistance conversion, resistance-to-temperature conversion, and both local sensitivity directions. The protocol is structural, so the built-in sensor modules, configurable package models, and compatible third-party objects can satisfy it without inheriting from a package base class. Identity and descriptive metadata are intentionally excluded from this behavioral protocol and remain separate interface concerns.
+
+The narrower `rtd_sensor.uncertainty.RTDUncertaintyModel` protocol is retained for uncertainty-only callers. `RTDModel` includes that narrower behavior rather than replacing it with a broader requirement that would break third-party uncertainty integrations.
+
 ### 3.4 Simulation as a first-class use case
 
 Temperature-to-resistance conversion is part of the supported public API, not merely an internal helper. It enables application testing without attached hardware.

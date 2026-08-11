@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+### Added
+
+* Added a public structural `rtd_sensor.models.RTDModel` protocol covering forward and inverse resistance/temperature conversion plus local `dR/dT` and `dT/dR` sensitivity. Built-in sensor modules, public configurable models, and compatible third-party model objects can satisfy the protocol without package-specific inheritance.
+
+### Changed
+
+* Centralized the full RTD model protocol and the existing narrower `uncertainty.RTDUncertaintyModel` contract so every `RTDModel` is uncertainty-compatible without requiring existing uncertainty-only third-party implementations to add unused methods.
+* Updated internal simulation model annotations to depend on the shared structural model protocol rather than the private concrete built-in model class.
+
 ## 0.4.0 — 2026-08-10
 
 ### Added

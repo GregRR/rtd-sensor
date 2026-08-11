@@ -26,8 +26,9 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import Literal
 
+from ._protocols import RTDUncertaintyModel
 from ._validation import as_float as _as_float
 
 __all__ = [
@@ -48,28 +49,6 @@ __all__ = [
 
 type BoundDistribution = Literal["rectangular", "triangular"]
 type EvaluationMethod = Literal["A", "B"]
-
-
-class RTDUncertaintyModel(Protocol):
-    """Structural interface required for RTD uncertainty propagation.
-
-    The built-in :mod:`rtd_sensor.pt100`, :mod:`rtd_sensor.pt500`, and
-    :mod:`rtd_sensor.pt1000` modules and the public
-    configurable model classes all satisfy this protocol. Third-party models
-    can participate without inheriting from a package-specific base class if
-    they provide the same conversion and local-sensitivity operations.
-    """
-
-    def resistance_to_celsius(self, resistance_ohms: float) -> float:
-        """Convert resistance in ohms to temperature in Celsius."""
-        ...
-
-    def temperature_sensitivity_celsius_per_ohm(
-        self,
-        temperature_c: float,
-    ) -> float:
-        """Return local inverse sensitivity dT/dR in °C/ohm."""
-        ...
 
 
 @dataclass(frozen=True, slots=True)

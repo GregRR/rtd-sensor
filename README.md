@@ -284,6 +284,29 @@ Segments must be contiguous, positive-resistance, and strictly increasing. The m
 
 Published piecewise fits are sometimes independently rounded and miss exact continuity by a tiny amount. The default API does not hide such a mismatch. A caller may explicitly set `maximum_continuity_adjustment_ratio` to authorize only a bounded additive correction to each segment's normalized constant term. The reference-temperature segment remains the anchor, derivatives are unchanged, and the applied offsets are exposed as `continuity_adjustments` for auditability. This mechanism is for documented source-rounding effects, not for making genuinely incompatible segments appear valid.
 
+## Public RTD model protocol
+
+Application code that accepts more than one RTD characteristic can type against the structural `RTDModel` protocol instead of depending on a concrete model class:
+
+```python
+from rtd_sensor import pt100
+from rtd_sensor.models import IEC60751RTDModel, RTDModel
+
+
+def convert_temperature(model: RTDModel, resistance_ohms: float) -> float:
+    return model.resistance_to_celsius(resistance_ohms)
+
+
+nominal_temperature_c = convert_temperature(pt100, 119.397125)
+
+calibrated_probe = IEC60751RTDModel(r0_ohms=100.017)
+calibrated_temperature_c = convert_temperature(calibrated_probe, 119.42)
+```
+
+`RTDModel` is a structural typing interface: a third-party object does not need to inherit from an `rtd-sensor` base class. It qualifies when it provides the same forward conversion, inverse conversion, `dR/dT`, and `dT/dR` operations. Model identity, discoverable built-in metadata, and hardware acquisition remain separate concerns rather than being forced into this numerical behavior contract.
+
+The existing `rtd_sensor.uncertainty.RTDUncertaintyModel` remains a narrower structural interface for callers that provide only the inverse conversion and `dT/dR` behavior required by uncertainty propagation. Every full `RTDModel` satisfies that narrower interface.
+
 ## IEC 60751 tolerance classes
 
 The `rtd_sensor.tolerance` module calculates the maximum permitted temperature deviation for the standard IEC 60751:2022 tolerance classes. The standard distinguishes complete thermometers from bare platinum resistors, and it assigns different validity ranges to wire-wound and film construction.

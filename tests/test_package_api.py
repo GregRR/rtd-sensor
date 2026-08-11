@@ -88,6 +88,7 @@ def test_models_public_api() -> None:
         "PiecewisePolynomialRTDModel",
         "PiecewisePolynomialSegment",
         "PolynomialRTDModel",
+        "RTDModel",
     }
 
 

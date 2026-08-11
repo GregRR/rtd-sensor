@@ -12,6 +12,9 @@ coefficient sets, and generic RTD characteristics defined by a traceable
 polynomial. Callendar-Van Dusen is a
 platinum-specific model; non-platinum RTDs should use a characteristic form
 that matches their documented resistance-temperature relationship.
+
+`RTDModel` is the public structural protocol for code that accepts any
+compatible built-in, configurable, or third-party RTD model.
 """
 
 from __future__ import annotations
@@ -26,6 +29,7 @@ from ._curves import PiecewisePolynomialRTDCurve as _PiecewisePolynomialRTDCurve
 from ._curves import PolynomialRTDCurve as _PolynomialRTDCurve
 from ._curves import PolynomialRTDSegment as _PolynomialRTDSegment
 from ._models import RTDModel as _RTDModel
+from ._protocols import RTDModel
 from ._validation import as_float as _as_float
 
 __all__ = [
@@ -34,6 +38,7 @@ __all__ = [
     "PiecewisePolynomialRTDModel",
     "PiecewisePolynomialSegment",
     "PolynomialRTDModel",
+    "RTDModel",
 ]
 
 

@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
 from . import _models
+from ._protocols import RTDModel as _RTDModelProtocol
 from ._validation import as_float as _as_float
 
 __all__ = [
@@ -93,7 +94,7 @@ class FixedResistanceReader(_FixedRTDIdentity):
 
     resistance_ohms: float
     rtd_type: RTDType = "pt100"
-    _model: _models.RTDModel = field(
+    _model: _RTDModelProtocol = field(
         init=False,
         repr=False,
     )
@@ -117,7 +118,7 @@ class ResistanceSequenceReader(_FixedRTDIdentity):
     readings_ohms: Sequence[float]
     repeat: bool = False
     rtd_type: RTDType = "pt100"
-    _model: _models.RTDModel = field(
+    _model: _RTDModelProtocol = field(
         init=False,
         repr=False,
     )
@@ -165,7 +166,7 @@ class TemperatureSequenceReader(_FixedRTDIdentity):
     temperatures_c: Sequence[float]
     repeat: bool = False
     rtd_type: RTDType = "pt100"
-    _model: _models.RTDModel = field(
+    _model: _RTDModelProtocol = field(
         init=False,
         repr=False,
     )
@@ -209,7 +210,7 @@ class NoisyTemperatureReader(_FixedRTDIdentity):
     noise_standard_deviation_c: float = 0.05
     seed: int | None = None
     rtd_type: RTDType = "pt100"
-    _model: _models.RTDModel = field(
+    _model: _RTDModelProtocol = field(
         init=False,
         repr=False,
     )
@@ -290,7 +291,7 @@ def read_temperature_celsius(
     return model.resistance_to_celsius(resistance)
 
 
-def _model_for_rtd_type(rtd_type: RTDType) -> _models.RTDModel:
+def _model_for_rtd_type(rtd_type: RTDType) -> _RTDModelProtocol:
     try:
         return _models.BUILTIN_RTD_MODELS[rtd_type]
     except KeyError as error:
@@ -302,7 +303,7 @@ def _model_for_rtd_type(rtd_type: RTDType) -> _models.RTDModel:
 
 def _validate_resistance(
     resistance_ohms: float,
-    model: _models.RTDModel,
+    model: _RTDModelProtocol,
 ) -> float:
     resistance = _as_float(resistance_ohms, name="Resistance")
 
