@@ -18,6 +18,232 @@ and `rtd` import package. Existing `pt100-core` releases remain part of the
 project history; migration requires updating imports to `rtd_sensor` as documented
 in the README.
 
+## 0.5.0 integration and public-interface direction
+
+The next major milestone should make `rtd-sensor` easier to compose with real
+acquisition code while preserving the current scientific/hardware boundary. The
+target data flow is:
+
+```text
+hardware / acquisition layer
+        │
+        │ compensated sensor-element resistance in ohms
+        ▼
+rtd-sensor
+        │
+        │ temperature / model / tolerance / uncertainty results
+        ▼
+application layer
+```
+
+A Raspberry Pi, MAX31865, ADC, or other acquisition package should know how to
+obtain the best available estimate of sensor-element resistance. `rtd-sensor`
+should remain responsible for interpreting that resistance through an RTD model.
+Application code composes the two layers; neither package should duplicate the
+other layer's responsibilities.
+
+Items 1 through 4 form the preferred v0.5.0 integration milestone. The remaining
+items are ordered follow-on work and should build on the same public contracts.
+
+### 1. Public RTD model protocol — next implementation target
+
+Add one small structural public protocol for code that consumes an RTD model.
+Built-in model objects, configurable package models, and future third-party
+models should be usable without inheriting from a package-specific base class.
+
+Candidate public shape:
+
+```python
+from typing import Protocol
+
+
+class RTDModel(Protocol):
+    @property
+    def minimum_temperature_c(self) -> float: ...
+
+    @property
+    def maximum_temperature_c(self) -> float: ...
+
+    def celsius_to_resistance(self, temperature_c: float) -> float: ...
+
+    def resistance_to_celsius(self, resistance_ohms: float) -> float: ...
+
+    def resistance_sensitivity_ohms_per_celsius(
+        self, temperature_c: float
+    ) -> float: ...
+
+    def temperature_sensitivity_celsius_per_ohm(
+        self, temperature_c: float
+    ) -> float: ...
+```
+
+The exact exported name should be confirmed during implementation. Keep the
+protocol deliberately behavioral: identity, display name, material, aliases,
+and provenance belong to metadata and should not be required merely to qualify
+as a conversion model.
+
+Current implementation starting point:
+
+- `rtd_sensor._models.RTDModel` is a private concrete model object used by the
+  verified built-in registry;
+- `rtd_sensor.models` contains the public configurable model classes;
+- `uncertainty.RTDUncertaintyModel` is already a public, narrower structural
+  protocol requiring resistance-to-temperature conversion and inverse
+  sensitivity; and
+- `simulation` currently types its built-in conversion path against the private
+  concrete model object.
+
+The first implementation pass should therefore be interface consolidation, not
+mathematical change: define/export the public protocol, make the intended model
+objects satisfy it under strict mypy, reconcile the uncertainty protocol, and
+update type annotations/tests without changing conversion results or validation
+semantics.
+
+Implementation constraints:
+
+- use structural typing rather than a required inheritance hierarchy;
+- keep existing public configurable model classes source-compatible;
+- make internal built-in model objects satisfy the protocol naturally;
+- do not add hardware/acquisition methods to an RTD model;
+- review the existing public `uncertainty.RTDUncertaintyModel` protocol and
+  either reuse a deliberate subset of the new contract or otherwise make their
+  relationship explicit; do not leave two overlapping model protocols with
+  accidental semantic differences;
+- keep the protocol independent of built-in discovery/registration; and
+- add strict mypy regression coverage proving that the intended built-in and
+  configurable model objects satisfy the interface.
+
+Done when downstream code can accept one public RTD model interface without
+knowing the concrete model class, and the uncertainty API has a documented,
+non-duplicative relationship to that interface.
+
+### 2. Public built-in model discovery and immutable metadata
+
+Expose read-only discovery without exposing the internal registry itself. A
+likely API shape is:
+
+```python
+supported_models()
+get_model("pt100")
+model_info("pt100")
+```
+
+Exact names remain subject to API review. The important contract is that
+downstream applications, configuration files, CLIs, and GUIs should not need to
+maintain their own copy of the built-in identity table.
+
+Discovery should:
+
+- use the existing immutable built-in registry as the single source of truth;
+- return models satisfying the public RTD model protocol;
+- reject unknown identities explicitly and predictably;
+- preserve stable canonical identities such as `pt100`, `pt500`, `pt1000`,
+  `ni1000`, `ni1000_tk5000`, and `ni120`; and
+- avoid a public plugin/registration mechanism until a real second registration
+  use case demonstrates that one is needed.
+
+A separate immutable descriptor can expose application-facing metadata such as
+canonical identity, display name, characteristic/provenance label, reference
+resistance and temperature, valid temperature range, material/family when
+explicitly known, and unambiguous aliases. Metadata must be generated from or
+colocated with authoritative model definitions so it does not become another
+drifting capability list.
+
+### 3. Neutral resistance-reader interface outside `simulation`
+
+Move or re-export the hardware-neutral resistance-reading contract from the
+`simulation` namespace into a neutral public module such as `measurement` or
+`reading`; choose the final module name during implementation.
+
+The core interface should remain intentionally small:
+
+```python
+class ResistanceReader(Protocol):
+    def read_resistance_ohms(self) -> float: ...
+```
+
+Simulation readers and future physical acquisition packages should be peers
+that implement the same protocol. Preserve existing documented
+`rtd_sensor.simulation` imports through an appropriate compatibility re-export
+rather than forcing users to migrate solely because the protocol moves.
+
+This work must not add GPIO, SPI, I²C, ADC, MAX31865, or platform-driver
+dependencies. Compensated resistance in ohms remains the acquisition/core
+boundary.
+
+### 4. Model-object conversion for resistance readers
+
+Generalize reader conversion so callers may supply an RTD model object rather
+than being limited to a built-in string identity. The target composition is:
+
+```python
+model = get_model("pt100")
+temperature_c = read_temperature_celsius(reader, model=model)
+```
+
+An individually characterized probe should work through the same path:
+
+```python
+model = IEC60751RTDModel(r0_ohms=100.037)
+temperature_c = read_temperature_celsius(reader, model=model)
+```
+
+Retain the built-in identity convenience for simple applications. Define clear
+precedence and reject conflicting reader/model declarations rather than silently
+converting with the wrong characteristic.
+
+This is the main integration seam for a later hardware package: acquisition code
+produces compensated ohms, application configuration selects the model, and the
+conversion layer combines them. A higher-level `TemperatureChannel`-style
+composition object may belong in a hardware/application package later; it should
+not pull device concerns into `rtd-sensor`.
+
+### 5. Small public exception taxonomy
+
+Consider a deliberately small exception hierarchy so applications can
+distinguish model/range failures from hardware failures without parsing error
+strings. Where practical, new value-related exceptions should subclass
+`ValueError` so existing callers remain compatible.
+
+Useful distinctions may include unknown built-in model identity, out-of-range
+temperature/resistance, and invalid custom model configuration. Avoid a large
+hierarchy; the goal is stable application branching, especially between
+"hardware read failed" and "resistance was read successfully but is invalid for
+the configured model."
+
+### 6. Tabulated RTD characteristics
+
+Implement the tabulated-characteristic design under **User-defined
+characteristics** below. Table support should integrate with the same public RTD
+model protocol, sensitivity semantics, provenance rules, and no-extrapolation
+default rather than creating a parallel conversion API.
+
+### 7. Calibration fitting
+
+Implement the fitting work described under **Calibration and model fitting**
+after the public model interface is stable. A fit should produce a normal model
+object plus auditable fit results, retaining observations, residuals, RMS and
+maximum error, fitting range, weighting/uncertainty inputs, and reproducibility
+assumptions.
+
+### 8. Batch and vector conversion conveniences
+
+Add batch conversion only after the scalar model interface is stable. Prefer a
+small dependency-free iterable API first if it can be specified clearly. Do not
+make NumPy a mandatory runtime dependency for convenience; if acceleration later
+matters, consider an optional adapter/extra and verify scalar/batch numerical
+equivalence at boundaries.
+
+### 9. Additional built-in RTD characteristics
+
+Continue adding platinum, nickel, copper, or manufacturer-specific built-ins
+only when authoritative characteristic definitions and independent validation
+justify them. New built-ins should reuse the public model, discovery, and
+measurement interfaces rather than expanding those interfaces ad hoc. Provenance
+and support-readiness remain more important than maximizing the sensor count.
+
+The 0.4.x foundation that this milestone builds upon is summarized below.
+
 ## 0.4.x development direction
 
 ### Completed foundation
@@ -245,7 +471,6 @@ A later hardware/acquisition package can feed compensated resistance values to
 
 Potential later additions include:
 
-- vectorized conversion;
 - generated lookup tables for constrained systems;
 - alternative standardized platinum characteristics;
 - richer calibration-certificate metadata;
