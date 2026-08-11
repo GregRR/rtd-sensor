@@ -69,12 +69,10 @@ All invertible characteristics must provide:
 - strict monotonicity over the supported range; and
 - floating-point-safe boundary round trips.
 
-### Nickel targets for 0.4.x
+### Nickel characteristics introduced in 0.4.0
 
-Research and implementation should proceed characteristic-by-characteristic,
-with equation provenance and independent reference values for each one.
-
-Likely near-term targets:
+Nickel support proceeds characteristic-by-characteristic, with equation provenance
+and independent reference values for each one. Version 0.4.0 introduced:
 
 - **Ni1000 6180 ppm/K** — implemented as `rtd_sensor.ni1000` using the former DIN
   43760 / Nickel ND characteristic. The mathematical -60 °C through 250 °C
@@ -87,7 +85,8 @@ Likely near-term targets:
   explicit bounded stitching for printed-coefficient join mismatches and
   independent Pyromation R/T validation.
 
-Before each characteristic is publicly exported, require:
+The support-readiness process used for these characteristics, and required for
+future built-ins, includes:
 
 - authoritative forward equation or table provenance;
 - explicit characteristic identity and common aliases;
@@ -114,7 +113,8 @@ Keep these on the research roadmap even if they do not land in 0.4.x:
 
 ## Copper RTDs
 
-Copper support is planned after the nickel architecture is established.
+Copper support remains planned as a later expansion now that the initial nickel
+architecture is established.
 Candidates include:
 
 - **Cu10**, particularly legacy motor/generator winding and industrial
@@ -162,10 +162,10 @@ model now:
   trips.
 
 The Minco North-American 120-ohm nickel stepwise approximation is the first
-planned built-in consumer. Its published 12-segment cubic coefficients motivate
-the explicit stitching policy because printed coefficient precision leaves very
-small join mismatches even though the source describes one standard nickel
-curve.
+built-in consumer of this representation. Its published 12-segment cubic
+coefficients motivate the explicit stitching policy because printed coefficient
+precision leaves very small join mismatches even though the source describes one
+standard nickel curve.
 
 ### Tabulated characteristics
 

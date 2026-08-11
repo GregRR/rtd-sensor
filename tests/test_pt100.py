@@ -27,7 +27,7 @@ from rtd_sensor import pt100
 #
 # These values are rounded to two decimal places, matching the
 # independently generated table. They are deliberately not generated
-# by rtd.pt100 and therefore provide an external check on the
+# by rtd_sensor.pt100 and therefore provide an external check on the
 # implementation.
 #
 # Fluke identifies IEC 60751 among the source standards and publishes

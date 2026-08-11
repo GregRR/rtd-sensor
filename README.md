@@ -1,6 +1,6 @@
 # rtd-sensor
 
-A small, platform-independent Python library for resistance temperature detectors (RTDs).
+`rtd-sensor` is a small, platform-independent Python library for resistance-to-temperature and temperature-to-resistance conversion and modeling of resistance temperature detectors (RTDs).
 Its verified built-in sensor modules currently cover IEC 60751 Pt100, Pt500, Pt1000,
 the former-DIN Ni1000 6178/6180 ppm/K characteristic, Ni1000 TK5000, and the
 North American Ni120 / 6720 ppm/K characteristic. The library
@@ -41,6 +41,24 @@ sensor manufacturer's packaging or probe construction.
 
 Hardware-specific concerns such as ADC readings, GPIO, SPI, I²C, excitation circuits, two-/three-/four-wire topology, and lead-wire compensation belong in separate hardware layers.
 
+Only RTD characteristics whose equations, validity ranges, independent reference values, tests, and documentation are complete are considered supported.
+
+### Typical uses
+
+`rtd-sensor` is useful when you need to:
+
+- convert a compensated RTD resistance measurement to temperature;
+- calculate the expected resistance of an RTD at a known temperature;
+- model an individual IEC 60751 probe with a characterized R0 or custom Callendar–Van Dusen coefficients;
+- evaluate IEC 60751 platinum tolerance limits;
+- propagate resistance-measurement uncertainty into temperature uncertainty; or
+- generate RTD measurements for software testing and simulation.
+
+Hardware acquisition remains separate. For example, if a MAX31865 or another
+acquisition layer has already produced a compensated resistance measurement,
+`rtd-sensor` can handle the RTD conversion and modeling stage; it does not
+communicate with the hardware itself.
+
 ## Installation
 
 ```bash
@@ -48,29 +66,6 @@ python -m pip install rtd-sensor
 ```
 
 The distribution name uses a hyphen (`rtd-sensor`), while the Python import package uses an underscore (`rtd_sensor`).
-
-## Migrating from pt100-core 0.3.x
-
-Version 0.4.0 renames both the distribution and the Python import package as the project expands beyond its original Pt100-only scope:
-
-```text
-Old distribution:  pt100-core
-New distribution:  rtd-sensor
-Old Python import: rtd
-New Python import: rtd_sensor
-```
-
-For example:
-
-```python
-# pt100-core 0.3.x and earlier
-from rtd import pt100
-
-# rtd-sensor 0.4.0 and later
-from rtd_sensor import pt100
-```
-
-Advanced-model imports change the same way, for example from `rtd.models` to `rtd_sensor.models`. `rtd-sensor` intentionally does **not** ship an `rtd` compatibility package; applications migrating from `pt100-core` must update their imports. Existing `pt100-core` releases remain part of the historical release line.
 
 ## Basic usage
 
@@ -97,6 +92,29 @@ ni120_resistance_ohms = ni120.celsius_to_resistance(100.0)
 ```
 
 Physical numerical inputs such as temperature, resistance, coefficients, and uncertainty values reject Python Boolean values. This prevents `True`/`False` from being silently interpreted as `1.0`/`0.0`, while ordinary integer, floating-point, and other float-convertible numeric inputs continue to work normally. Boolean control options such as simulation `repeat=True` are unaffected.
+
+## Migrating from pt100-core 0.3.x
+
+Version 0.4.0 renames both the distribution and the Python import package as the project expands beyond its original Pt100-only scope:
+
+```text
+Old distribution:  pt100-core
+New distribution:  rtd-sensor
+Old Python import: rtd
+New Python import: rtd_sensor
+```
+
+For example:
+
+```python
+# pt100-core 0.3.x and earlier
+from rtd import pt100
+
+# rtd-sensor 0.4.0 and later
+from rtd_sensor import pt100
+```
+
+Advanced-model imports change the same way, for example from `rtd.models` to `rtd_sensor.models`. `rtd-sensor` intentionally does **not** ship an `rtd` compatibility package; applications migrating from `pt100-core` must update their imports. Existing `pt100-core` releases remain part of the historical release line.
 
 ## Ni1000 6180 / former DIN 43760
 
@@ -408,10 +426,10 @@ print(budget.expanded_uncertainty_c)
 
 `TemperatureUncertaintyComponent` can optionally retain a Type A/Type B evaluation-method label, source, and note. Those fields are provenance only; all supplied components must already be standard uncertainties in °C. The current budget combines the resistance contribution and additional components as **uncorrelated** terms. It does not yet support covariance matrices, coefficient covariance, effective degrees of freedom, or Monte Carlo propagation.
 
-The built-in `pt100`, `pt500`, `pt1000`, and `ni1000` modules and the public
-configurable-model classes, including `PolynomialRTDModel`, can be passed as
-the `model`. Third-party models may also participate if they provide compatible
-resistance-to-temperature conversion and local `dT/dR` sensitivity methods.
+All verified built-in sensor modules and the public configurable-model classes,
+including `PolynomialRTDModel`, can be passed as the `model`. Third-party models
+may also participate if they provide compatible resistance-to-temperature
+conversion and local `dT/dR` sensitivity methods.
 
 ## Simulation
 
@@ -459,48 +477,13 @@ uv run --locked ruff check .
 uv run --locked mypy
 ```
 
-## Project structure
+## Further documentation
 
-```text
-src/rtd_sensor/
-    _curves.py
-    _models.py
-    _validation.py
-    models.py
-    ni1000.py
-    pt100.py
-    pt500.py
-    pt1000.py
-    simulation.py
-    tolerance.py
-    uncertainty.py
-
-tests/
-docs/DESIGN.md
-```
-
-The repository and PyPI distribution are named `rtd-sensor`; the Python import package is `rtd_sensor`. Releases through 0.3.x used the historical `pt100-core` distribution and `rtd` import namespace; see the migration section above when updating existing applications.
-
-See [`docs/DESIGN.md`](docs/DESIGN.md) for detailed architecture and mathematical assumptions, and [`docs/ROADMAP.md`](docs/ROADMAP.md) for planned RTD families and future characteristic/calibration work.
-
-## Current capabilities
-
-The current development branch provides:
-
-- IEC 60751 Pt100 resistance-to-temperature and temperature-to-resistance conversion
-- IEC 60751 Pt500 resistance-to-temperature and temperature-to-resistance conversion
-- IEC 60751 Pt1000 resistance-to-temperature and temperature-to-resistance conversion
-- former-DIN Ni1000 6178/6180 ppm/K resistance-to-temperature and temperature-to-resistance conversion
-- independently sourced reference-value tests for all built-in RTD characteristics
-- shared internal RTD curve and model infrastructure
-- registry-driven model-aware simulation for all built-in RTD characteristics while preserving Pt100 defaults
-- public configurable IEC 60751 models for individually characterized `R0` values and declared temperature ranges
-- public Callendar–Van Dusen models for traceable user-supplied `R0`, `A`, `B`, and optional `C` coefficient sets
-- generic polynomial RTD models with explicit reference resistance/temperature, provenance, analytical sensitivity, and validated monotonic inversion
-- IEC 60751:2022 tolerance calculations for standard thermometer and platinum-resistor classes
-- GUM-style uncertainty primitives, exact RTD sensitivity, first-order resistance-to-temperature propagation, and structured independent-component temperature uncertainty budgets
-
-Potential future RTD types are not considered supported until their equations, ranges, independent reference values, tests, and documentation are complete.
+See [`docs/DESIGN.md`](docs/DESIGN.md) for detailed architecture and mathematical
+assumptions, [`docs/ROADMAP.md`](docs/ROADMAP.md) for planned RTD families and
+future characteristic/calibration work, [`docs/RELEASING.md`](docs/RELEASING.md)
+for the release checklist, and [`CITATION.cff`](CITATION.cff) for software
+citation metadata.
 
 ## License
 

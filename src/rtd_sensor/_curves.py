@@ -1123,7 +1123,7 @@ NI_6180_DIN_43760 = PolynomialRTDCurve(
 # The E+E Elektronik
 # Ni1000 TK5000 table is used independently in tests rather than deriving
 # expected values from these same coefficients.  Full source URLs and the
-# characteristic-selection rationale live in rtd.ni1000_tk5000.
+# characteristic-selection rationale live in rtd_sensor.ni1000_tk5000.
 NI_5000_TK5000 = PolynomialRTDCurve(
     name="Ni1000 TK5000 nickel 5000 ppm/K curve",
     coefficients=(

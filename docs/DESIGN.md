@@ -2,16 +2,20 @@
 
 ## 1. Purpose
 
-`rtd-sensor` provides a small, dependable, platform-independent implementation of resistance-to-temperature and temperature-to-resistance conversion for standardized platinum resistance temperature detectors.
+`rtd-sensor` provides a small, dependable, platform-independent implementation of resistance-to-temperature and temperature-to-resistance conversion and modeling for resistance temperature detectors (RTDs).
 
-The currently supported sensor models are:
+Verified built-in characteristics currently include:
 
-- Pt100: nominal resistance 100 Ω at 0 °C
-- Pt1000: nominal resistance 1000 Ω at 0 °C
-- standard: IEC 60751
-- normalized platinum curve: PT-385, α ≈ 0.00385
+- IEC 60751 PT-385 Pt100: nominal resistance 100 Ω at 0 °C
+- IEC 60751 PT-385 Pt500: nominal resistance 500 Ω at 0 °C
+- IEC 60751 PT-385 Pt1000: nominal resistance 1000 Ω at 0 °C
+- former-DIN Ni1000 6178/6180: nominal resistance 1000 Ω at 0 °C
+- Ni1000 TK5000 / Nickel NL 5000 ppm/K: nominal resistance 1000 Ω at 0 °C
+- North American Ni120 / 6720 ppm/K: nominal resistance 120 Ω at 0 °C
 
-The project exists so applications can share one tested scientific conversion layer while keeping hardware acquisition code separate.
+The library also supports traceable custom RTD models, IEC 60751 platinum tolerance calculations, measurement-uncertainty analysis, and simulation.
+
+The project exists so applications can share one tested scientific conversion and modeling layer while keeping hardware acquisition code separate.
 
 ## 2. Core architectural boundary
 
@@ -61,10 +65,13 @@ The implementation should identify the standard, equation, constants, assumption
 The public interfaces for supported RTD models should remain parallel and simple:
 
 ```python
-from rtd_sensor import ni1000, ni1000_tk5000, pt100, pt1000
+from rtd_sensor import ni1000, ni1000_tk5000, ni120, pt100, pt500, pt1000
 
-temperature_c = pt100.resistance_to_celsius(resistance_ohms)
-resistance_ohms = pt100.celsius_to_resistance(temperature_c)
+pt100_temperature_c = pt100.resistance_to_celsius(resistance_ohms)
+pt100_resistance_ohms = pt100.celsius_to_resistance(temperature_c)
+
+pt500_temperature_c = pt500.resistance_to_celsius(resistance_ohms)
+pt500_resistance_ohms = pt500.celsius_to_resistance(temperature_c)
 
 pt1000_temperature_c = pt1000.resistance_to_celsius(resistance_ohms)
 pt1000_resistance_ohms = pt1000.celsius_to_resistance(temperature_c)
@@ -74,6 +81,9 @@ ni1000_resistance_ohms = ni1000.celsius_to_resistance(temperature_c)
 
 tk5000_temperature_c = ni1000_tk5000.resistance_to_celsius(resistance_ohms)
 tk5000_resistance_ohms = ni1000_tk5000.celsius_to_resistance(temperature_c)
+
+ni120_temperature_c = ni120.resistance_to_celsius(resistance_ohms)
+ni120_resistance_ohms = ni120.celsius_to_resistance(temperature_c)
 ```
 
 ### 3.4 Simulation as a first-class use case
@@ -86,7 +96,7 @@ Wire compensation, excitation circuits, ADC scaling, amplifier gain, reference r
 
 ### 3.6 Verifiability
 
-Results must be tested against authoritative IEC 60751 reference values or independently reproduced reference tables.
+Results must be tested against authoritative standards, traceable manufacturer equations or tables, or independently reproduced reference data appropriate to each characteristic.
 
 ## 4. Mathematical model
 
@@ -114,10 +124,11 @@ B  = -5.775 × 10⁻⁷ °C⁻²
 C  = -4.183 × 10⁻¹² °C⁻⁴
 ```
 
-The supported models differ in nominal resistance at 0 °C:
+The supported IEC 60751 PT-385 platinum models differ in nominal resistance at 0 °C:
 
 ```text
 Pt100:  R0 = 100 Ω
+Pt500:  R0 = 500 Ω
 Pt1000: R0 = 1000 Ω
 ```
 
@@ -215,7 +226,7 @@ def resistance_to_fahrenheit(resistance_ohms: float) -> float: ...
 def fahrenheit_to_resistance(temperature_f: float) -> float: ...
 ```
 
-Those convenience functions are not required for the first release. Celsius is the native temperature representation because the governing standard is expressed in Celsius.
+Those convenience functions are not currently part of the public API. Celsius is the native temperature representation used by the supported characteristic definitions.
 
 ## 6. Validation and errors
 
@@ -596,12 +607,13 @@ Pt1000 is now implemented as a verified public RTD type. The milestone establish
 4. generic model tests for R0 behavior, normalized resistance, boundaries, validation, monotonicity, and round trips;
 5. Pt1000 reference provenance and independent reference-value tests;
 6. the public `rtd_sensor.pt1000` conversion module; and
-7. model-aware simulation supporting Pt100 and Pt1000 while preserving Pt100 defaults.
+7. model-aware simulation for the then-supported Pt100 and Pt1000 models while
+   preserving Pt100 defaults.
 
 No additional RTD type should be added merely because the shared engine can represent it. Each future type must independently satisfy the support-readiness policy above.
 
 
-Pt500 now follows that process as a verified public type. Nickel, copper, and other future RTD characteristics must follow the same process rather than being assumed supported merely because the generalized model layer can be extended.
+Pt500 and the currently supported nickel characteristics now follow that process as verified public types. Copper and other future RTD characteristics must follow the same process rather than being assumed supported merely because the generalized model layer can be extended.
 
 
 ### Completed Pt500 milestone
@@ -762,7 +774,7 @@ B  = -5.775 × 10⁻⁷ °C⁻²
 C  = -4.183 × 10⁻¹² °C⁻⁴
 ```
 
-The currently supported models are:
+The currently supported nominal IEC 60751 PT-385 platinum models are:
 
 ```text
 Pt100:  R0 = 100.0 Ω

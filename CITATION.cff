@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using these metadata."
+title: "rtd-sensor"
+type: software
+version: "0.4.0"
+date-released: "2026-08-10"
+authors:
+  - family-names: "Roe"
+    given-names: "Greg"
+abstract: >-
+  Python RTD resistance/temperature conversion and modeling for IEC 60751
+  platinum and nickel RTDs, with tolerance, uncertainty, and simulation tools.
+repository-code: "https://github.com/GregRR/rtd-sensor"
+url: "https://pypi.org/project/rtd-sensor/"
+license: MPL-2.0
+keywords:
+  - "resistance temperature detector"
+  - RTD
+  - Pt100
+  - Pt500
+  - Pt1000
+  - Ni1000
+  - Ni120
+  - "IEC 60751"
+  - "Callendar-Van Dusen"
+  - metrology
+  - tolerance
+  - uncertainty
