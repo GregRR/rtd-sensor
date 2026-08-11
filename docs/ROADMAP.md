@@ -36,14 +36,18 @@ rtd-sensor
 application layer
 ```
 
-A Raspberry Pi, MAX31865, ADC, or other acquisition package should know how to
-obtain the best available estimate of sensor-element resistance. `rtd-sensor`
+An MCU, converter, ADC, or other acquisition layer should know how to obtain
+the best available estimate of sensor-element resistance. `rtd-sensor`
 should remain responsible for interpreting that resistance through an RTD model.
 Application code composes the two layers; neither package should duplicate the
 other layer's responsibilities.
 
-Items 1 through 4 form the preferred v0.5.0 integration milestone. The remaining
-items are ordered follow-on work and should build on the same public contracts.
+Item 1 is the immediate implementation target. Item 2 should follow early, before
+an MCU RTD implementation is treated as a production dependency, because
+behavioral contracts, identifiers, tolerances, and exported reference data are
+much harder to retrofit once another implementation depends on them. Items 3
+through 5 complete the preferred integration milestone. The remaining items are
+ordered follow-on work and should build on the same public contracts.
 
 ### 1. Public RTD model protocol — next implementation target
 
@@ -117,7 +121,309 @@ Done when downstream code can accept one public RTD model interface without
 knowing the concrete model class, and the uncertainty API has a documented,
 non-duplicative relationship to that interface.
 
-### 2. Public built-in model discovery and immutable metadata
+### 2. Language-neutral RTD conformance contract — high priority
+
+Establish `rtd-sensor` as the authoritative reference implementation for RTD
+conversion behavior, not merely as one Python implementation of the same
+equations. A future MCU implementation in C/C++ or another language should be
+able to reproduce the supported subset of `rtd-sensor` behavior and prove that
+compatibility without reverse-engineering Python source code.
+
+The goal is a shared behavioral contract:
+
+```text
+                    rtd-sensor
+              Python reference library
+                     │
+                     │ conformance contract
+                     ▼
+        machine-readable reference artifacts
+                     │
+          ┌──────────┴──────────┐
+          │                     │
+   Python verification     embedded / other
+                           implementations
+```
+
+This work does **not** imply a full embedded port of `rtd-sensor`. A constrained
+MCU implementation may intentionally support only selected built-in
+characteristics, resistance-to-temperature conversion, calibrated reference
+resistance, range validation, and deterministic status output. It need not
+implement the Python package's simulation framework, rich custom-model API,
+uncertainty analysis, fitting tools, or every future characteristic.
+
+Begin this work before production MCU conversion code is established. Once a
+second implementation depends on copied coefficients, model names, boundary
+behavior, or error interpretation, correcting ambiguity becomes a
+cross-project compatibility problem rather than a local library change.
+
+#### 2.1 Machine-readable conformance vectors
+
+Provide language-neutral reference vectors that can be consumed by Python, C,
+C++, Rust, MicroPython, test equipment, or other implementations without
+depending on `pytest` or Python internals.
+
+Prefer a simple, versioned format such as JSON. The exact schema should be
+designed before the first exported vectors are treated as stable. Conceptually,
+a forward-conversion case needs:
+
+```json
+{
+  "model_id": "pt100",
+  "operation": "temperature_to_resistance",
+  "temperature_c": 100.0,
+  "expected_resistance_ohms": 138.5055,
+  "absolute_tolerance_ohms": 0.0001
+}
+```
+
+and an inverse case needs the corresponding resistance input, expected
+temperature, and temperature tolerance.
+
+The final schema should distinguish test-vector identity from descriptive model
+metadata and should be explicit about units rather than relying on field-name
+convention alone if the format evolves beyond this minimal representation.
+
+#### 2.2 Representative coverage, not exported test-suite duplication
+
+Conformance artifacts should cover every supported behavior an external
+implementation may claim, but they should not simply export thousands of Python
+unit tests.
+
+Representative vector sets should eventually cover:
+
+- Pt100, Pt500, and Pt1000;
+- Ni1000 6178/6180, Ni1000 TK5000, and Ni120;
+- characterized reference resistance / calibrated `R0`;
+- custom Callendar-Van Dusen coefficient sets;
+- single-polynomial and piecewise-polynomial models;
+- tabulated models once implemented; and
+- other future characteristics only after they become supported.
+
+Each capability should be separable so an embedded implementation can claim a
+specific conformance profile without implying support for the entire Python
+package.
+
+#### 2.3 Deliberate boundary and branch cases
+
+Reference vectors must exercise behavior that tends to diverge between
+implementations, including:
+
+- minimum and maximum supported temperatures;
+- values immediately inside supported boundaries;
+- 0 °C and other model reference temperatures;
+- important published standard/reference points;
+- representative negative and positive temperatures;
+- both sides of piecewise or equation branches;
+- segment joins for piecewise models;
+- values that stress inverse convergence and floating-point conditioning;
+- representative engineering operating points; and
+- forward/inverse round-trip cases.
+
+The purpose is behavioral equivalence, especially where a superficially correct
+implementation is most likely to differ.
+
+#### 2.4 Explicit numerical compatibility tolerances
+
+Define what it means for another implementation to be numerically conformant.
+A 64-bit Python calculation and an MCU using 32-bit floating point do not need
+bit-identical results, but they do need documented engineering equivalence.
+
+The conformance specification should therefore define per-operation or
+per-vector absolute tolerances, and relative tolerances only where they are
+scientifically meaningful. Tolerances must be justified rather than chosen
+merely to make an implementation pass.
+
+Before freezing a conformance profile intended for constrained MCUs, evaluate
+the vectors against representative single-precision arithmetic so the contract
+does not accidentally require double precision unless the scientific behavior
+actually needs it.
+
+#### 2.5 Authoritative equations, coefficients, and numerical decisions
+
+An external implementer must not need to read private Python source to discover
+the required behavior. For every conformant model or model family, document:
+
+- the equation or table formulation;
+- the complete coefficient set;
+- reference resistance and reference-temperature semantics;
+- valid temperature range and derived resistance limits where applicable;
+- branch or segment rules;
+- inversion method or required inversion behavior;
+- source/standard/manufacturer provenance;
+- published-source precision relevant to the implementation;
+- continuity adjustments or other explicitly authorized transformations; and
+- numerical decisions that materially affect cross-language reproduction.
+
+The Python implementation, documentation, and exported artifacts must derive
+from the same authoritative model definitions wherever practical rather than
+maintaining independent copies.
+
+#### 2.6 Language-neutral range and error semantics
+
+Define semantic outcomes separately from Python exception mechanics. External
+implementations do not need to raise Python exceptions, but they should agree
+on the meaning of failures such as:
+
+- input below the supported model range;
+- input above the supported model range;
+- invalid model configuration;
+- invalid or non-finite numeric input;
+- impossible/non-monotonic model configuration; and
+- inverse-calculation or convergence failure.
+
+A small language-neutral status vocabulary should be designed before an MCU or
+host protocol depends on it. Candidate concepts include:
+
+```text
+VALID
+OUT_OF_RANGE_LOW
+OUT_OF_RANGE_HIGH
+INVALID_INPUT
+INVALID_MODEL
+CALCULATION_FAILURE
+```
+
+The final names are not yet committed. The important requirement is stable
+semantic meaning that can be mapped to Python exceptions, C/C++ enums, protocol
+status codes, or other language-appropriate mechanisms.
+
+This work should coordinate with the public exception taxonomy later in this
+roadmap so Python application exceptions and cross-language statuses describe
+the same underlying conditions rather than evolving independently.
+
+#### 2.7 Layered conformance profiles
+
+Do not create one monolithic "supports rtd-sensor" claim. Define separable
+conformance layers such as:
+
+```text
+conversion/
+    standard built-in Pt/Ni resistance ↔ temperature behavior
+
+calibration/
+    characterized reference resistance
+    custom coefficient sets
+
+models/
+    single polynomial
+    piecewise polynomial
+    tabulated characteristics
+
+tolerance/
+    tolerance-class examples where a sourced rule exists
+```
+
+An embedded implementation may then claim, for example, basic Pt100/Pt1000
+conversion conformance without claiming uncertainty analysis, arbitrary custom
+models, or every built-in characteristic.
+
+Profile names, required vectors, and capability declarations should be
+machine-readable enough for CI to verify a claimed subset.
+
+#### 2.8 Keep hardware acquisition outside the conformance layer
+
+The conformance boundary remains **sensor-element resistance ↔ temperature/model
+behavior**. Do not add SPI, I²C, GPIO, ADC configuration, converter registers,
+lead-wire acquisition logic, PID, actuator control, or platform-specific
+drivers to `rtd-sensor` merely to support an MCU.
+
+The intended composition remains:
+
+```text
+hardware driver / acquisition
+            │
+            │ compensated resistance
+            ▼
+embedded RTD implementation
+            │
+            │ temperature + semantic status
+            ▼
+host / controller / application
+```
+
+Changing from one ADC, converter, MCU, or host platform to another must not
+change the definition of the RTD characteristic.
+
+#### 2.9 Generated authoritative artifacts
+
+Investigate generating implementation-neutral artifacts directly from
+`rtd-sensor` model definitions so constants and metadata do not drift across
+implementations. Candidate artifacts include:
+
+```text
+model_metadata.json
+coefficients.json
+reference_vectors.json
+```
+
+The first priority is stable machine-readable data, not generated source code.
+Generated C/C++ constants may be considered later if doing so clearly reduces
+duplication without making the Python build system responsible for embedded
+application architecture.
+
+Any generated artifact must be reproducible from version-controlled source
+definitions and covered by tests that detect accidental changes.
+
+#### 2.10 Version the conformance contract
+
+Once another implementation consumes exported conformance data, the contract
+itself becomes a compatibility surface.
+
+Every exported artifact should identify at least:
+
+- conformance schema/version;
+- `rtd-sensor` version that produced or validates it;
+- canonical model identifier;
+- conformance profile/capabilities;
+- source characteristic/standard identity where relevant; and
+- numerical-tolerance policy/version where needed.
+
+Do not assume the package version alone is sufficient forever. A lightweight
+conformance version can begin at `1` and evolve only when the external contract
+changes materially.
+
+A downstream implementation should eventually be able to vendor or fetch a
+specific conformance release and run its own CI against that exact contract.
+
+#### 2.11 Stable model identity for host/MCU interoperability
+
+The conformance design must establish stable canonical model identifiers that
+can safely appear in configuration files, logs, recorded measurements, or
+future host↔MCU protocols.
+
+The existing Python identities such as `pt100` are useful application-facing
+names, but the conformance design should explicitly decide whether they are
+also sufficient as long-lived wire identifiers or whether a more explicit
+characteristic identifier is needed. Do not invent a protocol-specific naming
+scheme in the roadmap; define the identity once and let downstream protocols
+reference it.
+
+The same principle applies to semantic status values: a protocol should carry a
+stable RTD status meaning, not independently redefine what an out-of-range or
+invalid-model result means.
+
+#### 2.12 Implementation sequence and acceptance criteria
+
+Preferred sequence:
+
+1. complete the public RTD model protocol in item 1;
+2. define conformance scope, canonical model identity, status vocabulary,
+   schema, units, and tolerance policy;
+3. generate and validate conversion vectors for the existing built-in models;
+4. add layered vectors for calibrated/custom model capabilities;
+5. document the equations, coefficients, branches, and provenance required for
+   independent implementation;
+6. test the exported contract with at least one deliberately independent
+   consumer/parser that does not import `rtd-sensor`; and
+7. only then treat an MCU RTD implementation as ready to claim conformance.
+
+Done when an independent implementation can select a declared profile, consume
+the published model metadata and reference vectors, reproduce the specified
+behavior within documented tolerances, and map failures to the defined semantic
+statuses without inspecting Python implementation internals.
+
+### 3. Public built-in model discovery and immutable metadata
 
 Expose read-only discovery without exposing the internal registry itself. A
 likely API shape is:
@@ -149,7 +455,7 @@ explicitly known, and unambiguous aliases. Metadata must be generated from or
 colocated with authoritative model definitions so it does not become another
 drifting capability list.
 
-### 3. Neutral resistance-reader interface outside `simulation`
+### 4. Neutral resistance-reader interface outside `simulation`
 
 Move or re-export the hardware-neutral resistance-reading contract from the
 `simulation` namespace into a neutral public module such as `measurement` or
@@ -171,7 +477,7 @@ This work must not add GPIO, SPI, I²C, ADC, MAX31865, or platform-driver
 dependencies. Compensated resistance in ohms remains the acquisition/core
 boundary.
 
-### 4. Model-object conversion for resistance readers
+### 5. Model-object conversion for resistance readers
 
 Generalize reader conversion so callers may supply an RTD model object rather
 than being limited to a built-in string identity. The target composition is:
@@ -198,7 +504,7 @@ conversion layer combines them. A higher-level `TemperatureChannel`-style
 composition object may belong in a hardware/application package later; it should
 not pull device concerns into `rtd-sensor`.
 
-### 5. Small public exception taxonomy
+### 6. Small public exception taxonomy
 
 Consider a deliberately small exception hierarchy so applications can
 distinguish model/range failures from hardware failures without parsing error
@@ -211,14 +517,14 @@ hierarchy; the goal is stable application branching, especially between
 "hardware read failed" and "resistance was read successfully but is invalid for
 the configured model."
 
-### 6. Tabulated RTD characteristics
+### 7. Tabulated RTD characteristics
 
 Implement the tabulated-characteristic design under **User-defined
 characteristics** below. Table support should integrate with the same public RTD
 model protocol, sensitivity semantics, provenance rules, and no-extrapolation
 default rather than creating a parallel conversion API.
 
-### 7. Calibration fitting
+### 8. Calibration fitting
 
 Implement the fitting work described under **Calibration and model fitting**
 after the public model interface is stable. A fit should produce a normal model
@@ -226,7 +532,7 @@ object plus auditable fit results, retaining observations, residuals, RMS and
 maximum error, fitting range, weighting/uncertainty inputs, and reproducibility
 assumptions.
 
-### 8. Batch and vector conversion conveniences
+### 9. Batch and vector conversion conveniences
 
 Add batch conversion only after the scalar model interface is stable. Prefer a
 small dependency-free iterable API first if it can be specified clearly. Do not
@@ -234,7 +540,7 @@ make NumPy a mandatory runtime dependency for convenience; if acceleration later
 matters, consider an optional adapter/extra and verify scalar/batch numerical
 equivalence at boundaries.
 
-### 9. Additional built-in RTD characteristics
+### 10. Additional built-in RTD characteristics
 
 Continue adding platinum, nickel, copper, or manufacturer-specific built-ins
 only when authoritative characteristic definitions and independent validation
@@ -465,7 +771,10 @@ sensor-element resistance. These concerns remain outside this package:
 - Raspberry Pi, BeagleBone, MCU, or other platform-specific drivers.
 
 A later hardware/acquisition package can feed compensated resistance values to
-`rtd-sensor` without duplicating the characteristic mathematics.
+`rtd-sensor` without duplicating the characteristic mathematics. The
+language-neutral conformance contract above exists so an embedded implementation
+can reproduce the same conversion behavior without moving hardware concerns into
+this package.
 
 ## Longer-term performance and convenience work
 
