@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+* Added an independent C11 conformance consumer and pytest driver that compile from the published characteristic/model catalogs and verify every committed built-in conversion and status vector without importing `rtd_sensor`.
 * Added deterministic built-in range/error status vectors for both conversion directions, covering finite inputs just outside model boundaries, non-finite inputs, and zero/negative resistance semantics; successful vectors now also include explicit inside-boundary neighbors.
 * Added deterministic binary64 reference vector sets for built-in temperature-to-resistance and resistance-to-temperature conversion, covering model boundaries, reference/branch anchors, representative operating points, and every Ni120 piecewise segment and join.
 * Added deterministic generation of the draft conformance-v1 characteristic and model catalogs directly from the authoritative built-in RTD definitions, with committed generated JSON, schema validation, drift detection, and source-versus-derived piecewise metadata regression coverage.

@@ -471,6 +471,24 @@ An implementation is conformant for a claimed capability when it:
 Implementation-specific techniques that preserve those behaviors are not part
 of the external contract.
 
+## Independent implementation verification
+
+The repository includes an independent C11 conformance consumer under
+`conformance/consumers/c11/`. It consumes data derived only from the committed
+conformance catalogs and vectors and does not import or link against
+`rtd_sensor`.
+
+The consumer supports the three characteristic representations currently used
+by built-in models and verifies both conversion directions plus the published
+range and invalid-input statuses. Its inverse implementation uses bounded
+global bisection for every characteristic rather than reproducing the Python
+implementation's curve-specific inversion strategies.
+
+The C11 consumer is a verification implementation, not a required runtime
+architecture for downstream systems. Its successful execution demonstrates
+that the published built-in contract contains sufficient information for an
+independent implementation to reproduce the specified behavior.
+
 ## Coverage represented by conversion vectors
 
 The draft v1 built-in conversion vector sets define coverage for the following

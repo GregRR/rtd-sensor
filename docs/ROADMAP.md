@@ -104,10 +104,11 @@ acceptance, and artifact structure.
 
 Implementation foundation completed so far: the reviewed authoritative
 characteristic/model definition layer, the initial Draft 2020-12 schemas,
-deterministic characteristic/model catalogs, and generated built-in conversion
-vectors covering both successful binary64 behavior and explicit range/invalid-
-input statuses. The next interoperability step is an independent C/C++ consumer
-of the published contract.
+deterministic characteristic/model catalogs, generated built-in conversion and
+status vectors, and an independent C11 consumer that verifies the published
+built-in contract without importing `rtd_sensor`. The next numerical
+interoperability step is empirical definition of the `binary32_compatible`
+acceptance profile.
 
 Establish `rtd-sensor` as the authoritative reference implementation for RTD
 conversion behavior, not merely as one Python implementation of the same
@@ -151,9 +152,12 @@ and resistance-to-temperature behavior for all six current models using the
 `binary64_reference` acceptance profile, plus separate status sets for finite
 out-of-range inputs, non-finite values, and zero/negative resistance.
 
-Custom/calibrated-model fixtures remain later work. The next cross-language step
-is an independent C/C++ consumer, followed by empirical measurement of the
-`binary32_compatible` profile.
+An independent C11 consumer now compiles against model/characteristic data
+derived from the committed artifacts and passes the complete published built-in
+conversion and status vector set using a different inverse strategy from
+Python. Custom/calibrated-model fixtures remain later work. The next numerical
+cross-language step is empirical measurement of the `binary32_compatible`
+profile.
 
 #### 2.2 Representative coverage, not exported test-suite duplication
 
@@ -379,13 +383,16 @@ Preferred sequence:
 1. complete the public RTD model protocol in item 1;
 2. define conformance scope, canonical model identity, status vocabulary,
    schema, units, and tolerance policy;
-3. generate and validate conversion vectors for the existing built-in models;
-4. add layered vectors for calibrated/custom model capabilities;
-5. document the equations, coefficients, branches, and provenance required for
-   independent implementation;
-6. test the exported contract with at least one deliberately independent
-   consumer/parser that does not import `rtd-sensor`; and
-7. only then treat an MCU RTD implementation as ready to claim conformance.
+3. generate and validate conversion/status vectors for the existing built-in
+   models;
+4. test the exported built-in contract with at least one deliberately
+   independent consumer that does not import `rtd-sensor`;
+5. measure and publish a justified `binary32_compatible` acceptance profile;
+6. add layered vectors for calibrated/custom model capabilities;
+7. complete any remaining equation/provenance documentation required for those
+   additional layers; and
+8. only then treat an MCU RTD implementation as ready to claim the corresponding
+   conformance subset.
 
 Done when an independent implementation can select a declared profile, consume
 the published model metadata and reference vectors, reproduce the specified
