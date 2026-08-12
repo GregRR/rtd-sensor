@@ -9,6 +9,10 @@ single- and piecewise-polynomial RTD models for traceable manufacturer/user
 characteristics, standard platinum tolerance calculations, measurement-uncertainty
 tools, and simulation support.
 
+It is intended for developers building software, test, measurement, and scientific
+applications that already have an RTD resistance measurement and need conversion,
+modeling, tolerance, uncertainty, or simulation tools.
+
 ## Scope
 
 `rtd-sensor` currently handles:
@@ -64,6 +68,8 @@ communicate with the hardware itself.
 ```bash
 python -m pip install rtd-sensor
 ```
+
+**Requires Python 3.14 or later.** The package has no runtime dependencies.
 
 The distribution name uses a hyphen (`rtd-sensor`), while the Python import package uses an underscore (`rtd_sensor`).
 

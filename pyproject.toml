@@ -31,6 +31,10 @@ keywords = [
 "metrology",
 "tolerance",
 "uncertainty",
+"resistance-temperature-detector",
+"temperature-sensor",
+"measurement-uncertainty",
+"pt-385",
 ]
 classifiers = [
 "Development Status :: 3 - Alpha",
