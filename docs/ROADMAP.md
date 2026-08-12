@@ -123,6 +123,11 @@ non-duplicative relationship to that interface.
 
 ### 2. Language-neutral RTD conformance contract — high priority
 
+The detailed conformance design is maintained in `docs/CONFORMANCE.md`. The
+roadmap section below records its goals and sequencing; the design document is
+the implementation reference for identifiers, schemas, statuses, numerical
+acceptance, and artifact structure.
+
 Establish `rtd-sensor` as the authoritative reference implementation for RTD
 conversion behavior, not merely as one Python implementation of the same
 equations. A future MCU implementation in C/C++ or another language should be
