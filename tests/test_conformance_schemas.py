@@ -277,6 +277,27 @@ def test_vector_set_accepts_success_error_and_special_input_cases() -> None:
     _validator("vector-set.schema.json").validate(_vector_set())
 
 
+@pytest.mark.parametrize(
+    "status",
+    [
+        "out_of_range_low",
+        "out_of_range_high",
+        "invalid_input",
+        "invalid_model",
+        "calculation_failure",
+    ],
+)
+def test_vector_set_accepts_every_declared_error_status(status: str) -> None:
+    vectors = _vector_set()
+    group = vectors["test_groups"][0]
+    assert isinstance(group, dict)
+    case = group["cases"][1]
+    assert isinstance(case, dict)
+    case["expected"] = {"status": status}
+
+    _validator("vector-set.schema.json").validate(vectors)
+
+
 def test_vector_set_accepts_inverse_conversion_unit_pair() -> None:
     vectors = _vector_set()
     vectors["capability_id"] = "conversion.resistance_to_temperature"

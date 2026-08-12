@@ -28,7 +28,15 @@ _CHARACTERISTICS_FILENAME = "characteristics.json"
 _MODELS_FILENAME = "models.json"
 _TEMPERATURE_TO_RESISTANCE_FILENAME = "vectors/builtin-temperature-to-resistance.json"
 _RESISTANCE_TO_TEMPERATURE_FILENAME = "vectors/builtin-resistance-to-temperature.json"
+_TEMPERATURE_TO_RESISTANCE_STATUS_FILENAME = (
+    "vectors/builtin-temperature-to-resistance-status.json"
+)
+_RESISTANCE_TO_TEMPERATURE_STATUS_FILENAME = (
+    "vectors/builtin-resistance-to-temperature-status.json"
+)
 _BINARY64_ABSOLUTE_TOLERANCE = 1.0e-9
+_BOUNDARY_TEMPERATURE_OFFSET_C = 0.001
+_BOUNDARY_RESISTANCE_OFFSET_OHMS = 0.01
 
 
 def _project_version() -> str:
@@ -202,6 +210,8 @@ def _vector_temperatures(
             definition.reference_temperature_c,
             definition.minimum_temperature_c,
             definition.maximum_temperature_c,
+            definition.minimum_temperature_c + _BOUNDARY_TEMPERATURE_OFFSET_C,
+            definition.maximum_temperature_c - _BOUNDARY_TEMPERATURE_OFFSET_C,
         }
         for segment in definition.segments:
             anchors.add(segment.minimum_temperature_c)
@@ -214,6 +224,8 @@ def _vector_temperatures(
     anchors = {
         definition.minimum_temperature_c,
         definition.maximum_temperature_c,
+        definition.minimum_temperature_c + _BOUNDARY_TEMPERATURE_OFFSET_C,
+        definition.maximum_temperature_c - _BOUNDARY_TEMPERATURE_OFFSET_C,
     }
     reference_temperature_c = definition.reference_temperature_c
     if (
@@ -268,6 +280,14 @@ def _vector_tags(
         tags.append("minimum_boundary")
     if temperature_c == definition.maximum_temperature_c:
         tags.append("maximum_boundary")
+    if temperature_c == (
+        definition.minimum_temperature_c + _BOUNDARY_TEMPERATURE_OFFSET_C
+    ):
+        tags.extend(("inside_boundary", "minimum_boundary_neighbor"))
+    if temperature_c == (
+        definition.maximum_temperature_c - _BOUNDARY_TEMPERATURE_OFFSET_C
+    ):
+        tags.extend(("inside_boundary", "maximum_boundary_neighbor"))
     if temperature_c == definition.reference_temperature_c:
         tags.append("reference_temperature")
 
@@ -413,6 +433,166 @@ def build_resistance_to_temperature_vectors(
     )
 
 
+def _status_case(
+    *,
+    case_id: str,
+    tags: Sequence[str],
+    input_document: dict[str, object],
+    status: str,
+) -> dict[str, object]:
+    """Return one language-neutral non-success conversion case."""
+    return {
+        "case_id": case_id,
+        "tags": list(tags),
+        "input": input_document,
+        "expected": {"status": status},
+    }
+
+
+def _build_status_vector_set(
+    capability_id: str,
+    *,
+    rtd_sensor_version: str,
+) -> dict[str, object]:
+    """Build explicit built-in range and invalid-input status vectors."""
+    if capability_id == "conversion.temperature_to_resistance":
+        input_unit = "degree_celsius"
+        output_unit = "ohm"
+        operation_id = "temperature_to_resistance_status"
+    elif capability_id == "conversion.resistance_to_temperature":
+        input_unit = "ohm"
+        output_unit = "degree_celsius"
+        operation_id = "resistance_to_temperature_status"
+    else:
+        raise ValueError(f"Unsupported conformance capability: {capability_id!r}")
+
+    test_groups: list[dict[str, object]] = []
+    for model_definition in _definitions.BUILTIN_MODEL_DEFINITIONS.values():
+        model = _models.BUILTIN_RTD_MODELS[model_definition.model_id]
+        prefix = f"{model_definition.model_id}.{operation_id}"
+
+        if capability_id == "conversion.temperature_to_resistance":
+            cases = [
+                _status_case(
+                    case_id=f"{prefix}.below_minimum",
+                    tags=("range_error", "outside_boundary", "below_minimum"),
+                    input_document={
+                        "value": _json_number(
+                            model.minimum_temperature_c - _BOUNDARY_TEMPERATURE_OFFSET_C
+                        )
+                    },
+                    status="out_of_range_low",
+                ),
+                _status_case(
+                    case_id=f"{prefix}.above_maximum",
+                    tags=("range_error", "outside_boundary", "above_maximum"),
+                    input_document={
+                        "value": _json_number(
+                            model.maximum_temperature_c + _BOUNDARY_TEMPERATURE_OFFSET_C
+                        )
+                    },
+                    status="out_of_range_high",
+                ),
+            ]
+        else:
+            minimum_resistance = model.celsius_to_resistance(
+                model.minimum_temperature_c
+            )
+            maximum_resistance = model.celsius_to_resistance(
+                model.maximum_temperature_c
+            )
+            if minimum_resistance <= _BOUNDARY_RESISTANCE_OFFSET_OHMS:
+                raise RuntimeError(
+                    "Built-in minimum resistance is too small for the configured "
+                    "out-of-range conformance offset"
+                )
+            cases = [
+                _status_case(
+                    case_id=f"{prefix}.below_minimum",
+                    tags=("range_error", "outside_boundary", "below_minimum"),
+                    input_document={
+                        "value": _json_number(
+                            minimum_resistance - _BOUNDARY_RESISTANCE_OFFSET_OHMS
+                        )
+                    },
+                    status="out_of_range_low",
+                ),
+                _status_case(
+                    case_id=f"{prefix}.above_maximum",
+                    tags=("range_error", "outside_boundary", "above_maximum"),
+                    input_document={
+                        "value": _json_number(
+                            maximum_resistance + _BOUNDARY_RESISTANCE_OFFSET_OHMS
+                        )
+                    },
+                    status="out_of_range_high",
+                ),
+                _status_case(
+                    case_id=f"{prefix}.zero_resistance",
+                    tags=("invalid_input", "nonpositive_resistance"),
+                    input_document={"value": 0.0},
+                    status="invalid_input",
+                ),
+                _status_case(
+                    case_id=f"{prefix}.negative_resistance",
+                    tags=("invalid_input", "nonpositive_resistance"),
+                    input_document={"value": -1.0},
+                    status="invalid_input",
+                ),
+            ]
+
+        for special in ("nan", "positive_infinity", "negative_infinity"):
+            cases.append(
+                _status_case(
+                    case_id=f"{prefix}.{special}",
+                    tags=("invalid_input", "non_finite"),
+                    input_document={"special": special},
+                    status="invalid_input",
+                )
+            )
+
+        test_groups.append(
+            {
+                "group_id": prefix,
+                "model_id": model_definition.model_id,
+                "cases": cases,
+            }
+        )
+
+    return {
+        "artifact_type": "vector_set",
+        "format_version": _FORMAT_VERSION,
+        "contract_version": _CONTRACT_VERSION,
+        "rtd_sensor_version": rtd_sensor_version,
+        "capability_id": capability_id,
+        "input_unit": input_unit,
+        "output_unit": output_unit,
+        "test_groups": test_groups,
+    }
+
+
+def build_temperature_to_resistance_status_vectors(
+    *,
+    rtd_sensor_version: str | None = None,
+) -> dict[str, object]:
+    """Build built-in temperature-input range and invalid-input status vectors."""
+    return _build_status_vector_set(
+        "conversion.temperature_to_resistance",
+        rtd_sensor_version=rtd_sensor_version or _project_version(),
+    )
+
+
+def build_resistance_to_temperature_status_vectors(
+    *,
+    rtd_sensor_version: str | None = None,
+) -> dict[str, object]:
+    """Build built-in resistance-input range and invalid-input status vectors."""
+    return _build_status_vector_set(
+        "conversion.resistance_to_temperature",
+        rtd_sensor_version=rtd_sensor_version or _project_version(),
+    )
+
+
 def render_json(document: object) -> str:
     """Return one deterministic, standards-compliant JSON artifact."""
     return (
@@ -445,6 +625,16 @@ def generated_artifacts(
         ),
         _RESISTANCE_TO_TEMPERATURE_FILENAME: render_json(
             build_resistance_to_temperature_vectors(rtd_sensor_version=producer_version)
+        ),
+        _TEMPERATURE_TO_RESISTANCE_STATUS_FILENAME: render_json(
+            build_temperature_to_resistance_status_vectors(
+                rtd_sensor_version=producer_version
+            )
+        ),
+        _RESISTANCE_TO_TEMPERATURE_STATUS_FILENAME: render_json(
+            build_resistance_to_temperature_status_vectors(
+                rtd_sensor_version=producer_version
+            )
         ),
     }
 

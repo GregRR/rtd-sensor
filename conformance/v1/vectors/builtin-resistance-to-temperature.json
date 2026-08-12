@@ -30,6 +30,28 @@
           ]
         },
         {
+          "case_id": "pt100.resistance_to_temperature.neg199p999c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": -199.999
+          },
+          "input": {
+            "value": 18.520512335016765
+          },
+          "tags": [
+            "round_trip_anchor",
+            "inside_boundary",
+            "minimum_boundary_neighbor",
+            "negative_temperature",
+            "representative"
+          ]
+        },
+        {
           "case_id": "pt100.resistance_to_temperature.neg100c",
           "expected": {
             "acceptance": {
@@ -172,6 +194,28 @@
           ]
         },
         {
+          "case_id": "pt100.resistance_to_temperature.849p999c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 849.999
+          },
+          "input": {
+            "value": 390.4808323449423
+          },
+          "tags": [
+            "round_trip_anchor",
+            "inside_boundary",
+            "maximum_boundary_neighbor",
+            "positive_temperature",
+            "representative"
+          ]
+        },
+        {
           "case_id": "pt100.resistance_to_temperature.850c",
           "expected": {
             "acceptance": {
@@ -215,6 +259,28 @@
             "round_trip_anchor",
             "minimum_boundary",
             "negative_temperature"
+          ]
+        },
+        {
+          "case_id": "pt500.resistance_to_temperature.neg199p999c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": -199.999
+          },
+          "input": {
+            "value": 92.60256167508382
+          },
+          "tags": [
+            "round_trip_anchor",
+            "inside_boundary",
+            "minimum_boundary_neighbor",
+            "negative_temperature",
+            "representative"
           ]
         },
         {
@@ -360,6 +426,28 @@
           ]
         },
         {
+          "case_id": "pt500.resistance_to_temperature.849p999c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 849.999
+          },
+          "input": {
+            "value": 1952.4041617247115
+          },
+          "tags": [
+            "round_trip_anchor",
+            "inside_boundary",
+            "maximum_boundary_neighbor",
+            "positive_temperature",
+            "representative"
+          ]
+        },
+        {
           "case_id": "pt500.resistance_to_temperature.850c",
           "expected": {
             "acceptance": {
@@ -403,6 +491,28 @@
             "round_trip_anchor",
             "minimum_boundary",
             "negative_temperature"
+          ]
+        },
+        {
+          "case_id": "pt1000.resistance_to_temperature.neg199p999c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": -199.999
+          },
+          "input": {
+            "value": 185.20512335016764
+          },
+          "tags": [
+            "round_trip_anchor",
+            "inside_boundary",
+            "minimum_boundary_neighbor",
+            "negative_temperature",
+            "representative"
           ]
         },
         {
@@ -548,6 +658,28 @@
           ]
         },
         {
+          "case_id": "pt1000.resistance_to_temperature.849p999c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 849.999
+          },
+          "input": {
+            "value": 3904.808323449423
+          },
+          "tags": [
+            "round_trip_anchor",
+            "inside_boundary",
+            "maximum_boundary_neighbor",
+            "positive_temperature",
+            "representative"
+          ]
+        },
+        {
           "case_id": "pt1000.resistance_to_temperature.850c",
           "expected": {
             "acceptance": {
@@ -591,6 +723,28 @@
             "round_trip_anchor",
             "minimum_boundary",
             "negative_temperature"
+          ]
+        },
+        {
+          "case_id": "ni1000.resistance_to_temperature.neg59p999c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": -59.999
+          },
+          "input": {
+            "value": 695.2072577453639
+          },
+          "tags": [
+            "round_trip_anchor",
+            "inside_boundary",
+            "minimum_boundary_neighbor",
+            "negative_temperature",
+            "representative"
           ]
         },
         {
@@ -733,6 +887,28 @@
           ]
         },
         {
+          "case_id": "ni1000.resistance_to_temperature.249p999c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 249.999
+          },
+          "input": {
+            "value": 2891.5520540784973
+          },
+          "tags": [
+            "round_trip_anchor",
+            "inside_boundary",
+            "maximum_boundary_neighbor",
+            "positive_temperature",
+            "representative"
+          ]
+        },
+        {
           "case_id": "ni1000.resistance_to_temperature.250c",
           "expected": {
             "acceptance": {
@@ -776,6 +952,28 @@
             "round_trip_anchor",
             "minimum_boundary",
             "negative_temperature"
+          ]
+        },
+        {
+          "case_id": "ni1000_tk5000.resistance_to_temperature.neg59p999c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": -59.999
+          },
+          "input": {
+            "value": 751.7967066821667
+          },
+          "tags": [
+            "round_trip_anchor",
+            "inside_boundary",
+            "minimum_boundary_neighbor",
+            "negative_temperature",
+            "representative"
           ]
         },
         {
@@ -918,6 +1116,28 @@
           ]
         },
         {
+          "case_id": "ni1000_tk5000.resistance_to_temperature.249p999c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 249.999
+          },
+          "input": {
+            "value": 2517.257564821861
+          },
+          "tags": [
+            "round_trip_anchor",
+            "inside_boundary",
+            "maximum_boundary_neighbor",
+            "positive_temperature",
+            "representative"
+          ]
+        },
+        {
           "case_id": "ni1000_tk5000.resistance_to_temperature.250c",
           "expected": {
             "acceptance": {
@@ -961,6 +1181,28 @@
             "round_trip_anchor",
             "minimum_boundary",
             "negative_temperature"
+          ]
+        },
+        {
+          "case_id": "ni120.resistance_to_temperature.neg79p999c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": -79.999
+          },
+          "input": {
+            "value": 66.60065009812193
+          },
+          "tags": [
+            "round_trip_anchor",
+            "inside_boundary",
+            "minimum_boundary_neighbor",
+            "negative_temperature",
+            "representative"
           ]
         },
         {
@@ -1421,6 +1663,28 @@
             "round_trip_anchor",
             "positive_temperature",
             "piecewise_segment"
+          ]
+        },
+        {
+          "case_id": "ni120.resistance_to_temperature.259p999c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 259.999
+          },
+          "input": {
+            "value": 380.3084628596447
+          },
+          "tags": [
+            "round_trip_anchor",
+            "inside_boundary",
+            "maximum_boundary_neighbor",
+            "positive_temperature",
+            "representative"
           ]
         },
         {

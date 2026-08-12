@@ -103,10 +103,11 @@ the implementation reference for identifiers, schemas, statuses, numerical
 acceptance, and artifact structure.
 
 Implementation foundation completed so far: the reviewed authoritative
-characteristic/model definition layer, the initial Draft 2020-12 schemas, and
-deterministic generation of committed `characteristics.json` and `models.json`
-catalogs from the same definitions used by the Python runtime. Built-in binary64
-conversion vectors are the next implementation step.
+characteristic/model definition layer, the initial Draft 2020-12 schemas,
+deterministic characteristic/model catalogs, and generated built-in conversion
+vectors covering both successful binary64 behavior and explicit range/invalid-
+input statuses. The next interoperability step is an independent C/C++ consumer
+of the published contract.
 
 Establish `rtd-sensor` as the authoritative reference implementation for RTD
 conversion behavior, not merely as one Python implementation of the same
@@ -144,14 +145,15 @@ cross-project compatibility problem rather than a local library change.
 
 #### 2.1 Machine-readable conformance vectors
 
-The Draft 2020-12 vector-set schema and deterministic artifact generator are now
-in place. Initial committed vector sets cover valid-domain built-in
-temperature-to-resistance and resistance-to-temperature behavior for all six
-current models using the `binary64_reference` acceptance profile.
+The Draft 2020-12 vector-set schema and deterministic artifact generator are in
+place. Committed built-in vectors now cover successful temperature-to-resistance
+and resistance-to-temperature behavior for all six current models using the
+`binary64_reference` acceptance profile, plus separate status sets for finite
+out-of-range inputs, non-finite values, and zero/negative resistance.
 
-The next vector work extends those successful-result anchors with explicit
-range/error/status cases, followed later by custom/calibrated-model fixtures and
-the independently measured `binary32_compatible` profile.
+Custom/calibrated-model fixtures remain later work. The next cross-language step
+is an independent C/C++ consumer, followed by empirical measurement of the
+`binary32_compatible` profile.
 
 #### 2.2 Representative coverage, not exported test-suite duplication
 
@@ -237,21 +239,23 @@ on the meaning of failures such as:
 - impossible/non-monotonic model configuration; and
 - inverse-calculation or convergence failure.
 
-A small language-neutral status vocabulary should be designed before an MCU or
-host protocol depends on it. Candidate concepts include:
+The draft v1 language-neutral status vocabulary is now defined as:
 
 ```text
-VALID
-OUT_OF_RANGE_LOW
-OUT_OF_RANGE_HIGH
-INVALID_INPUT
-INVALID_MODEL
-CALCULATION_FAILURE
+ok
+out_of_range_low
+out_of_range_high
+invalid_input
+invalid_model
+calculation_failure
 ```
 
-The final names are not yet committed. The important requirement is stable
-semantic meaning that can be mapped to Python exceptions, C/C++ enums, protocol
-status codes, or other language-appropriate mechanisms.
+Built-in status vectors currently exercise the range and invalid-input outcomes.
+`invalid_model` belongs to later custom/calibrated-model fixtures, and
+`calculation_failure` remains reserved for a valid model/input whose required
+numerical result cannot be produced. These semantic names map independently to
+Python exceptions, C/C++ enums, protocol status codes, or other
+language-appropriate mechanisms.
 
 This work should coordinate with the public exception taxonomy later in this
 roadmap so Python application exceptions and cross-language statuses describe

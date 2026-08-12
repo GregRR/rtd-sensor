@@ -9,9 +9,11 @@ catalogs and vector sets. The catalog files `v1/characteristics.json` and
 `v1/vectors/`, are generated from the authoritative built-in definitions and
 validated Python runtime behavior. They are not maintained independently.
 
-The initial vector sets publish the `binary64_reference` acceptance profile for
-valid-domain built-in conversion anchors. Error/status vectors and the
-`binary32_compatible` profile are separate later conformance layers.
+The successful-result vector sets publish the `binary64_reference` acceptance
+profile for built-in conversion anchors. Separate status vector sets exercise
+finite inputs immediately outside each built-in model range, non-finite inputs,
+and zero/negative resistance handling. The `binary32_compatible` profile remains
+a later conformance layer.
 
 Regenerate all generated artifacts from the repository root with:
 

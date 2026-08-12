@@ -90,7 +90,9 @@ conformance/
     ├── models.json
     └── vectors/
         ├── builtin-temperature-to-resistance.json
-        └── builtin-resistance-to-temperature.json
+        ├── builtin-resistance-to-temperature.json
+        ├── builtin-temperature-to-resistance-status.json
+        └── builtin-resistance-to-temperature-status.json
 ```
 
 The JSON artifacts are test and interchange data. Their use does not imply that
@@ -313,13 +315,14 @@ part of the pass/fail rule.
 
 The committed draft-v1 built-in conversion vector sets are generated
 deterministically from the authoritative model definitions and runtime behavior.
-They contain valid-domain binary64 reference anchors for all six built-in models.
-The anchors include minimum and maximum model temperatures, reference and nearby
-branch points, representative operating temperatures, and every source-segment
-midpoint and join for the piecewise Ni120 characteristic. The forward and inverse
-sets are paired through the same temperature anchors so endpoint and round-trip
-behavior remain directly comparable. Error/status vectors are a separate
-conformance layer and are not implied by these initial successful-result sets.
+The successful-result sets contain binary64 reference anchors for all six built-in
+models, including minimum and maximum model temperatures, values 0.001 °C inside
+each boundary, reference and nearby branch points, representative operating
+temperatures, and every source-segment midpoint and join for the piecewise Ni120
+characteristic. The forward and inverse sets are paired through the same
+temperature anchors so endpoint and round-trip behavior remain directly
+comparable. Separate status sets cover range and invalid-input semantics without
+attaching numerical acceptance profiles to non-success results.
 
 ## Input representation
 
@@ -364,7 +367,11 @@ Every vector case has an expected semantic status.
 
 For `status: "ok"`, a finite expected numerical value is present.
 
-For non-`ok` statuses, a numerical expected value is not required.
+For non-`ok` statuses, a numerical expected value is not present. The initial
+built-in status vector sets exercise `out_of_range_low`, `out_of_range_high`, and
+`invalid_input`. `invalid_model` is reserved for later custom/calibrated-model
+fixtures, while `calculation_failure` remains available for a valid model/input
+case in which a required numerical result cannot be produced.
 
 These statuses describe semantics rather than language-specific control flow.
 Python exceptions, C/C++ enums, result objects, or protocol status codes may all
@@ -385,6 +392,9 @@ For temperature-to-resistance conversion:
 - finite temperature above the model's declared maximum is
   `out_of_range_high`.
 
+The initial finite range-status anchors are 0.001 °C outside each temperature
+boundary.
+
 For resistance-to-temperature conversion:
 
 - non-finite resistance is `invalid_input`;
@@ -393,6 +403,10 @@ For resistance-to-temperature conversion:
   `out_of_range_low`;
 - finite resistance above the model's maximum valid resistance is
   `out_of_range_high`.
+
+The initial finite resistance range-status anchors are 0.01 Ω outside each
+forward-generated model endpoint. These offsets are conformance test inputs, not
+extensions of the supported model range.
 
 For a model endpoint, the resistance produced by valid forward conversion at
 that endpoint is valid input to inverse conversion and returns the endpoint

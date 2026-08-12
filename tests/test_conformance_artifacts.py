@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -17,10 +18,15 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _CONFORMANCE_DIR = _REPO_ROOT / "conformance" / "v1"
 _SCHEMA_DIR = _CONFORMANCE_DIR / "schemas"
 _VECTOR_DIR = _CONFORMANCE_DIR / "vectors"
-_VECTOR_FILENAMES = (
+_SUCCESS_VECTOR_FILENAMES = (
     "builtin-temperature-to-resistance.json",
     "builtin-resistance-to-temperature.json",
 )
+_STATUS_VECTOR_FILENAMES = (
+    "builtin-temperature-to-resistance-status.json",
+    "builtin-resistance-to-temperature-status.json",
+)
+_VECTOR_FILENAMES = _SUCCESS_VECTOR_FILENAMES + _STATUS_VECTOR_FILENAMES
 
 
 def _load_json(path: Path) -> dict[str, Any]:
@@ -62,6 +68,14 @@ def _vector_groups(filename: str) -> list[dict[str, Any]]:
         ),
         (
             "vectors/builtin-resistance-to-temperature.json",
+            "vector-set.schema.json",
+        ),
+        (
+            "vectors/builtin-temperature-to-resistance-status.json",
+            "vector-set.schema.json",
+        ),
+        (
+            "vectors/builtin-resistance-to-temperature-status.json",
             "vector-set.schema.json",
         ),
     ],
@@ -217,7 +231,7 @@ def test_conversion_vectors_match_runtime_and_pair_round_trip_anchors() -> None:
 
 
 def test_initial_conversion_vectors_publish_only_binary64_acceptance() -> None:
-    for filename in _VECTOR_FILENAMES:
+    for filename in _SUCCESS_VECTOR_FILENAMES:
         for group in _vector_groups(filename):
             for case in group["cases"]:
                 acceptance = case["expected"]["acceptance"]
@@ -246,6 +260,95 @@ def test_conversion_vectors_cover_boundaries_reference_and_branch_cases() -> Non
     ni120_tags = [tag for case in groups["ni120"]["cases"] for tag in case["tags"]]
     assert ni120_tags.count("piecewise_join") == 11
     assert ni120_tags.count("piecewise_segment") == 12
+
+
+def _status_input_value(input_document: dict[str, Any]) -> float:
+    if "value" in input_document:
+        value = input_document["value"]
+        assert isinstance(value, int | float)
+        return float(value)
+
+    special = input_document["special"]
+    assert isinstance(special, str)
+    return {
+        "nan": float("nan"),
+        "positive_infinity": float("inf"),
+        "negative_infinity": float("-inf"),
+    }[special]
+
+
+def test_status_vectors_publish_expected_status_coverage() -> None:
+    forward_groups = _vector_groups("builtin-temperature-to-resistance-status.json")
+    inverse_groups = _vector_groups("builtin-resistance-to-temperature-status.json")
+
+    for group in forward_groups:
+        statuses = [case["expected"]["status"] for case in group["cases"]]
+        assert statuses.count("out_of_range_low") == 1
+        assert statuses.count("out_of_range_high") == 1
+        assert statuses.count("invalid_input") == 3
+
+    for group in inverse_groups:
+        statuses = [case["expected"]["status"] for case in group["cases"]]
+        assert statuses.count("out_of_range_low") == 1
+        assert statuses.count("out_of_range_high") == 1
+        assert statuses.count("invalid_input") == 5
+
+
+def test_status_vectors_match_runtime_rejection_and_semantic_classification() -> None:
+    for filename in _STATUS_VECTOR_FILENAMES:
+        document = _load_json(_VECTOR_DIR / filename)
+        capability_id = document["capability_id"]
+        assert isinstance(capability_id, str)
+
+        for group in _vector_groups(filename):
+            model_id = group["model_id"]
+            assert isinstance(model_id, str)
+            model = _models.BUILTIN_RTD_MODELS[model_id]
+            minimum_resistance = model.celsius_to_resistance(
+                model.minimum_temperature_c
+            )
+            maximum_resistance = model.celsius_to_resistance(
+                model.maximum_temperature_c
+            )
+
+            for case in group["cases"]:
+                input_document = case["input"]
+                expected = case["expected"]
+                assert isinstance(input_document, dict)
+                assert isinstance(expected, dict)
+                assert set(expected) == {"status"}
+                status = expected["status"]
+                value = _status_input_value(input_document)
+
+                if capability_id == "conversion.temperature_to_resistance":
+                    with pytest.raises(ValueError):
+                        model.celsius_to_resistance(value)
+                    if status == "out_of_range_low":
+                        assert value < model.minimum_temperature_c
+                    elif status == "out_of_range_high":
+                        assert value > model.maximum_temperature_c
+                    else:
+                        assert status == "invalid_input"
+                        assert not math.isfinite(value)
+                else:
+                    with pytest.raises(ValueError):
+                        model.resistance_to_celsius(value)
+                    if status == "out_of_range_low":
+                        assert 0.0 < value < minimum_resistance
+                    elif status == "out_of_range_high":
+                        assert value > maximum_resistance
+                    else:
+                        assert status == "invalid_input"
+                        assert value <= 0.0 or not math.isfinite(value)
+
+
+def test_success_vectors_include_inside_boundary_neighbors() -> None:
+    for filename in _SUCCESS_VECTOR_FILENAMES:
+        for group in _vector_groups(filename):
+            tags = {tag for case in group["cases"] for tag in case["tags"]}
+            assert "inside_boundary" in tags
+            assert "minimum_boundary_neighbor" in tags
+            assert "maximum_boundary_neighbor" in tags
 
 
 def test_generator_writes_deterministic_artifacts(tmp_path: Path) -> None:

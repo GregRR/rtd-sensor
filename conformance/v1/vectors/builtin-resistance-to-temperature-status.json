@@ -1,0 +1,605 @@
+{
+  "artifact_type": "vector_set",
+  "capability_id": "conversion.resistance_to_temperature",
+  "contract_version": 1,
+  "format_version": 1,
+  "input_unit": "ohm",
+  "output_unit": "degree_celsius",
+  "rtd_sensor_version": "0.4.0",
+  "test_groups": [
+    {
+      "cases": [
+        {
+          "case_id": "pt100.resistance_to_temperature_status.below_minimum",
+          "expected": {
+            "status": "out_of_range_low"
+          },
+          "input": {
+            "value": 18.510079999999995
+          },
+          "tags": [
+            "range_error",
+            "outside_boundary",
+            "below_minimum"
+          ]
+        },
+        {
+          "case_id": "pt100.resistance_to_temperature_status.above_maximum",
+          "expected": {
+            "status": "out_of_range_high"
+          },
+          "input": {
+            "value": 390.49112499999995
+          },
+          "tags": [
+            "range_error",
+            "outside_boundary",
+            "above_maximum"
+          ]
+        },
+        {
+          "case_id": "pt100.resistance_to_temperature_status.zero_resistance",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "value": 0.0
+          },
+          "tags": [
+            "invalid_input",
+            "nonpositive_resistance"
+          ]
+        },
+        {
+          "case_id": "pt100.resistance_to_temperature_status.negative_resistance",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "value": -1.0
+          },
+          "tags": [
+            "invalid_input",
+            "nonpositive_resistance"
+          ]
+        },
+        {
+          "case_id": "pt100.resistance_to_temperature_status.nan",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "nan"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        },
+        {
+          "case_id": "pt100.resistance_to_temperature_status.positive_infinity",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "positive_infinity"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        },
+        {
+          "case_id": "pt100.resistance_to_temperature_status.negative_infinity",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "negative_infinity"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        }
+      ],
+      "group_id": "pt100.resistance_to_temperature_status",
+      "model_id": "pt100"
+    },
+    {
+      "cases": [
+        {
+          "case_id": "pt500.resistance_to_temperature_status.below_minimum",
+          "expected": {
+            "status": "out_of_range_low"
+          },
+          "input": {
+            "value": 92.59039999999997
+          },
+          "tags": [
+            "range_error",
+            "outside_boundary",
+            "below_minimum"
+          ]
+        },
+        {
+          "case_id": "pt500.resistance_to_temperature_status.above_maximum",
+          "expected": {
+            "status": "out_of_range_high"
+          },
+          "input": {
+            "value": 1952.4156249999999
+          },
+          "tags": [
+            "range_error",
+            "outside_boundary",
+            "above_maximum"
+          ]
+        },
+        {
+          "case_id": "pt500.resistance_to_temperature_status.zero_resistance",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "value": 0.0
+          },
+          "tags": [
+            "invalid_input",
+            "nonpositive_resistance"
+          ]
+        },
+        {
+          "case_id": "pt500.resistance_to_temperature_status.negative_resistance",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "value": -1.0
+          },
+          "tags": [
+            "invalid_input",
+            "nonpositive_resistance"
+          ]
+        },
+        {
+          "case_id": "pt500.resistance_to_temperature_status.nan",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "nan"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        },
+        {
+          "case_id": "pt500.resistance_to_temperature_status.positive_infinity",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "positive_infinity"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        },
+        {
+          "case_id": "pt500.resistance_to_temperature_status.negative_infinity",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "negative_infinity"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        }
+      ],
+      "group_id": "pt500.resistance_to_temperature_status",
+      "model_id": "pt500"
+    },
+    {
+      "cases": [
+        {
+          "case_id": "pt1000.resistance_to_temperature_status.below_minimum",
+          "expected": {
+            "status": "out_of_range_low"
+          },
+          "input": {
+            "value": 185.19079999999997
+          },
+          "tags": [
+            "range_error",
+            "outside_boundary",
+            "below_minimum"
+          ]
+        },
+        {
+          "case_id": "pt1000.resistance_to_temperature_status.above_maximum",
+          "expected": {
+            "status": "out_of_range_high"
+          },
+          "input": {
+            "value": 3904.82125
+          },
+          "tags": [
+            "range_error",
+            "outside_boundary",
+            "above_maximum"
+          ]
+        },
+        {
+          "case_id": "pt1000.resistance_to_temperature_status.zero_resistance",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "value": 0.0
+          },
+          "tags": [
+            "invalid_input",
+            "nonpositive_resistance"
+          ]
+        },
+        {
+          "case_id": "pt1000.resistance_to_temperature_status.negative_resistance",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "value": -1.0
+          },
+          "tags": [
+            "invalid_input",
+            "nonpositive_resistance"
+          ]
+        },
+        {
+          "case_id": "pt1000.resistance_to_temperature_status.nan",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "nan"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        },
+        {
+          "case_id": "pt1000.resistance_to_temperature_status.positive_infinity",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "positive_infinity"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        },
+        {
+          "case_id": "pt1000.resistance_to_temperature_status.negative_infinity",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "negative_infinity"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        }
+      ],
+      "group_id": "pt1000.resistance_to_temperature_status",
+      "model_id": "pt1000"
+    },
+    {
+      "cases": [
+        {
+          "case_id": "ni1000.resistance_to_temperature_status.below_minimum",
+          "expected": {
+            "status": "out_of_range_low"
+          },
+          "input": {
+            "value": 695.19259488
+          },
+          "tags": [
+            "range_error",
+            "outside_boundary",
+            "below_minimum"
+          ]
+        },
+        {
+          "case_id": "ni1000.resistance_to_temperature_status.above_maximum",
+          "expected": {
+            "status": "out_of_range_high"
+          },
+          "input": {
+            "value": 2891.5725
+          },
+          "tags": [
+            "range_error",
+            "outside_boundary",
+            "above_maximum"
+          ]
+        },
+        {
+          "case_id": "ni1000.resistance_to_temperature_status.zero_resistance",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "value": 0.0
+          },
+          "tags": [
+            "invalid_input",
+            "nonpositive_resistance"
+          ]
+        },
+        {
+          "case_id": "ni1000.resistance_to_temperature_status.negative_resistance",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "value": -1.0
+          },
+          "tags": [
+            "invalid_input",
+            "nonpositive_resistance"
+          ]
+        },
+        {
+          "case_id": "ni1000.resistance_to_temperature_status.nan",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "nan"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        },
+        {
+          "case_id": "ni1000.resistance_to_temperature_status.positive_infinity",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "positive_infinity"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        },
+        {
+          "case_id": "ni1000.resistance_to_temperature_status.negative_infinity",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "negative_infinity"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        }
+      ],
+      "group_id": "ni1000.resistance_to_temperature_status",
+      "model_id": "ni1000"
+    },
+    {
+      "cases": [
+        {
+          "case_id": "ni1000_tk5000.resistance_to_temperature_status.below_minimum",
+          "expected": {
+            "status": "out_of_range_low"
+          },
+          "input": {
+            "value": 751.7828400000001
+          },
+          "tags": [
+            "range_error",
+            "outside_boundary",
+            "below_minimum"
+          ]
+        },
+        {
+          "case_id": "ni1000_tk5000.resistance_to_temperature_status.above_maximum",
+          "expected": {
+            "status": "out_of_range_high"
+          },
+          "input": {
+            "value": 2517.275625
+          },
+          "tags": [
+            "range_error",
+            "outside_boundary",
+            "above_maximum"
+          ]
+        },
+        {
+          "case_id": "ni1000_tk5000.resistance_to_temperature_status.zero_resistance",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "value": 0.0
+          },
+          "tags": [
+            "invalid_input",
+            "nonpositive_resistance"
+          ]
+        },
+        {
+          "case_id": "ni1000_tk5000.resistance_to_temperature_status.negative_resistance",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "value": -1.0
+          },
+          "tags": [
+            "invalid_input",
+            "nonpositive_resistance"
+          ]
+        },
+        {
+          "case_id": "ni1000_tk5000.resistance_to_temperature_status.nan",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "nan"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        },
+        {
+          "case_id": "ni1000_tk5000.resistance_to_temperature_status.positive_infinity",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "positive_infinity"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        },
+        {
+          "case_id": "ni1000_tk5000.resistance_to_temperature_status.negative_infinity",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "negative_infinity"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        }
+      ],
+      "group_id": "ni1000_tk5000.resistance_to_temperature_status",
+      "model_id": "ni1000_tk5000"
+    },
+    {
+      "cases": [
+        {
+          "case_id": "ni120.resistance_to_temperature_status.below_minimum",
+          "expected": {
+            "status": "out_of_range_low"
+          },
+          "input": {
+            "value": 66.59000000196558
+          },
+          "tags": [
+            "range_error",
+            "outside_boundary",
+            "below_minimum"
+          ]
+        },
+        {
+          "case_id": "ni120.resistance_to_temperature_status.above_maximum",
+          "expected": {
+            "status": "out_of_range_high"
+          },
+          "input": {
+            "value": 380.31985984074464
+          },
+          "tags": [
+            "range_error",
+            "outside_boundary",
+            "above_maximum"
+          ]
+        },
+        {
+          "case_id": "ni120.resistance_to_temperature_status.zero_resistance",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "value": 0.0
+          },
+          "tags": [
+            "invalid_input",
+            "nonpositive_resistance"
+          ]
+        },
+        {
+          "case_id": "ni120.resistance_to_temperature_status.negative_resistance",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "value": -1.0
+          },
+          "tags": [
+            "invalid_input",
+            "nonpositive_resistance"
+          ]
+        },
+        {
+          "case_id": "ni120.resistance_to_temperature_status.nan",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "nan"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        },
+        {
+          "case_id": "ni120.resistance_to_temperature_status.positive_infinity",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "positive_infinity"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        },
+        {
+          "case_id": "ni120.resistance_to_temperature_status.negative_infinity",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "negative_infinity"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        }
+      ],
+      "group_id": "ni120.resistance_to_temperature_status",
+      "model_id": "ni120"
+    }
+  ]
+}
