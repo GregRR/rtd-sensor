@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+* Added initial JSON Schema Draft 2020-12 definitions for conformance characteristic catalogs, model catalogs, and conversion vector sets, with schema self-validation and representative valid/invalid document coverage.
 * Added a public structural `rtd_sensor.models.RTDModel` protocol covering forward and inverse resistance/temperature conversion plus local `dR/dT` and `dT/dR` sensitivity. Built-in sensor modules, public configurable models, and compatible third-party model objects can satisfy the protocol without package-specific inheritance.
 
 ### Changed

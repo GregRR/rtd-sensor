@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "rtd-sensor conformance v1 vector set",
+  "description": "Schema for RTD conversion reference vectors published by rtd-sensor conformance contract v1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type",
+    "format_version",
+    "contract_version",
+    "rtd_sensor_version",
+    "capability_id",
+    "input_unit",
+    "output_unit",
+    "test_groups"
+  ],
+  "properties": {
+    "artifact_type": {"const": "vector_set"},
+    "format_version": {"const": 1},
+    "contract_version": {"const": 1},
+    "rtd_sensor_version": {"type": "string", "minLength": 1},
+    "capability_id": {
+      "enum": [
+        "conversion.temperature_to_resistance",
+        "conversion.resistance_to_temperature"
+      ]
+    },
+    "input_unit": {"enum": ["degree_celsius", "ohm"]},
+    "output_unit": {"enum": ["degree_celsius", "ohm"]},
+    "test_groups": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/test_group"}
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "capability_id": {
+            "const": "conversion.temperature_to_resistance"
+          }
+        },
+        "required": ["capability_id"]
+      },
+      "then": {
+        "properties": {
+          "input_unit": {"const": "degree_celsius"},
+          "output_unit": {"const": "ohm"}
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "capability_id": {
+            "const": "conversion.resistance_to_temperature"
+          }
+        },
+        "required": ["capability_id"]
+      },
+      "then": {
+        "properties": {
+          "input_unit": {"const": "ohm"},
+          "output_unit": {"const": "degree_celsius"}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9._-]*$"
+    },
+    "input": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value"],
+          "properties": {
+            "value": {"type": "number"}
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["special"],
+          "properties": {
+            "special": {
+              "enum": [
+                "nan",
+                "positive_infinity",
+                "negative_infinity"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "acceptance_profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["absolute_tolerance"],
+      "properties": {
+        "absolute_tolerance": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "binary64_reference": {"$ref": "#/$defs/acceptance_profile"},
+        "binary32_compatible": {"$ref": "#/$defs/acceptance_profile"}
+      }
+    },
+    "successful_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value"],
+      "properties": {
+        "status": {"const": "ok"},
+        "value": {"type": "number"},
+        "acceptance": {"$ref": "#/$defs/acceptance"}
+      }
+    },
+    "error_result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {
+          "enum": [
+            "out_of_range_low",
+            "out_of_range_high",
+            "invalid_input",
+            "invalid_model",
+            "calculation_failure"
+          ]
+        }
+      }
+    },
+    "expected_result": {
+      "oneOf": [
+        {"$ref": "#/$defs/successful_result"},
+        {"$ref": "#/$defs/error_result"}
+      ]
+    },
+    "test_case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "input", "expected"],
+      "properties": {
+        "case_id": {"$ref": "#/$defs/identifier"},
+        "tags": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/identifier"}
+        },
+        "input": {"$ref": "#/$defs/input"},
+        "expected": {"$ref": "#/$defs/expected_result"}
+      }
+    },
+    "test_group": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["group_id", "model_id", "cases"],
+      "properties": {
+        "group_id": {"$ref": "#/$defs/identifier"},
+        "model_id": {"$ref": "#/$defs/identifier"},
+        "cases": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/test_case"}
+        }
+      }
+    }
+  }
+}

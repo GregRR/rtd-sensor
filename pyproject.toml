@@ -45,6 +45,8 @@ dependencies = []
 
 [dependency-groups]
 dev = [
+"jsonschema>=4.26,<5",
+"types-jsonschema>=4.26,<5",
 "mypy",
 "pytest",
 "ruff",

@@ -95,6 +95,9 @@ conformance/
 
 The JSON artifacts are test and interchange data. Their use does not imply that
 an embedded implementation must include a JSON parser in production firmware.
+The draft v1 schemas are self-contained and use local `$defs`; cross-file
+referential integrity and scientific consistency are validated separately from
+JSON Schema structure validation.
 
 ## Versioning
 
@@ -142,9 +145,11 @@ or `contract_version`.
 
 ## Identifier rules
 
-Normative identifiers use lowercase ASCII and are case-sensitive. Canonical IDs
-are not silently normalized and are never reused for a different semantic
-meaning.
+Normative identifiers use lowercase ASCII and are case-sensitive. They match
+`^[a-z][a-z0-9._-]*$`: an identifier begins with an ASCII letter and may then
+contain lowercase ASCII letters, digits, periods, underscores, or hyphens.
+Canonical IDs are not silently normalized and are never reused for a different
+semantic meaning.
 
 Display names and aliases are descriptive metadata rather than substitutes for
 canonical IDs.
@@ -218,7 +223,10 @@ General-purpose unit conversion is not part of conformance v1.
 ## Model and characteristic catalogs
 
 The characteristic catalog describes the normalized RTD characteristics used by
-built-in models. A characteristic record includes, as applicable:
+built-in models. The draft v1 characteristic schema distinguishes
+Callendar-Van Dusen, polynomial, and piecewise-polynomial records explicitly
+rather than encoding equations as arbitrary expression strings. A characteristic
+record includes, as applicable:
 
 - `characteristic_id`;
 - display name;
@@ -242,6 +250,15 @@ model record includes:
 
 A model may declare a range narrower than its underlying characteristic. The
 model range controls model-level validity.
+
+For piecewise-polynomial characteristics, published segment coefficients remain
+separate from implementation-derived continuity adjustments. Draft v1 represents
+the adjustments as additive offsets to normalized resistance ratio, one offset
+per segment in segment order, together with the documented maximum allowed
+adjustment ratio and the reason for applying the adjustment. Cross-field checks
+such as matching the number of adjustments to the number of segments are part
+of conformance artifact integrity validation in addition to JSON Schema
+validation.
 
 ## Vector sets
 

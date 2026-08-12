@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "rtd-sensor conformance v1 characteristic catalog",
+  "description": "Schema for built-in RTD characteristic definitions published by rtd-sensor conformance contract v1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type",
+    "format_version",
+    "contract_version",
+    "rtd_sensor_version",
+    "characteristics"
+  ],
+  "properties": {
+    "artifact_type": {"const": "characteristic_catalog"},
+    "format_version": {"const": 1},
+    "contract_version": {"const": 1},
+    "rtd_sensor_version": {"type": "string", "minLength": 1},
+    "characteristics": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/characteristic"}
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9._-]*$"
+    },
+    "nonempty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "material": {
+      "enum": ["platinum", "nickel"]
+    },
+    "source_reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["citation"],
+      "properties": {
+        "citation": {"$ref": "#/$defs/nonempty_string"},
+        "url": {"$ref": "#/$defs/nonempty_string"}
+      }
+    },
+    "source_references": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/source_reference"}
+    },
+    "polynomial_coefficients": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": {"type": "number"}
+    },
+    "polynomial_segment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum_temperature_c",
+        "maximum_temperature_c",
+        "coefficients",
+        "temperature_origin_c"
+      ],
+      "properties": {
+        "minimum_temperature_c": {"type": "number"},
+        "maximum_temperature_c": {"type": "number"},
+        "coefficients": {"$ref": "#/$defs/polynomial_coefficients"},
+        "temperature_origin_c": {"type": "number"}
+      }
+    },
+    "callendar_van_dusen_characteristic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "characteristic_id",
+        "display_name",
+        "material",
+        "curve_kind",
+        "reference_temperature_c",
+        "minimum_temperature_c",
+        "maximum_temperature_c",
+        "parameters",
+        "source_references"
+      ],
+      "properties": {
+        "characteristic_id": {"$ref": "#/$defs/identifier"},
+        "display_name": {"$ref": "#/$defs/nonempty_string"},
+        "material": {"$ref": "#/$defs/material"},
+        "curve_kind": {"const": "callendar_van_dusen"},
+        "reference_temperature_c": {"type": "number"},
+        "minimum_temperature_c": {"type": "number"},
+        "maximum_temperature_c": {"type": "number"},
+        "parameters": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["a", "b", "c"],
+          "properties": {
+            "a": {"type": "number"},
+            "b": {"type": "number"},
+            "c": {"type": "number"}
+          }
+        },
+        "source_references": {"$ref": "#/$defs/source_references"}
+      }
+    },
+    "polynomial_characteristic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "characteristic_id",
+        "display_name",
+        "material",
+        "curve_kind",
+        "reference_temperature_c",
+        "minimum_temperature_c",
+        "maximum_temperature_c",
+        "coefficients",
+        "source_references"
+      ],
+      "properties": {
+        "characteristic_id": {"$ref": "#/$defs/identifier"},
+        "display_name": {"$ref": "#/$defs/nonempty_string"},
+        "material": {"$ref": "#/$defs/material"},
+        "curve_kind": {"const": "polynomial"},
+        "reference_temperature_c": {"type": "number"},
+        "minimum_temperature_c": {"type": "number"},
+        "maximum_temperature_c": {"type": "number"},
+        "coefficients": {"$ref": "#/$defs/polynomial_coefficients"},
+        "source_references": {"$ref": "#/$defs/source_references"}
+      }
+    },
+    "piecewise_polynomial_characteristic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "characteristic_id",
+        "display_name",
+        "material",
+        "curve_kind",
+        "reference_temperature_c",
+        "minimum_temperature_c",
+        "maximum_temperature_c",
+        "segments",
+        "continuity_adjustment_kind",
+        "maximum_continuity_adjustment_ratio",
+        "continuity_adjustment_reason",
+        "derived_continuity_adjustments",
+        "source_references"
+      ],
+      "properties": {
+        "characteristic_id": {"$ref": "#/$defs/identifier"},
+        "display_name": {"$ref": "#/$defs/nonempty_string"},
+        "material": {"$ref": "#/$defs/material"},
+        "curve_kind": {"const": "piecewise_polynomial"},
+        "reference_temperature_c": {"type": "number"},
+        "minimum_temperature_c": {"type": "number"},
+        "maximum_temperature_c": {"type": "number"},
+        "segments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/polynomial_segment"}
+        },
+        "continuity_adjustment_kind": {
+          "const": "additive_resistance_ratio_offset"
+        },
+        "maximum_continuity_adjustment_ratio": {
+          "type": "number",
+          "minimum": 0
+        },
+        "continuity_adjustment_reason": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "derived_continuity_adjustments": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"type": "number"}
+        },
+        "source_references": {"$ref": "#/$defs/source_references"}
+      }
+    },
+    "characteristic": {
+      "oneOf": [
+        {"$ref": "#/$defs/callendar_van_dusen_characteristic"},
+        {"$ref": "#/$defs/polynomial_characteristic"},
+        {"$ref": "#/$defs/piecewise_polynomial_characteristic"}
+      ]
+    }
+  }
+}

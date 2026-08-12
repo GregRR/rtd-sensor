@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "rtd-sensor conformance v1 model catalog",
+  "description": "Schema for built-in RTD model definitions published by rtd-sensor conformance contract v1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type",
+    "format_version",
+    "contract_version",
+    "rtd_sensor_version",
+    "models"
+  ],
+  "properties": {
+    "artifact_type": {"const": "model_catalog"},
+    "format_version": {"const": 1},
+    "contract_version": {"const": 1},
+    "rtd_sensor_version": {"type": "string", "minLength": 1},
+    "models": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/model"}
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9._-]*$"
+    },
+    "nonempty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_id",
+        "display_name",
+        "characteristic_id",
+        "reference_resistance_ohms",
+        "minimum_temperature_c",
+        "maximum_temperature_c"
+      ],
+      "properties": {
+        "model_id": {"$ref": "#/$defs/identifier"},
+        "display_name": {"$ref": "#/$defs/nonempty_string"},
+        "characteristic_id": {"$ref": "#/$defs/identifier"},
+        "reference_resistance_ohms": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "minimum_temperature_c": {"type": "number"},
+        "maximum_temperature_c": {"type": "number"}
+      }
+    }
+  }
+}
