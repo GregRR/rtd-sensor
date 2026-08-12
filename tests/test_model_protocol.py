@@ -79,6 +79,13 @@ def _rtd_model_is_an_uncertainty_model(model: RTDModel) -> RTDUncertaintyModel:
     return model
 
 
+def _behavior_only_third_party_is_an_rtd_model(
+    model: _LinearThirdPartyRTD,
+) -> RTDModel:
+    """Static regression: RTDModel does not require discovery/range metadata."""
+    return model
+
+
 @pytest.mark.parametrize(("model", "r0_ohms"), _BUILTIN_MODELS)
 def test_builtin_modules_share_public_rtd_model_behavior(
     model: RTDModel,

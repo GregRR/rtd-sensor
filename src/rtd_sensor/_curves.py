@@ -7,13 +7,16 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from types import MappingProxyType
 from typing import Protocol
 
+from . import _definitions
 from ._validation import as_float as _as_float
 
 __all__ = [
+    "BUILTIN_RTD_CURVES",
     "CallendarVanDusenCurve",
     "IEC_60751_PT385",
     "NI_5000_TK5000",
@@ -1097,195 +1100,98 @@ class PolynomialRTDCurve:
         )
 
 
-# Former DIN 43760 nickel characteristic (6178/6180 ppm/K).  ABB, IST,
-# TE Connectivity, and Honeywell publish the same normalized coefficients.
-# Missing odd-power terms are retained explicitly as zeros so the stored
-# tuple maps directly onto c1..c6 in PolynomialRTDCurve.
-NI_6180_DIN_43760 = PolynomialRTDCurve(
-    name="Former DIN 43760 nickel 6180 ppm/K curve",
-    coefficients=(
-        5.485e-3,
-        6.650e-6,
-        0.0,
-        2.805e-11,
-        0.0,
-        -2.000e-17,
-    ),
-    reference_temperature_c=0.0,
-    minimum_temperature_c=-60.0,
-    maximum_temperature_c=250.0,
+def _curve_from_definition(
+    definition: _definitions.CharacteristicDefinition,
+) -> RTDCurve:
+    """Construct a validated runtime curve from authoritative source metadata."""
+    if isinstance(
+        definition,
+        _definitions.CallendarVanDusenCharacteristicDefinition,
+    ):
+        return CallendarVanDusenCurve(
+            name=definition.display_name,
+            a=definition.a,
+            b=definition.b,
+            c=definition.c,
+            minimum_temperature_c=definition.minimum_temperature_c,
+            maximum_temperature_c=definition.maximum_temperature_c,
+        )
+
+    if isinstance(definition, _definitions.PolynomialCharacteristicDefinition):
+        return PolynomialRTDCurve(
+            name=definition.display_name,
+            coefficients=definition.coefficients,
+            reference_temperature_c=definition.reference_temperature_c,
+            minimum_temperature_c=definition.minimum_temperature_c,
+            maximum_temperature_c=definition.maximum_temperature_c,
+        )
+
+    if isinstance(
+        definition,
+        _definitions.PiecewisePolynomialCharacteristicDefinition,
+    ):
+        return PiecewisePolynomialRTDCurve(
+            name=definition.display_name,
+            segments=tuple(
+                PolynomialRTDSegment(
+                    minimum_temperature_c=segment.minimum_temperature_c,
+                    maximum_temperature_c=segment.maximum_temperature_c,
+                    coefficients=segment.coefficients,
+                    temperature_origin_c=segment.temperature_origin_c,
+                )
+                for segment in definition.segments
+            ),
+            reference_temperature_c=definition.reference_temperature_c,
+            maximum_continuity_adjustment_ratio=(
+                definition.maximum_continuity_adjustment_ratio
+            ),
+        )
+
+    raise TypeError(
+        f"Unsupported built-in characteristic definition: {type(definition)!r}"
+    )
+
+
+_BUILTIN_RTD_CURVES = {
+    characteristic_id: _curve_from_definition(definition)
+    for characteristic_id, definition in (
+        _definitions.BUILTIN_CHARACTERISTIC_DEFINITIONS.items()
+    )
+}
+
+# This immutable registry is the runtime view of the authoritative definitions.
+# New built-in scientific data belongs in _definitions.py rather than here.
+BUILTIN_RTD_CURVES: Mapping[str, RTDCurve] = MappingProxyType(_BUILTIN_RTD_CURVES)
+
+
+def _require_builtin_curve_type[CurveT](
+    characteristic_id: str,
+    expected_type: type[CurveT],
+) -> CurveT:
+    """Return one built-in curve after verifying its expected concrete type."""
+    curve = BUILTIN_RTD_CURVES[characteristic_id]
+    if not isinstance(curve, expected_type):
+        raise TypeError(
+            "Built-in RTD characteristic constructed with unexpected curve type: "
+            f"{characteristic_id!r} -> {type(curve).__name__}, expected "
+            f"{expected_type.__name__}"
+        )
+    return curve
+
+
+IEC_60751_PT385 = _require_builtin_curve_type(
+    "iec60751_pt385",
+    CallendarVanDusenCurve,
 )
-
-
-# Ni1000 TK5000 / Nickel NL characteristic.  IST AG publishes this cubic
-# coefficient set for its 5000 ppm/K nickel curve:
-# https://www.mouser.com/datasheet/2/1426/nl1k0_520_2fw_b_007-2950467.pdf
-# The E+E Elektronik
-# Ni1000 TK5000 table is used independently in tests rather than deriving
-# expected values from these same coefficients.  Full source URLs and the
-# characteristic-selection rationale live in rtd_sensor.ni1000_tk5000.
-NI_5000_TK5000 = PolynomialRTDCurve(
-    name="Ni1000 TK5000 nickel 5000 ppm/K curve",
-    coefficients=(
-        4.427e-3,
-        5.172e-6,
-        5.585e-9,
-    ),
-    reference_temperature_c=0.0,
-    minimum_temperature_c=-60.0,
-    maximum_temperature_c=250.0,
+NI_6180_DIN_43760 = _require_builtin_curve_type(
+    "ni6180_din43760",
+    PolynomialRTDCurve,
 )
-
-
-# Minco North American nickel characteristic (NA, 120 ohm at 0 °C,
-# 0.00672 ohm/ohm/°C nominal TCR). Minco publishes this as twelve cubic
-# source intervals in *Resistance Thermometry*, page 6:
-# https://www.minco.com/wp-content/uploads/Resistance-Thermometry.pdf
-#
-# Each tuple below is copied directly from Minco's A/B/C/D table for
-#     R(T) / R0 = A + B*T + C*T**2 + D*T**3.
-#
-# The independently rounded segment coefficients miss exact continuity at a
-# few joins by tiny amounts. The largest constant stitching offset required
-# after anchoring R(0 °C) exactly is about 7.2e-6 in normalized resistance,
-# or 0.000864 ohm for a 120-ohm element. Authorizing at most 1e-5 therefore
-# preserves Minco's published segment shapes while making the intended single
-# monotonic characteristic well-defined for inverse conversion. Applied
-# offsets remain available on the curve for auditability.
-NI_6720_NORTH_AMERICAN = PiecewisePolynomialRTDCurve(
-    name="North American nickel 120 ohm 6720 ppm/K curve",
-    segments=(
-        PolynomialRTDSegment(
-            minimum_temperature_c=-80.0,
-            maximum_temperature_c=-60.0,
-            coefficients=(
-                9.980384367e-1,
-                5.779005438e-3,
-                4.519218356e-6,
-                1.883007648e-8,
-            ),
-        ),
-        PolynomialRTDSegment(
-            minimum_temperature_c=-60.0,
-            maximum_temperature_c=-30.0,
-            coefficients=(
-                9.995545058e-1,
-                5.854808892e-3,
-                5.782609262e-6,
-                2.584891485e-8,
-            ),
-        ),
-        PolynomialRTDSegment(
-            minimum_temperature_c=-30.0,
-            maximum_temperature_c=0.0,
-            coefficients=(
-                1.0,
-                5.899358312e-3,
-                7.267589932e-6,
-                4.234870007e-8,
-            ),
-        ),
-        PolynomialRTDSegment(
-            minimum_temperature_c=0.0,
-            maximum_temperature_c=30.0,
-            coefficients=(
-                1.0,
-                5.899358312e-3,
-                7.267589932e-6,
-                1.154640832e-8,
-            ),
-        ),
-        PolynomialRTDSegment(
-            minimum_temperature_c=30.0,
-            maximum_temperature_c=60.0,
-            coefficients=(
-                1.000118847,
-                5.887473643e-3,
-                7.663745572e-6,
-                7.144678985e-9,
-            ),
-        ),
-        PolynomialRTDSegment(
-            minimum_temperature_c=60.0,
-            maximum_temperature_c=90.0,
-            coefficients=(
-                1.002329124,
-                5.776959768e-3,
-                9.505643490e-6,
-                -3.088087226e-9,
-            ),
-        ),
-        PolynomialRTDSegment(
-            minimum_temperature_c=90.0,
-            maximum_temperature_c=120.0,
-            coefficients=(
-                9.940315172e-1,
-                6.053466667e-3,
-                6.432455728e-6,
-                8.294089672e-9,
-            ),
-        ),
-        PolynomialRTDSegment(
-            minimum_temperature_c=120.0,
-            maximum_temperature_c=150.0,
-            coefficients=(
-                1.007022904,
-                5.728761999e-3,
-                9.138994624e-6,
-                7.759260700e-10,
-            ),
-        ),
-        PolynomialRTDSegment(
-            minimum_temperature_c=150.0,
-            maximum_temperature_c=180.0,
-            coefficients=(
-                8.918592090e-1,
-                8.032035898e-3,
-                -6.216164699e-6,
-                3.489850234e-8,
-            ),
-        ),
-        PolynomialRTDSegment(
-            minimum_temperature_c=180.0,
-            maximum_temperature_c=210.0,
-            coefficients=(
-                9.060247382e-1,
-                7.795943744e-3,
-                -4.904541625e-6,
-                3.246957072e-8,
-            ),
-        ),
-        PolynomialRTDSegment(
-            minimum_temperature_c=210.0,
-            maximum_temperature_c=240.0,
-            coefficients=(
-                1.103473241,
-                4.975250849e-3,
-                8.527329303e-6,
-                1.114941068e-8,
-            ),
-        ),
-        PolynomialRTDSegment(
-            minimum_temperature_c=240.0,
-            maximum_temperature_c=260.0,
-            coefficients=(
-                1.437355995,
-                8.017164189e-4,
-                2.591705610e-5,
-                -1.300325764e-8,
-            ),
-        ),
-    ),
-    reference_temperature_c=0.0,
-    maximum_continuity_adjustment_ratio=1.0e-5,
+NI_5000_TK5000 = _require_builtin_curve_type(
+    "ni5000_tk5000",
+    PolynomialRTDCurve,
 )
-
-
-IEC_60751_PT385 = CallendarVanDusenCurve(
-    name="IEC 60751 PT-385 curve",
-    a=3.9083e-3,
-    b=-5.775e-7,
-    c=-4.183e-12,
-    minimum_temperature_c=-200.0,
-    maximum_temperature_c=850.0,
+NI_6720_NORTH_AMERICAN = _require_builtin_curve_type(
+    "ni6720_north_american",
+    PiecewisePolynomialRTDCurve,
 )

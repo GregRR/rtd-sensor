@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+* Hardened the authoritative built-in definition layer by normalizing nested sequence inputs to immutable tuples, deferring alias metadata until discovery semantics are defined, and replacing unchecked built-in curve casts with import-time concrete-type validation.
+* Documented the implemented `RTDModel` boundary: the public structural protocol covers numerical conversion and sensitivity behavior, while valid ranges and descriptive identity/provenance remain separate discovery metadata concerns.
+* Centralized immutable built-in RTD characteristic and model definitions so runtime curves and models are constructed from the same scientific metadata that future conformance artifacts and discovery APIs can consume. Source coefficients and piecewise continuity authorization remain explicit, while runtime-derived continuity adjustments are kept separate.
 * Centralized the full RTD model protocol and the existing narrower `uncertainty.RTDUncertaintyModel` contract so every `RTDModel` is uncertainty-compatible without requiring existing uncertainty-only third-party implementations to add unused methods.
 * Updated internal simulation model annotations to depend on the shared structural model protocol rather than the private concrete built-in model class.
 

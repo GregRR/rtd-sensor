@@ -421,6 +421,8 @@ An RTD model combines:
 
 This permits multiple RTD models to share one verified characteristic without duplicating conversion logic. Verified package built-ins carry a stable string identity used by simulation; ad hoc/custom internal models do not become built-ins merely by having conversion behavior.
 
+Built-in scientific definitions are centralized as immutable internal metadata. The characteristic ID, curve kind, source coefficients or segments, reference temperature, range, provenance, model ID, and reference resistance are defined once; the runtime curve and model registries are constructed from those definitions. Runtime-derived values such as piecewise continuity adjustments remain separate from the source coefficients that authorized them. This same definition layer is intended to back language-neutral conformance artifacts and future public discovery metadata without creating parallel sources of truth.
+
 The implementation defines the IEC 60751 PT-385 Callendar–Van Dusen curve once and combines it with model-specific `R0` values. Pt100 uses `R0 = 100 Ω`, Pt500 uses `R0 = 500 Ω`, and Pt1000 uses `R0 = 1000 Ω`.
 
 The low-level curve and model infrastructure remains internal. Public modules should therefore reference internal singletons through private/module-qualified names rather than exposing those implementation objects as accidental module attributes. Public wrappers expose the supported configurable and calibrated-model capabilities without making the internal numerical abstractions part of the compatibility contract.

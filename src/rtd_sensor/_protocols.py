@@ -35,8 +35,9 @@ class RTDModel(RTDUncertaintyModel, Protocol):
 
     Built-in sensor modules, configurable rtd-sensor models, and third-party
     model objects can satisfy this interface without inheriting from a package
-    base class. The protocol intentionally describes numerical behavior only;
-    model identity and discoverable metadata are separate concerns.
+    base class. The protocol intentionally describes numerical behavior only.
+    Valid ranges, model identity, and descriptive metadata are separate discovery
+    concerns rather than requirements imposed on every structural model.
     """
 
     def celsius_to_resistance(self, temperature_c: float) -> float:

@@ -42,32 +42,28 @@ should remain responsible for interpreting that resistance through an RTD model.
 Application code composes the two layers; neither package should duplicate the
 other layer's responsibilities.
 
-Item 1 is the immediate implementation target. Item 2 should follow early, before
-an MCU RTD implementation is treated as a production dependency, because
-behavioral contracts, identifiers, tolerances, and exported reference data are
-much harder to retrofit once another implementation depends on them. Items 3
-through 5 complete the preferred integration milestone. The remaining items are
-ordered follow-on work and should build on the same public contracts.
+Item 1 is implemented. Item 2 is the current high-priority work and should be
+completed before an MCU RTD implementation is treated as a production
+dependency, because behavioral contracts, identifiers, tolerances, and exported
+reference data are much harder to retrofit once another implementation depends
+on them. Items 3 through 5 complete the preferred integration milestone. The
+remaining items are ordered follow-on work and should build on the same public
+contracts.
 
-### 1. Public RTD model protocol — next implementation target
+### 1. Public RTD model protocol — implemented foundation
 
-Add one small structural public protocol for code that consumes an RTD model.
-Built-in model objects, configurable package models, and future third-party
-models should be usable without inheriting from a package-specific base class.
+The public `rtd_sensor.models.RTDModel` protocol provides one small structural
+interface for code that consumes RTD conversion behavior. Built-in sensor
+modules, configurable package models, and compatible third-party objects satisfy
+it without inheriting from a package-specific base class.
 
-Candidate public shape:
+The implemented protocol covers four numerical operations:
 
 ```python
 from typing import Protocol
 
 
 class RTDModel(Protocol):
-    @property
-    def minimum_temperature_c(self) -> float: ...
-
-    @property
-    def maximum_temperature_c(self) -> float: ...
-
     def celsius_to_resistance(self, temperature_c: float) -> float: ...
 
     def resistance_to_celsius(self, resistance_ohms: float) -> float: ...
@@ -81,45 +77,23 @@ class RTDModel(Protocol):
     ) -> float: ...
 ```
 
-The exact exported name should be confirmed during implementation. Keep the
-protocol deliberately behavioral: identity, display name, material, aliases,
-and provenance belong to metadata and should not be required merely to qualify
-as a conversion model.
+The protocol deliberately excludes valid-range properties as well as identity,
+display name, material, aliases, and provenance. The built-in module APIs expose
+ranges through their established constants, while configurable model objects
+have range properties. Code that needs a uniform range or other discoverable
+metadata should use the model-discovery/metadata interface rather than forcing
+every structural conversion model to expose one metadata shape. This also keeps
+the existing built-in modules valid structural `RTDModel` implementations.
 
-Current implementation starting point:
+The narrower `uncertainty.RTDUncertaintyModel` protocol remains available for
+uncertainty-only callers. `RTDModel` includes that narrower behavior, preserving
+third-party implementations that provide only inverse conversion and `dT/dR`.
+Simulation model annotations now depend on the structural protocol rather than
+the private concrete built-in model class.
 
-- `rtd_sensor._models.RTDModel` is a private concrete model object used by the
-  verified built-in registry;
-- `rtd_sensor.models` contains the public configurable model classes;
-- `uncertainty.RTDUncertaintyModel` is already a public, narrower structural
-  protocol requiring resistance-to-temperature conversion and inverse
-  sensitivity; and
-- `simulation` currently types its built-in conversion path against the private
-  concrete model object.
-
-The first implementation pass should therefore be interface consolidation, not
-mathematical change: define/export the public protocol, make the intended model
-objects satisfy it under strict mypy, reconcile the uncertainty protocol, and
-update type annotations/tests without changing conversion results or validation
-semantics.
-
-Implementation constraints:
-
-- use structural typing rather than a required inheritance hierarchy;
-- keep existing public configurable model classes source-compatible;
-- make internal built-in model objects satisfy the protocol naturally;
-- do not add hardware/acquisition methods to an RTD model;
-- review the existing public `uncertainty.RTDUncertaintyModel` protocol and
-  either reuse a deliberate subset of the new contract or otherwise make their
-  relationship explicit; do not leave two overlapping model protocols with
-  accidental semantic differences;
-- keep the protocol independent of built-in discovery/registration; and
-- add strict mypy regression coverage proving that the intended built-in and
-  configurable model objects satisfy the interface.
-
-Done when downstream code can accept one public RTD model interface without
-knowing the concrete model class, and the uncertainty API has a documented,
-non-duplicative relationship to that interface.
+Strict mypy regressions verify the intended built-in, configurable, third-party,
+and uncertainty-only relationships without changing conversion mathematics or
+validation semantics.
 
 ### 2. Language-neutral RTD conformance contract — high priority
 

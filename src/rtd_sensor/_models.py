@@ -11,13 +11,8 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from types import MappingProxyType
 
-from ._curves import (
-    IEC_60751_PT385,
-    NI_5000_TK5000,
-    NI_6180_DIN_43760,
-    NI_6720_NORTH_AMERICAN,
-    RTDCurve,
-)
+from . import _definitions
+from ._curves import BUILTIN_RTD_CURVES, RTDCurve
 from ._validation import as_float as _as_float
 
 __all__ = [
@@ -149,10 +144,10 @@ def _built_in_model(
 ) -> RTDModel:
     """Create and register one built-in model under its simulation identity.
 
-    Built-in identity belongs with the model definition rather than in the
-    simulation module. Keeping registration here gives the package one
-    authoritative identity-to-model mapping and prevents a new RTD from being
-    added to conversion APIs while simulation silently retains a stale list.
+    Built-in identity originates in the authoritative definition registry.
+    Registration here creates the runtime identity-to-model view used by
+    simulation and the built-in public modules without duplicating scientific
+    model metadata.
     """
     if not isinstance(identity, str):
         raise TypeError("RTD model identity must be a string")
@@ -169,55 +164,23 @@ def _built_in_model(
     return model
 
 
-PT100_IEC_60751 = _built_in_model(
-    identity="pt100",
-    name="Pt100",
-    reference_resistance_ohms=100.0,
-    curve=IEC_60751_PT385,
-)
-
-
-PT500_IEC_60751 = _built_in_model(
-    identity="pt500",
-    name="Pt500",
-    reference_resistance_ohms=500.0,
-    curve=IEC_60751_PT385,
-)
-
-
-PT1000_IEC_60751 = _built_in_model(
-    identity="pt1000",
-    name="Pt1000",
-    reference_resistance_ohms=1000.0,
-    curve=IEC_60751_PT385,
-)
-
-
-NI1000_6180 = _built_in_model(
-    identity="ni1000",
-    name="Ni1000 6180",
-    reference_resistance_ohms=1000.0,
-    curve=NI_6180_DIN_43760,
-)
-
-
-NI1000_TK5000 = _built_in_model(
-    identity="ni1000_tk5000",
-    name="Ni1000 TK5000",
-    reference_resistance_ohms=1000.0,
-    curve=NI_5000_TK5000,
-)
-
-
-NI120_6720 = _built_in_model(
-    identity="ni120",
-    name="Ni120 North American 6720",
-    reference_resistance_ohms=120.0,
-    curve=NI_6720_NORTH_AMERICAN,
-)
+for _definition in _definitions.BUILTIN_MODEL_DEFINITIONS.values():
+    _built_in_model(
+        identity=_definition.model_id,
+        name=_definition.display_name,
+        reference_resistance_ohms=_definition.reference_resistance_ohms,
+        curve=BUILTIN_RTD_CURVES[_definition.characteristic_id],
+    )
 
 
 # Expose an immutable internal view so every consumer uses the same registry.
 # There is intentionally no public registration API yet: this is a closed set
 # of verified built-ins, not a plugin mechanism for arbitrary user models.
 BUILTIN_RTD_MODELS: Mapping[str, RTDModel] = MappingProxyType(_BUILTIN_RTD_MODELS)
+
+PT100_IEC_60751 = BUILTIN_RTD_MODELS["pt100"]
+PT500_IEC_60751 = BUILTIN_RTD_MODELS["pt500"]
+PT1000_IEC_60751 = BUILTIN_RTD_MODELS["pt1000"]
+NI1000_6180 = BUILTIN_RTD_MODELS["ni1000"]
+NI1000_TK5000 = BUILTIN_RTD_MODELS["ni1000_tk5000"]
+NI120_6720 = BUILTIN_RTD_MODELS["ni120"]
