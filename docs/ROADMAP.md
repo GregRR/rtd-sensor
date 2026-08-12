@@ -144,30 +144,14 @@ cross-project compatibility problem rather than a local library change.
 
 #### 2.1 Machine-readable conformance vectors
 
-Provide language-neutral reference vectors that can be consumed by Python, C,
-C++, Rust, MicroPython, test equipment, or other implementations without
-depending on `pytest` or Python internals.
+The Draft 2020-12 vector-set schema and deterministic artifact generator are now
+in place. Initial committed vector sets cover valid-domain built-in
+temperature-to-resistance and resistance-to-temperature behavior for all six
+current models using the `binary64_reference` acceptance profile.
 
-Prefer a simple, versioned format such as JSON. The exact schema should be
-designed before the first exported vectors are treated as stable. Conceptually,
-a forward-conversion case needs:
-
-```json
-{
-  "model_id": "pt100",
-  "operation": "temperature_to_resistance",
-  "temperature_c": 100.0,
-  "expected_resistance_ohms": 138.5055,
-  "absolute_tolerance_ohms": 0.0001
-}
-```
-
-and an inverse case needs the corresponding resistance input, expected
-temperature, and temperature tolerance.
-
-The final schema should distinguish test-vector identity from descriptive model
-metadata and should be explicit about units rather than relying on field-name
-convention alone if the format evolves beyond this minimal representation.
+The next vector work extends those successful-result anchors with explicit
+range/error/status cases, followed later by custom/calibrated-model fixtures and
+the independently measured `binary32_compatible` profile.
 
 #### 2.2 Representative coverage, not exported test-suite duplication
 
@@ -210,19 +194,15 @@ implementation is most likely to differ.
 
 #### 2.4 Explicit numerical compatibility tolerances
 
-Define what it means for another implementation to be numerically conformant.
-A 64-bit Python calculation and an MCU using 32-bit floating point do not need
-bit-identical results, but they do need documented engineering equivalence.
+The initial built-in conversion vectors define `binary64_reference` with an
+absolute tolerance of `1e-9` in the output unit. This is a cross-implementation
+floating-point allowance, not a sensor tolerance or measurement-uncertainty
+claim.
 
-The conformance specification should therefore define per-operation or
-per-vector absolute tolerances, and relative tolerances only where they are
-scientifically meaningful. Tolerances must be justified rather than chosen
-merely to make an implementation pass.
-
-Before freezing a conformance profile intended for constrained MCUs, evaluate
-the vectors against representative single-precision arithmetic so the contract
-does not accidentally require double precision unless the scientific behavior
-actually needs it.
+The `binary32_compatible` profile remains intentionally unpublished. Before
+freezing a profile intended for constrained MCUs, evaluate the complete vector
+set against representative single-precision implementations and choose
+tolerances from measured numerical behavior rather than convenience.
 
 #### 2.5 Authoritative equations, coefficients, and numerical decisions
 

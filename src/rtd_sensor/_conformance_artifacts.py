@@ -2,12 +2,12 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Deterministic generation of language-neutral RTD conformance catalogs.
+"""Deterministic generation of language-neutral RTD conformance artifacts.
 
-The generated catalogs are derived from the same authoritative built-in
-characteristic/model definitions used to construct the Python runtime. This
-module deliberately contains serialization logic, not a second copy of the
-scientific constants.
+The generated catalogs and reference vectors are derived from the same
+authoritative built-in characteristic/model definitions used to construct the
+Python runtime. This module deliberately contains serialization logic, not a
+second copy of the scientific constants.
 """
 
 from __future__ import annotations
@@ -19,13 +19,16 @@ from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
-from . import _curves, _definitions
+from . import _curves, _definitions, _models
 
 _FORMAT_VERSION = 1
 _CONTRACT_VERSION = 1
 _DISTRIBUTION_NAME = "rtd-sensor"
 _CHARACTERISTICS_FILENAME = "characteristics.json"
 _MODELS_FILENAME = "models.json"
+_TEMPERATURE_TO_RESISTANCE_FILENAME = "vectors/builtin-temperature-to-resistance.json"
+_RESISTANCE_TO_TEMPERATURE_FILENAME = "vectors/builtin-resistance-to-temperature.json"
+_BINARY64_ABSOLUTE_TOLERANCE = 1.0e-9
 
 
 def _project_version() -> str:
@@ -187,6 +190,229 @@ def build_model_catalog(
     }
 
 
+def _vector_temperatures(
+    definition: _definitions.CharacteristicDefinition,
+) -> tuple[float, ...]:
+    """Return deterministic valid-domain anchors for one characteristic."""
+    if isinstance(
+        definition,
+        _definitions.PiecewisePolynomialCharacteristicDefinition,
+    ):
+        anchors = {
+            definition.reference_temperature_c,
+            definition.minimum_temperature_c,
+            definition.maximum_temperature_c,
+        }
+        for segment in definition.segments:
+            anchors.add(segment.minimum_temperature_c)
+            anchors.add(segment.maximum_temperature_c)
+            anchors.add(
+                (segment.minimum_temperature_c + segment.maximum_temperature_c) / 2.0
+            )
+        return tuple(sorted(anchors))
+
+    anchors = {
+        definition.minimum_temperature_c,
+        definition.maximum_temperature_c,
+    }
+    reference_temperature_c = definition.reference_temperature_c
+    if (
+        definition.minimum_temperature_c
+        <= reference_temperature_c
+        <= definition.maximum_temperature_c
+    ):
+        anchors.add(reference_temperature_c)
+        if definition.minimum_temperature_c < reference_temperature_c:
+            anchors.add(
+                (definition.minimum_temperature_c + reference_temperature_c) / 2.0
+            )
+        if reference_temperature_c < definition.maximum_temperature_c:
+            anchors.add(
+                (reference_temperature_c + definition.maximum_temperature_c) / 2.0
+            )
+        for offset_c in (-0.001, 0.001):
+            candidate = reference_temperature_c + offset_c
+            if (
+                definition.minimum_temperature_c
+                <= candidate
+                <= definition.maximum_temperature_c
+            ):
+                anchors.add(candidate)
+
+    for representative_c in (25.0, 100.0):
+        if (
+            definition.minimum_temperature_c
+            <= representative_c
+            <= definition.maximum_temperature_c
+        ):
+            anchors.add(representative_c)
+
+    return tuple(sorted(anchors))
+
+
+def _temperature_token(temperature_c: float) -> str:
+    """Return a stable identifier token for one finite Celsius anchor."""
+    rendered = format(_json_number(temperature_c), ".15g")
+    token = rendered.replace("-", "neg").replace(".", "p")
+    return f"{token}c"
+
+
+def _vector_tags(
+    definition: _definitions.CharacteristicDefinition,
+    temperature_c: float,
+) -> list[str]:
+    """Return deterministic descriptive tags for one conversion anchor."""
+    tags = ["round_trip_anchor"]
+
+    if temperature_c == definition.minimum_temperature_c:
+        tags.append("minimum_boundary")
+    if temperature_c == definition.maximum_temperature_c:
+        tags.append("maximum_boundary")
+    if temperature_c == definition.reference_temperature_c:
+        tags.append("reference_temperature")
+
+    if temperature_c < 0.0:
+        tags.append("negative_temperature")
+    elif temperature_c > 0.0:
+        tags.append("positive_temperature")
+
+    if isinstance(
+        definition,
+        _definitions.CallendarVanDusenCharacteristicDefinition,
+    ):
+        if temperature_c == definition.reference_temperature_c:
+            tags.append("branch_boundary")
+        elif abs(temperature_c - definition.reference_temperature_c) == 0.001:
+            tags.append("branch_neighbor")
+
+    if isinstance(
+        definition,
+        _definitions.PiecewisePolynomialCharacteristicDefinition,
+    ):
+        joins = {segment.maximum_temperature_c for segment in definition.segments[:-1]}
+        midpoints = {
+            (segment.minimum_temperature_c + segment.maximum_temperature_c) / 2.0
+            for segment in definition.segments
+        }
+        if temperature_c in joins:
+            tags.append("piecewise_join")
+        elif temperature_c in midpoints:
+            tags.append("piecewise_segment")
+
+    if not any(
+        tag
+        in {
+            "minimum_boundary",
+            "maximum_boundary",
+            "reference_temperature",
+            "piecewise_join",
+            "piecewise_segment",
+        }
+        for tag in tags
+    ):
+        tags.append("representative")
+
+    return tags
+
+
+def _successful_expected(value: float) -> dict[str, object]:
+    """Return one successful binary64-reference expected result."""
+    return {
+        "status": "ok",
+        "value": _json_number(value),
+        "acceptance": {
+            "binary64_reference": {
+                "absolute_tolerance": _BINARY64_ABSOLUTE_TOLERANCE,
+            }
+        },
+    }
+
+
+def _build_conversion_vector_set(
+    capability_id: str,
+    *,
+    rtd_sensor_version: str,
+) -> dict[str, object]:
+    """Build one valid-domain built-in conversion vector set."""
+    if capability_id == "conversion.temperature_to_resistance":
+        input_unit = "degree_celsius"
+        output_unit = "ohm"
+        operation_id = "temperature_to_resistance"
+    elif capability_id == "conversion.resistance_to_temperature":
+        input_unit = "ohm"
+        output_unit = "degree_celsius"
+        operation_id = "resistance_to_temperature"
+    else:
+        raise ValueError(f"Unsupported conformance capability: {capability_id!r}")
+
+    test_groups: list[dict[str, object]] = []
+    for model_definition in _definitions.BUILTIN_MODEL_DEFINITIONS.values():
+        model = _models.BUILTIN_RTD_MODELS[model_definition.model_id]
+        characteristic = _definitions.BUILTIN_CHARACTERISTIC_DEFINITIONS[
+            model_definition.characteristic_id
+        ]
+        cases: list[dict[str, object]] = []
+        for temperature_c in _vector_temperatures(characteristic):
+            resistance_ohms = model.celsius_to_resistance(temperature_c)
+            token = _temperature_token(temperature_c)
+            if capability_id == "conversion.temperature_to_resistance":
+                input_document = {"value": _json_number(temperature_c)}
+                expected = _successful_expected(resistance_ohms)
+            else:
+                input_document = {"value": _json_number(resistance_ohms)}
+                expected = _successful_expected(temperature_c)
+
+            cases.append(
+                {
+                    "case_id": f"{model_definition.model_id}.{operation_id}.{token}",
+                    "tags": _vector_tags(characteristic, temperature_c),
+                    "input": input_document,
+                    "expected": expected,
+                }
+            )
+
+        test_groups.append(
+            {
+                "group_id": f"{model_definition.model_id}.{operation_id}",
+                "model_id": model_definition.model_id,
+                "cases": cases,
+            }
+        )
+
+    return {
+        "artifact_type": "vector_set",
+        "format_version": _FORMAT_VERSION,
+        "contract_version": _CONTRACT_VERSION,
+        "rtd_sensor_version": rtd_sensor_version,
+        "capability_id": capability_id,
+        "input_unit": input_unit,
+        "output_unit": output_unit,
+        "test_groups": test_groups,
+    }
+
+
+def build_temperature_to_resistance_vectors(
+    *,
+    rtd_sensor_version: str | None = None,
+) -> dict[str, object]:
+    """Build valid-domain binary64 temperature-to-resistance vectors."""
+    return _build_conversion_vector_set(
+        "conversion.temperature_to_resistance",
+        rtd_sensor_version=rtd_sensor_version or _project_version(),
+    )
+
+
+def build_resistance_to_temperature_vectors(
+    *,
+    rtd_sensor_version: str | None = None,
+) -> dict[str, object]:
+    """Build valid-domain binary64 resistance-to-temperature vectors."""
+    return _build_conversion_vector_set(
+        "conversion.resistance_to_temperature",
+        rtd_sensor_version=rtd_sensor_version or _project_version(),
+    )
+
+
 def render_json(document: object) -> str:
     """Return one deterministic, standards-compliant JSON artifact."""
     return (
@@ -205,7 +431,7 @@ def generated_artifacts(
     *,
     rtd_sensor_version: str | None = None,
 ) -> dict[str, str]:
-    """Return every generated catalog filename and deterministic content."""
+    """Return every generated artifact path and deterministic content."""
     producer_version = rtd_sensor_version or _project_version()
     return {
         _CHARACTERISTICS_FILENAME: render_json(
@@ -213,6 +439,12 @@ def generated_artifacts(
         ),
         _MODELS_FILENAME: render_json(
             build_model_catalog(rtd_sensor_version=producer_version)
+        ),
+        _TEMPERATURE_TO_RESISTANCE_FILENAME: render_json(
+            build_temperature_to_resistance_vectors(rtd_sensor_version=producer_version)
+        ),
+        _RESISTANCE_TO_TEMPERATURE_FILENAME: render_json(
+            build_resistance_to_temperature_vectors(rtd_sensor_version=producer_version)
         ),
     }
 
@@ -222,12 +454,14 @@ def write_generated_artifacts(
     *,
     rtd_sensor_version: str | None = None,
 ) -> None:
-    """Write the deterministic conformance catalogs to ``output_dir``."""
+    """Write deterministic conformance artifacts below ``output_dir``."""
     output_dir.mkdir(parents=True, exist_ok=True)
     for filename, content in generated_artifacts(
         rtd_sensor_version=rtd_sensor_version
     ).items():
-        (output_dir / filename).write_text(content, encoding="utf-8", newline="\n")
+        path = output_dir / filename
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8", newline="\n")
 
 
 def stale_generated_artifacts(
@@ -253,18 +487,18 @@ def stale_generated_artifacts(
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Generate rtd-sensor language-neutral conformance catalogs."
+        description="Generate rtd-sensor language-neutral conformance artifacts."
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
         default=Path("conformance/v1"),
-        help="Directory containing the generated conformance catalogs.",
+        help="Directory containing the generated conformance artifacts.",
     )
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Check committed catalogs for drift instead of writing them.",
+        help="Check committed artifacts for drift instead of writing them.",
     )
     return parser
 
@@ -275,7 +509,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if arguments.check:
         stale = stale_generated_artifacts(arguments.output_dir)
         if stale:
-            print("Conformance catalogs are stale: " + ", ".join(stale))
+            print("Conformance artifacts are stale: " + ", ".join(stale))
             return 1
         return 0
 

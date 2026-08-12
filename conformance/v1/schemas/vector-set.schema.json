@@ -121,7 +121,7 @@
     "successful_result": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["status", "value"],
+      "required": ["status", "value", "acceptance"],
       "properties": {
         "status": {"const": "ok"},
         "value": {"type": "number"},

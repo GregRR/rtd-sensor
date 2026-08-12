@@ -330,6 +330,20 @@ def test_vector_set_rejects_value_on_error_result() -> None:
         _validator("vector-set.schema.json").validate(vectors)
 
 
+def test_vector_set_rejects_success_without_acceptance_profile() -> None:
+    vector_set = _vector_set()
+    group = vector_set["test_groups"][0]
+    assert isinstance(group, dict)
+    case = group["cases"][0]
+    assert isinstance(case, dict)
+    expected = case["expected"]
+    assert isinstance(expected, dict)
+    expected.pop("acceptance")
+
+    with pytest.raises(ValidationError):
+        _validator("vector-set.schema.json").validate(vector_set)
+
+
 def test_vector_set_rejects_unknown_acceptance_profile() -> None:
     vectors = _vector_set()
     group = vectors["test_groups"][0]

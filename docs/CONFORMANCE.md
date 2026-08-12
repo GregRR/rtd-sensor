@@ -291,7 +291,13 @@ A representative structure is:
           "case_id": "pt100.temperature_to_resistance.reference_0c",
           "tags": ["reference_temperature"],
           "input": {"value": 0.0},
-          "expected": {"status": "ok", "value": 100.0}
+          "expected": {
+            "status": "ok",
+            "value": 100.0,
+            "acceptance": {
+              "binary64_reference": {"absolute_tolerance": 1e-9}
+            }
+          }
         }
       ]
     }
@@ -304,6 +310,16 @@ semantic meaning.
 
 Tags are descriptive classifiers used for coverage and diagnostics. They are not
 part of the pass/fail rule.
+
+The committed draft-v1 built-in conversion vector sets are generated
+deterministically from the authoritative model definitions and runtime behavior.
+They contain valid-domain binary64 reference anchors for all six built-in models.
+The anchors include minimum and maximum model temperatures, reference and nearby
+branch points, representative operating temperatures, and every source-segment
+midpoint and join for the piecewise Ni120 characteristic. The forward and inverse
+sets are paired through the same temperature anchors so endpoint and round-trip
+behavior remain directly comparable. Error/status vectors are a separate
+conformance layer and are not implied by these initial successful-result sets.
 
 ## Input representation
 
@@ -400,7 +416,11 @@ published reference value. It does not require the implementation to use that
 floating-point representation internally.
 
 Each successful vector carries the applicable absolute tolerance for each
-published profile.
+published profile. The initial built-in conversion vectors publish only the
+`binary64_reference` profile, with an absolute tolerance of `1e-9` in the
+vector set's output unit. This tolerance is an interoperability allowance for
+floating-point evaluation and inversion differences; it is not an RTD sensor
+tolerance, calibration uncertainty, or measurement-uncertainty statement.
 
 The numerical pass rule is:
 
