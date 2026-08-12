@@ -260,6 +260,12 @@ such as matching the number of adjustments to the number of segments are part
 of conformance artifact integrity validation in addition to JSON Schema
 validation.
 
+The committed `characteristics.json` and `models.json` catalogs are generated
+deterministically from the authoritative built-in definitions used by the Python
+runtime. Repository validation requires regeneration to reproduce the committed
+files exactly, so these catalogs are not maintained as independent copies of the
+scientific model data.
+
 ## Vector sets
 
 A vector set contains metadata shared by a capability and one or more groups of

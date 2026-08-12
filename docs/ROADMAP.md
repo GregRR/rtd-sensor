@@ -103,9 +103,10 @@ the implementation reference for identifiers, schemas, statuses, numerical
 acceptance, and artifact structure.
 
 Implementation foundation completed so far: the reviewed authoritative
-characteristic/model definition layer and the initial Draft 2020-12 schemas for
-characteristic catalogs, model catalogs, and vector sets. Deterministic artifact
-generation is the next implementation step.
+characteristic/model definition layer, the initial Draft 2020-12 schemas, and
+deterministic generation of committed `characteristics.json` and `models.json`
+catalogs from the same definitions used by the Python runtime. Built-in binary64
+conversion vectors are the next implementation step.
 
 Establish `rtd-sensor` as the authoritative reference implementation for RTD
 conversion behavior, not merely as one Python implementation of the same

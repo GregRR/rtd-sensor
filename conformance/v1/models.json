@@ -1,0 +1,56 @@
+{
+  "artifact_type": "model_catalog",
+  "contract_version": 1,
+  "format_version": 1,
+  "models": [
+    {
+      "characteristic_id": "iec60751_pt385",
+      "display_name": "Pt100",
+      "maximum_temperature_c": 850.0,
+      "minimum_temperature_c": -200.0,
+      "model_id": "pt100",
+      "reference_resistance_ohms": 100.0
+    },
+    {
+      "characteristic_id": "iec60751_pt385",
+      "display_name": "Pt500",
+      "maximum_temperature_c": 850.0,
+      "minimum_temperature_c": -200.0,
+      "model_id": "pt500",
+      "reference_resistance_ohms": 500.0
+    },
+    {
+      "characteristic_id": "iec60751_pt385",
+      "display_name": "Pt1000",
+      "maximum_temperature_c": 850.0,
+      "minimum_temperature_c": -200.0,
+      "model_id": "pt1000",
+      "reference_resistance_ohms": 1000.0
+    },
+    {
+      "characteristic_id": "ni6180_din43760",
+      "display_name": "Ni1000 6180",
+      "maximum_temperature_c": 250.0,
+      "minimum_temperature_c": -60.0,
+      "model_id": "ni1000",
+      "reference_resistance_ohms": 1000.0
+    },
+    {
+      "characteristic_id": "ni5000_tk5000",
+      "display_name": "Ni1000 TK5000",
+      "maximum_temperature_c": 250.0,
+      "minimum_temperature_c": -60.0,
+      "model_id": "ni1000_tk5000",
+      "reference_resistance_ohms": 1000.0
+    },
+    {
+      "characteristic_id": "ni6720_north_american",
+      "display_name": "Ni120 North American 6720",
+      "maximum_temperature_c": 260.0,
+      "minimum_temperature_c": -80.0,
+      "model_id": "ni120",
+      "reference_resistance_ohms": 120.0
+    }
+  ],
+  "rtd_sensor_version": "0.4.0"
+}

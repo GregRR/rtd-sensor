@@ -1,0 +1,240 @@
+{
+  "artifact_type": "characteristic_catalog",
+  "characteristics": [
+    {
+      "characteristic_id": "iec60751_pt385",
+      "curve_kind": "callendar_van_dusen",
+      "display_name": "IEC 60751 PT-385 curve",
+      "material": "platinum",
+      "maximum_temperature_c": 850.0,
+      "minimum_temperature_c": -200.0,
+      "parameters": {
+        "a": 0.0039083,
+        "b": -5.775e-07,
+        "c": -4.183e-12
+      },
+      "reference_temperature_c": 0.0,
+      "source_references": [
+        {
+          "citation": "IEC 60751:2022, Industrial platinum resistance thermometers and platinum temperature sensors",
+          "url": "https://webstore.iec.ch/en/publication/63753"
+        }
+      ]
+    },
+    {
+      "characteristic_id": "ni6180_din43760",
+      "coefficients": [
+        0.005485,
+        6.65e-06,
+        0.0,
+        2.805e-11,
+        0.0,
+        -2e-17
+      ],
+      "curve_kind": "polynomial",
+      "display_name": "Former DIN 43760 nickel 6180 ppm/K curve",
+      "material": "nickel",
+      "maximum_temperature_c": 250.0,
+      "minimum_temperature_c": -60.0,
+      "reference_temperature_c": 0.0,
+      "source_references": [
+        {
+          "citation": "ABB, Industrial temperature measurement: Basics and practice, nickel measurement characteristics according to DIN 43760"
+        },
+        {
+          "citation": "Innovative Sensor Technology (IST AG), RTD Nickel Sensors application note, Nickel ND (6180 ppm/K) coefficient table",
+          "url": "https://www.ist-ag.com/sites/default/files/downloads/ATN_E.pdf"
+        }
+      ]
+    },
+    {
+      "characteristic_id": "ni5000_tk5000",
+      "coefficients": [
+        0.004427,
+        5.172e-06,
+        5.585e-09
+      ],
+      "curve_kind": "polynomial",
+      "display_name": "Ni1000 TK5000 nickel 5000 ppm/K curve",
+      "material": "nickel",
+      "maximum_temperature_c": 250.0,
+      "minimum_temperature_c": -60.0,
+      "reference_temperature_c": 0.0,
+      "source_references": [
+        {
+          "citation": "Innovative Sensor Technology (IST AG), RTD Nickel Sensors application note, Nickel NL (5000 ppm/K) coefficient table",
+          "url": "https://www.ist-ag.com/sites/default/files/downloads/ATN_E.pdf"
+        }
+      ]
+    },
+    {
+      "characteristic_id": "ni6720_north_american",
+      "continuity_adjustment_kind": "additive_resistance_ratio_offset",
+      "continuity_adjustment_reason": "Minco publishes independently rounded cubic source segments. The bounded constant offsets reconcile printed join mismatches without changing source coefficients or segment slopes.",
+      "curve_kind": "piecewise_polynomial",
+      "derived_continuity_adjustments": [
+        3.573985551952319e-11,
+        2.0599077998895154e-12,
+        0.0,
+        0.0,
+        -3.1395486210783474e-10,
+        1.828210915988393e-10,
+        7.199986379102796e-06,
+        -2.4000517648836706e-06,
+        -2.4000455152162203e-06,
+        -2.3999152749532016e-06,
+        -4.900559634979373e-06,
+        -1.1679871545489107e-06
+      ],
+      "display_name": "North American nickel 120 ohm 6720 ppm/K curve",
+      "material": "nickel",
+      "maximum_continuity_adjustment_ratio": 1e-05,
+      "maximum_temperature_c": 260.0,
+      "minimum_temperature_c": -80.0,
+      "reference_temperature_c": 0.0,
+      "segments": [
+        {
+          "coefficients": [
+            0.9980384367,
+            0.005779005438,
+            4.519218356e-06,
+            1.883007648e-08
+          ],
+          "maximum_temperature_c": -60.0,
+          "minimum_temperature_c": -80.0,
+          "temperature_origin_c": 0.0
+        },
+        {
+          "coefficients": [
+            0.9995545058,
+            0.005854808892,
+            5.782609262e-06,
+            2.584891485e-08
+          ],
+          "maximum_temperature_c": -30.0,
+          "minimum_temperature_c": -60.0,
+          "temperature_origin_c": 0.0
+        },
+        {
+          "coefficients": [
+            1.0,
+            0.005899358312,
+            7.267589932e-06,
+            4.234870007e-08
+          ],
+          "maximum_temperature_c": 0.0,
+          "minimum_temperature_c": -30.0,
+          "temperature_origin_c": 0.0
+        },
+        {
+          "coefficients": [
+            1.0,
+            0.005899358312,
+            7.267589932e-06,
+            1.154640832e-08
+          ],
+          "maximum_temperature_c": 30.0,
+          "minimum_temperature_c": 0.0,
+          "temperature_origin_c": 0.0
+        },
+        {
+          "coefficients": [
+            1.000118847,
+            0.005887473643,
+            7.663745572e-06,
+            7.144678985e-09
+          ],
+          "maximum_temperature_c": 60.0,
+          "minimum_temperature_c": 30.0,
+          "temperature_origin_c": 0.0
+        },
+        {
+          "coefficients": [
+            1.002329124,
+            0.005776959768,
+            9.50564349e-06,
+            -3.088087226e-09
+          ],
+          "maximum_temperature_c": 90.0,
+          "minimum_temperature_c": 60.0,
+          "temperature_origin_c": 0.0
+        },
+        {
+          "coefficients": [
+            0.9940315172,
+            0.006053466667,
+            6.432455728e-06,
+            8.294089672e-09
+          ],
+          "maximum_temperature_c": 120.0,
+          "minimum_temperature_c": 90.0,
+          "temperature_origin_c": 0.0
+        },
+        {
+          "coefficients": [
+            1.007022904,
+            0.005728761999,
+            9.138994624e-06,
+            7.7592607e-10
+          ],
+          "maximum_temperature_c": 150.0,
+          "minimum_temperature_c": 120.0,
+          "temperature_origin_c": 0.0
+        },
+        {
+          "coefficients": [
+            0.891859209,
+            0.008032035898,
+            -6.216164699e-06,
+            3.489850234e-08
+          ],
+          "maximum_temperature_c": 180.0,
+          "minimum_temperature_c": 150.0,
+          "temperature_origin_c": 0.0
+        },
+        {
+          "coefficients": [
+            0.9060247382,
+            0.007795943744,
+            -4.904541625e-06,
+            3.246957072e-08
+          ],
+          "maximum_temperature_c": 210.0,
+          "minimum_temperature_c": 180.0,
+          "temperature_origin_c": 0.0
+        },
+        {
+          "coefficients": [
+            1.103473241,
+            0.004975250849,
+            8.527329303e-06,
+            1.114941068e-08
+          ],
+          "maximum_temperature_c": 240.0,
+          "minimum_temperature_c": 210.0,
+          "temperature_origin_c": 0.0
+        },
+        {
+          "coefficients": [
+            1.437355995,
+            0.0008017164189,
+            2.59170561e-05,
+            -1.300325764e-08
+          ],
+          "maximum_temperature_c": 260.0,
+          "minimum_temperature_c": 240.0,
+          "temperature_origin_c": 0.0
+        }
+      ],
+      "source_references": [
+        {
+          "citation": "Minco, Resistance Thermometry: Principles and Applications of Resistance Thermometers and Thermistors, Nickel section, page 6",
+          "url": "https://www.minco.com/wp-content/uploads/Resistance-Thermometry.pdf"
+        }
+      ]
+    }
+  ],
+  "contract_version": 1,
+  "format_version": 1,
+  "rtd_sensor_version": "0.4.0"
+}
