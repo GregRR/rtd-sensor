@@ -429,12 +429,14 @@ An acceptance profile describes the allowed numerical difference from the
 published reference value. It does not require the implementation to use that
 floating-point representation internally.
 
-Each successful vector carries the applicable absolute tolerance for each
-published profile. The initial built-in conversion vectors publish only the
-`binary64_reference` profile, with an absolute tolerance of `1e-9` in the
-vector set's output unit. This tolerance is an interoperability allowance for
-floating-point evaluation and inversion differences; it is not an RTD sensor
-tolerance, calibration uncertainty, or measurement-uncertainty statement.
+Each successful built-in conversion vector publishes both acceptance profiles.
+The `binary64_reference` tolerance is `1e-9` in the vector set's output unit.
+The `binary32_compatible` tolerances are `0.002 Ω` for
+temperature-to-resistance conversion and `0.001 °C` for
+resistance-to-temperature conversion. These are interoperability allowances for
+floating-point evaluation, representation, and inversion differences; they are
+not RTD sensor tolerances, calibration uncertainties, or
+measurement-uncertainty statements.
 
 The numerical pass rule is:
 
@@ -448,9 +450,10 @@ Absolute tolerances are used for the initial conversion contract because the
 outputs are engineering quantities with explicit units and temperature relative
 error is not useful around 0 °C.
 
-The numerical tolerance values are not part of this draft document. They become
-normative when the corresponding acceptance profile is published in stable v1
-artifacts.
+These profile values are normative for the current draft-v1 artifacts. Until
+conformance v1 is declared stable they may still change with an explicit
+contract update; a stable-v1 release freezes the published acceptance semantics
+under the contract-version rules above.
 
 ## Behavioral rather than algorithmic conformance
 
@@ -485,8 +488,11 @@ global bisection for every characteristic rather than reproducing the Python
 implementation's curve-specific inversion strategies.
 
 The C11 consumer is a verification implementation, not a required runtime
-architecture for downstream systems. Its successful execution demonstrates
-that the published built-in contract contains sufficient information for an
+architecture for downstream systems. A separate single-precision build of the
+consumer verifies the published `binary32_compatible` profile. Its derivation
+and measured error envelope are documented in
+`conformance/consumers/c11/BINARY32.md`. Successful execution demonstrates that
+the published built-in contract contains sufficient information for an
 independent implementation to reproduce the specified behavior.
 
 ## Coverage represented by conversion vectors

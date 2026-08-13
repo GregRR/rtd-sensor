@@ -4,6 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+* Added an empirically derived `binary32_compatible` conformance profile with independent C11 single-precision verification, including documented endpoint-rounding handling and measured error margins.
 ### Added
 
 * Added an independent C11 conformance consumer and pytest driver that compile from the published characteristic/model catalogs and verify every committed built-in conversion and status vector without importing `rtd_sensor`.

@@ -249,7 +249,11 @@ def _model_source(
     return "\n".join(lines), model_indexes
 
 
-def _case_source(model_indexes: dict[str, int]) -> tuple[str, int]:
+def _case_source(
+    model_indexes: dict[str, int],
+    *,
+    acceptance_profile: str,
+) -> tuple[str, int]:
     cases: list[str] = []
 
     for filename in _VECTOR_FILENAMES:
@@ -280,9 +284,9 @@ def _case_source(model_indexes: dict[str, int]) -> tuple[str, int]:
                     acceptance = expected["acceptance"]
                     assert isinstance(expected_value, int | float)
                     assert isinstance(acceptance, dict)
-                    binary64 = acceptance["binary64_reference"]
-                    assert isinstance(binary64, dict)
-                    tolerance = binary64["absolute_tolerance"]
+                    profile = acceptance[acceptance_profile]
+                    assert isinstance(profile, dict)
+                    tolerance = profile["absolute_tolerance"]
                     assert isinstance(tolerance, int | float)
                     expects_value = 1
                     expected_value_c = _c_float(expected_value)
@@ -310,7 +314,10 @@ def _case_source(model_indexes: dict[str, int]) -> tuple[str, int]:
     return source, len(cases)
 
 
-def _runner_source() -> tuple[str, int]:
+def _runner_source(
+    *,
+    acceptance_profile: str = "binary64_reference",
+) -> tuple[str, int]:
     characteristic_catalog = _load_json(_CONFORMANCE_DIR / "characteristics.json")
     model_catalog = _load_json(_CONFORMANCE_DIR / "models.json")
     characteristics = characteristic_catalog["characteristics"]
@@ -322,7 +329,9 @@ def _runner_source() -> tuple[str, int]:
         characteristics
     )
     model_source, model_indexes = _model_source(models, characteristic_indexes)
-    case_source, case_count = _case_source(model_indexes)
+    case_source, case_count = _case_source(
+        model_indexes, acceptance_profile=acceptance_profile
+    )
 
     source = f"""#include "rtd_conformance.h"
 
@@ -441,6 +450,66 @@ def test_independent_c11_consumer_passes_published_builtin_vectors(
             "-I",
             str(_CONSUMER_DIR),
             str(_CONSUMER_DIR / "rtd_conformance.c"),
+            str(runner_path),
+            "-lm",
+            "-o",
+            str(executable_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert compile_result.returncode == 0, compile_result.stderr
+
+    run_result = subprocess.run(
+        [str(executable_path)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert run_result.returncode == 0, run_result.stderr
+    assert run_result.stdout.startswith(f"passed {case_count} cases;")
+
+
+def _binary32_runner_source() -> tuple[str, int]:
+    source, case_count = _runner_source(acceptance_profile="binary32_compatible")
+    source = source.replace(
+        '#include "rtd_conformance.h"',
+        '#include "rtd_conformance_f32.h"',
+        1,
+    )
+    source = source.replace(
+        "static const double characteristic_",
+        "static const float characteristic_",
+    )
+    source = source.replace("    double input;", "    float input;")
+    return source, case_count
+
+
+def test_independent_c11_binary32_consumer_passes_published_builtin_vectors(
+    tmp_path: Path,
+) -> None:
+    compiler = _available_c_compiler()
+    if compiler is None:
+        pytest.skip("No C compiler is available for binary32 conformance testing")
+
+    runner_source, case_count = _binary32_runner_source()
+    runner_path = tmp_path / "generated_binary32_conformance_runner.c"
+    executable_path = tmp_path / "rtd_binary32_conformance_consumer"
+    runner_path.write_text(runner_source, encoding="utf-8")
+
+    compile_result = subprocess.run(
+        [
+            *compiler,
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-pedantic",
+            "-O2",
+            "-I",
+            str(_CONSUMER_DIR),
+            str(_CONSUMER_DIR / "rtd_conformance_f32.c"),
             str(runner_path),
             "-lm",
             "-o",

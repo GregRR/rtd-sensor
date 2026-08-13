@@ -35,6 +35,8 @@ _RESISTANCE_TO_TEMPERATURE_STATUS_FILENAME = (
     "vectors/builtin-resistance-to-temperature-status.json"
 )
 _BINARY64_ABSOLUTE_TOLERANCE = 1.0e-9
+_BINARY32_FORWARD_ABSOLUTE_TOLERANCE = 0.002
+_BINARY32_INVERSE_ABSOLUTE_TOLERANCE = 0.001
 _BOUNDARY_TEMPERATURE_OFFSET_C = 0.001
 _BOUNDARY_RESISTANCE_OFFSET_OHMS = 0.01
 
@@ -335,15 +337,22 @@ def _vector_tags(
     return tags
 
 
-def _successful_expected(value: float) -> dict[str, object]:
-    """Return one successful binary64-reference expected result."""
+def _successful_expected(
+    value: float,
+    *,
+    binary32_absolute_tolerance: float,
+) -> dict[str, object]:
+    """Return one successful expected result with published acceptance profiles."""
     return {
         "status": "ok",
         "value": _json_number(value),
         "acceptance": {
             "binary64_reference": {
                 "absolute_tolerance": _BINARY64_ABSOLUTE_TOLERANCE,
-            }
+            },
+            "binary32_compatible": {
+                "absolute_tolerance": binary32_absolute_tolerance,
+            },
         },
     }
 
@@ -358,10 +367,12 @@ def _build_conversion_vector_set(
         input_unit = "degree_celsius"
         output_unit = "ohm"
         operation_id = "temperature_to_resistance"
+        binary32_tolerance = _BINARY32_FORWARD_ABSOLUTE_TOLERANCE
     elif capability_id == "conversion.resistance_to_temperature":
         input_unit = "ohm"
         output_unit = "degree_celsius"
         operation_id = "resistance_to_temperature"
+        binary32_tolerance = _BINARY32_INVERSE_ABSOLUTE_TOLERANCE
     else:
         raise ValueError(f"Unsupported conformance capability: {capability_id!r}")
 
@@ -377,10 +388,16 @@ def _build_conversion_vector_set(
             token = _temperature_token(temperature_c)
             if capability_id == "conversion.temperature_to_resistance":
                 input_document = {"value": _json_number(temperature_c)}
-                expected = _successful_expected(resistance_ohms)
+                expected = _successful_expected(
+                    resistance_ohms,
+                    binary32_absolute_tolerance=binary32_tolerance,
+                )
             else:
                 input_document = {"value": _json_number(resistance_ohms)}
-                expected = _successful_expected(temperature_c)
+                expected = _successful_expected(
+                    temperature_c,
+                    binary32_absolute_tolerance=binary32_tolerance,
+                )
 
             cases.append(
                 {

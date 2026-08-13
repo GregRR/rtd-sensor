@@ -230,13 +230,26 @@ def test_conversion_vectors_match_runtime_and_pair_round_trip_anchors() -> None:
             assert abs(converted - float(temperature_c)) <= tolerance
 
 
-def test_initial_conversion_vectors_publish_only_binary64_acceptance() -> None:
-    for filename in _SUCCESS_VECTOR_FILENAMES:
-        for group in _vector_groups(filename):
-            for case in group["cases"]:
-                acceptance = case["expected"]["acceptance"]
-                assert set(acceptance) == {"binary64_reference"}
-                assert acceptance["binary64_reference"]["absolute_tolerance"] == 1e-9
+@pytest.mark.parametrize(
+    ("filename", "binary32_tolerance"),
+    [
+        ("builtin-temperature-to-resistance.json", 0.002),
+        ("builtin-resistance-to-temperature.json", 0.001),
+    ],
+)
+def test_conversion_vectors_publish_binary64_and_binary32_acceptance(
+    filename: str,
+    binary32_tolerance: float,
+) -> None:
+    for group in _vector_groups(filename):
+        for case in group["cases"]:
+            acceptance = case["expected"]["acceptance"]
+            assert set(acceptance) == {"binary64_reference", "binary32_compatible"}
+            assert acceptance["binary64_reference"]["absolute_tolerance"] == 1e-9
+            assert (
+                acceptance["binary32_compatible"]["absolute_tolerance"]
+                == binary32_tolerance
+            )
 
 
 def test_conversion_vectors_cover_boundaries_reference_and_branch_cases() -> None:

@@ -105,10 +105,9 @@ acceptance, and artifact structure.
 Implementation foundation completed so far: the reviewed authoritative
 characteristic/model definition layer, the initial Draft 2020-12 schemas,
 deterministic characteristic/model catalogs, generated built-in conversion and
-status vectors, and an independent C11 consumer that verifies the published
-built-in contract without importing `rtd_sensor`. The next numerical
-interoperability step is empirical definition of the `binary32_compatible`
-acceptance profile.
+status vectors, an independent C11 consumer, and an empirically derived
+`binary32_compatible` acceptance profile verified with real single-precision C
+arithmetic. The next conformance layer is custom/calibrated model fixtures.
 
 Establish `rtd-sensor` as the authoritative reference implementation for RTD
 conversion behavior, not merely as one Python implementation of the same
@@ -156,8 +155,8 @@ An independent C11 consumer now compiles against model/characteristic data
 derived from the committed artifacts and passes the complete published built-in
 conversion and status vector set using a different inverse strategy from
 Python. Custom/calibrated-model fixtures remain later work. The next numerical
-cross-language step is empirical measurement of the `binary32_compatible`
-profile.
+cross-language numerical step is complete for built-in conversion;
+custom/calibrated-model fixtures remain the next conformance expansion.
 
 #### 2.2 Representative coverage, not exported test-suite duplication
 
@@ -205,10 +204,12 @@ absolute tolerance of `1e-9` in the output unit. This is a cross-implementation
 floating-point allowance, not a sensor tolerance or measurement-uncertainty
 claim.
 
-The `binary32_compatible` profile remains intentionally unpublished. Before
-freezing a profile intended for constrained MCUs, evaluate the complete vector
-set against representative single-precision implementations and choose
-tolerances from measured numerical behavior rather than convenience.
+The `binary32_compatible` profile is now published for the built-in conversion
+vectors with absolute tolerances of `0.002 Ω` for
+temperature-to-resistance and `0.001 °C` for resistance-to-temperature. The
+profile was selected from measured single-precision behavior across the full
+published vectors plus dense/random stress samples and is verified by the
+independent C11 float consumer.
 
 #### 2.5 Authoritative equations, coefficients, and numerical decisions
 
