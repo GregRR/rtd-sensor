@@ -108,9 +108,9 @@ deterministic characteristic/model catalogs, generated built-in conversion and
 status vectors, an independent C11 consumer, and an empirically derived
 `binary32_compatible` acceptance profile verified with real single-precision C
 arithmetic, plus generated custom/calibrated model fixtures spanning valid and
-invalid configurable-model behavior. The next conformance step is independent
-cross-language verification of the custom fixture layer before release
-integration.
+invalid configurable-model behavior. The independent C11 consumer now verifies
+that custom fixture layer as well, including model-definition rejection. The next
+conformance step is release integration.
 
 Establish `rtd-sensor` as the authoritative reference implementation for RTD
 conversion behavior, not merely as one Python implementation of the same
@@ -162,9 +162,10 @@ Python. Generated custom/calibrated fixtures now cover characterized R0, custom
 CVD one- and two-sided ranges, the off-zero R/R0 crossing regression, polynomial
 and piecewise models, bounded continuity stitching, representative
 `invalid_model` definitions, and explicit custom range/status behavior. Their
-successful vectors currently claim only the `binary64_reference` profile.
-Independent cross-language verification of these fixture semantics is the next
-conformance expansion.
+successful vectors currently claim only the `binary64_reference` profile. The
+independent C11 consumer now constructs every fixture definition, verifies its
+expected `ok` or `invalid_model` construction status, and reproduces all
+published custom binary64 conversion and status vectors.
 
 #### 2.2 Representative coverage, not exported test-suite duplication
 

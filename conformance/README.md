@@ -40,11 +40,13 @@ regeneration.
 ## Independent C11 consumer
 
 `conformance/consumers/c11/` contains a small independent implementation used
-to prove that the published built-in contract can be reproduced without
-importing or linking against the Python package. The pytest driver reads the
-committed JSON artifacts, supplies their model/characteristic data to the C11
-consumer, compiles it with an available C compiler, and runs all published
-built-in conversion and status cases.
+to prove that the published built-in and custom-fixture contract can be
+reproduced without importing or linking against the Python package. The pytest
+driver reads the committed JSON artifacts, supplies their model/characteristic
+and fixture data to the C11 consumer, compiles it with an available C compiler,
+and runs all published built-in and custom binary64 conversion/status cases. It
+also requires the C consumer to reproduce every fixture's expected `ok` or
+`invalid_model` construction status.
 
 Run that verification directly with:
 

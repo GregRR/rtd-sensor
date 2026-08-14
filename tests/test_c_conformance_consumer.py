@@ -19,11 +19,18 @@ import pytest
 _ROOT = Path(__file__).resolve().parents[1]
 _CONFORMANCE_DIR = _ROOT / "conformance" / "v1"
 _CONSUMER_DIR = _ROOT / "conformance" / "consumers" / "c11"
-_VECTOR_FILENAMES = (
+_BUILTIN_VECTOR_FILENAMES = (
     "builtin-temperature-to-resistance.json",
     "builtin-resistance-to-temperature.json",
     "builtin-temperature-to-resistance-status.json",
     "builtin-resistance-to-temperature-status.json",
+)
+
+_CUSTOM_VECTOR_FILENAMES = (
+    "custom-temperature-to-resistance.json",
+    "custom-resistance-to-temperature.json",
+    "custom-temperature-to-resistance-status.json",
+    "custom-resistance-to-temperature-status.json",
 )
 
 _STATUS_ENUMS = {
@@ -182,6 +189,8 @@ def _characteristic_source(
                     f"            .a = {_c_float(parameters['a'])},",
                     f"            .b = {_c_float(parameters['b'])},",
                     f"            .c = {_c_float(parameters['c'])},",
+                    "            .c_is_present = "
+                    f"{1 if characteristic.get('c_is_present', True) else 0},",
                     "        }},",
                 )
             )
@@ -199,13 +208,19 @@ def _characteristic_source(
             )
         elif curve_kind == "piecewise_polynomial":
             segments = characteristic["segments"]
+            maximum_adjustment = characteristic.get(
+                "maximum_continuity_adjustment_ratio", 0.0
+            )
             assert isinstance(segments, list)
+            assert isinstance(maximum_adjustment, int | float)
             lines.extend(
                 (
                     "        .data = {.piecewise = {",
                     "            .segments = characteristic_"
                     f"{characteristic_index}_segments,",
                     f"            .segment_count = {len(segments)},",
+                    "            .maximum_continuity_adjustment_ratio = "
+                    f"{_c_float(maximum_adjustment)},",
                     "        }},",
                 )
             )
@@ -252,11 +267,13 @@ def _model_source(
 def _case_source(
     model_indexes: dict[str, int],
     *,
+    vector_filenames: tuple[str, ...],
+    group_identity_field: str,
     acceptance_profile: str,
 ) -> tuple[str, int]:
     cases: list[str] = []
 
-    for filename in _VECTOR_FILENAMES:
+    for filename in vector_filenames:
         document = _load_json(_CONFORMANCE_DIR / "vectors" / filename)
         capability_id = document["capability_id"]
         assert isinstance(capability_id, str)
@@ -265,9 +282,9 @@ def _case_source(
         assert isinstance(groups, list)
 
         for group in groups:
-            model_id = group["model_id"]
-            assert isinstance(model_id, str)
-            model_index = model_indexes[model_id]
+            model_identity = group[group_identity_field]
+            assert isinstance(model_identity, str)
+            model_index = model_indexes[model_identity]
             group_cases = group["cases"]
             assert isinstance(group_cases, list)
 
@@ -314,6 +331,262 @@ def _case_source(
     return source, len(cases)
 
 
+def _custom_characteristics_and_models() -> tuple[
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[tuple[str, str]],
+]:
+    fixture_catalog = _load_json(_CONFORMANCE_DIR / "model-fixtures.json")
+    fixtures = fixture_catalog["fixtures"]
+    assert isinstance(fixtures, list)
+
+    characteristics: list[dict[str, Any]] = []
+    models: list[dict[str, Any]] = []
+    expectations: list[tuple[str, str]] = []
+
+    for fixture in fixtures:
+        assert isinstance(fixture, dict)
+        fixture_id = fixture["fixture_id"]
+        fixture_kind = fixture["fixture_kind"]
+        expected_status = fixture["expected_status"]
+        definition = fixture["definition"]
+        assert isinstance(fixture_id, str)
+        assert isinstance(fixture_kind, str)
+        assert isinstance(expected_status, str)
+        assert isinstance(definition, dict)
+
+        if fixture_kind == "characteristic_model":
+            characteristic_id = definition["characteristic_id"]
+            minimum_temperature_c = definition["minimum_temperature_c"]
+            maximum_temperature_c = definition["maximum_temperature_c"]
+        else:
+            characteristic_id = f"fixture.{fixture_id}"
+            if fixture_kind == "callendar_van_dusen":
+                minimum_temperature_c = definition["minimum_temperature_c"]
+                maximum_temperature_c = definition["maximum_temperature_c"]
+                characteristics.append(
+                    {
+                        "characteristic_id": characteristic_id,
+                        "curve_kind": "callendar_van_dusen",
+                        "reference_temperature_c": 0.0,
+                        "minimum_temperature_c": minimum_temperature_c,
+                        "maximum_temperature_c": maximum_temperature_c,
+                        "parameters": {
+                            "a": definition["a"],
+                            "b": definition["b"],
+                            "c": definition.get("c", 0.0),
+                        },
+                        "c_is_present": "c" in definition,
+                    }
+                )
+            elif fixture_kind == "polynomial":
+                minimum_temperature_c = definition["minimum_temperature_c"]
+                maximum_temperature_c = definition["maximum_temperature_c"]
+                characteristics.append(
+                    {
+                        "characteristic_id": characteristic_id,
+                        "curve_kind": "polynomial",
+                        "reference_temperature_c": definition[
+                            "reference_temperature_c"
+                        ],
+                        "minimum_temperature_c": minimum_temperature_c,
+                        "maximum_temperature_c": maximum_temperature_c,
+                        "coefficients": definition["coefficients"],
+                    }
+                )
+            elif fixture_kind == "piecewise_polynomial":
+                segments = definition["segments"]
+                assert isinstance(segments, list)
+                minimum_temperature_c = segments[0]["minimum_temperature_c"]
+                maximum_temperature_c = segments[-1]["maximum_temperature_c"]
+                derived = fixture.get("derived")
+                if derived is None:
+                    adjustments = [0.0] * len(segments)
+                else:
+                    assert isinstance(derived, dict)
+                    adjustments = derived["continuity_adjustments"]
+                    assert isinstance(adjustments, list)
+                characteristics.append(
+                    {
+                        "characteristic_id": characteristic_id,
+                        "curve_kind": "piecewise_polynomial",
+                        "reference_temperature_c": definition[
+                            "reference_temperature_c"
+                        ],
+                        "minimum_temperature_c": minimum_temperature_c,
+                        "maximum_temperature_c": maximum_temperature_c,
+                        "segments": segments,
+                        "derived_continuity_adjustments": adjustments,
+                        "maximum_continuity_adjustment_ratio": definition[
+                            "maximum_continuity_adjustment_ratio"
+                        ],
+                    }
+                )
+            else:
+                raise AssertionError(f"Unexpected fixture kind: {fixture_kind}")
+
+        models.append(
+            {
+                "model_id": fixture_id,
+                "characteristic_id": characteristic_id,
+                "reference_resistance_ohms": definition["reference_resistance_ohms"],
+                "minimum_temperature_c": minimum_temperature_c,
+                "maximum_temperature_c": maximum_temperature_c,
+            }
+        )
+        expectations.append((fixture_id, expected_status))
+
+    return characteristics, models, expectations
+
+
+def _fixture_expectation_source(
+    expectations: list[tuple[str, str]],
+    model_indexes: dict[str, int],
+) -> str:
+    lines = ["static const fixture_expectation fixture_expectations[] = {"]
+    for fixture_id, expected_status in expectations:
+        lines.append(
+            "    {"
+            f'"{fixture_id}", {model_indexes[fixture_id]}, '
+            f"{_STATUS_ENUMS[expected_status]}"
+            "},"
+        )
+    lines.append("};")
+    return "\n".join(lines)
+
+
+def _custom_runner_source() -> tuple[str, int, int]:
+    characteristic_catalog = _load_json(_CONFORMANCE_DIR / "characteristics.json")
+    builtin_characteristics = characteristic_catalog["characteristics"]
+    assert isinstance(builtin_characteristics, list)
+
+    custom_characteristics, models, expectations = _custom_characteristics_and_models()
+    characteristics = [*builtin_characteristics, *custom_characteristics]
+    characteristic_source, characteristic_indexes = _characteristic_source(
+        characteristics
+    )
+    model_source, model_indexes = _model_source(models, characteristic_indexes)
+    expectation_source = _fixture_expectation_source(expectations, model_indexes)
+    case_source, case_count = _case_source(
+        model_indexes,
+        vector_filenames=_CUSTOM_VECTOR_FILENAMES,
+        group_identity_field="fixture_id",
+        acceptance_profile="binary64_reference",
+    )
+
+    source = f"""#include "rtd_conformance.h"
+
+#include <math.h>
+#include <stddef.h>
+#include <stdio.h>
+
+typedef enum {{
+    OP_TEMPERATURE_TO_RESISTANCE = 0,
+    OP_RESISTANCE_TO_TEMPERATURE
+}} conformance_operation;
+
+typedef struct {{
+    const char *case_id;
+    conformance_operation operation;
+    size_t model_index;
+    double input;
+    rtd_conformance_status expected_status;
+    double expected_value;
+    double tolerance;
+    int expects_value;
+}} conformance_case;
+
+typedef struct {{
+    const char *fixture_id;
+    size_t model_index;
+    rtd_conformance_status expected_status;
+}} fixture_expectation;
+
+{characteristic_source}
+
+{model_source}
+
+{expectation_source}
+
+{case_source}
+
+int main(void) {{
+    size_t index;
+    size_t validated_fixtures = 0;
+    size_t passed_cases = 0;
+
+    for (
+        index = 0;
+        index < sizeof(fixture_expectations) / sizeof(fixture_expectations[0]);
+        index += 1
+    ) {{
+        const fixture_expectation *expectation = &fixture_expectations[index];
+        const rtd_conformance_status actual =
+            rtd_validate_model(&models[expectation->model_index]);
+        if (actual != expectation->expected_status) {{
+            fprintf(
+                stderr,
+                "%s: expected model status %s, got %s\\n",
+                expectation->fixture_id,
+                rtd_conformance_status_name(expectation->expected_status),
+                rtd_conformance_status_name(actual)
+            );
+            return 1;
+        }}
+        validated_fixtures += 1;
+    }}
+
+    for (index = 0; index < sizeof(cases) / sizeof(cases[0]); index += 1) {{
+        const conformance_case *test_case = &cases[index];
+        const rtd_model *model = &models[test_case->model_index];
+        rtd_conformance_result actual;
+
+        if (test_case->operation == OP_TEMPERATURE_TO_RESISTANCE) {{
+            actual = rtd_temperature_to_resistance(model, test_case->input);
+        }} else {{
+            actual = rtd_resistance_to_temperature(model, test_case->input);
+        }}
+
+        if (actual.status != test_case->expected_status) {{
+            fprintf(
+                stderr,
+                "%s: expected status %s, got %s\\n",
+                test_case->case_id,
+                rtd_conformance_status_name(test_case->expected_status),
+                rtd_conformance_status_name(actual.status)
+            );
+            return 1;
+        }}
+
+        if (test_case->expects_value) {{
+            const double error = fabs(actual.value - test_case->expected_value);
+            if (!isfinite(actual.value) || error > test_case->tolerance) {{
+                fprintf(
+                    stderr,
+                    "%s: expected %.17g +/- %.17g, got %.17g (error %.17g)\\n",
+                    test_case->case_id,
+                    test_case->expected_value,
+                    test_case->tolerance,
+                    actual.value,
+                    error
+                );
+                return 1;
+            }}
+        }}
+        passed_cases += 1;
+    }}
+
+    printf(
+        "validated %zu fixtures; passed %zu cases\\n",
+        validated_fixtures,
+        passed_cases
+    );
+    return 0;
+}}
+"""
+    return source, len(expectations), case_count
+
+
 def _runner_source(
     *,
     acceptance_profile: str = "binary64_reference",
@@ -330,7 +603,10 @@ def _runner_source(
     )
     model_source, model_indexes = _model_source(models, characteristic_indexes)
     case_source, case_count = _case_source(
-        model_indexes, acceptance_profile=acceptance_profile
+        model_indexes,
+        vector_filenames=_BUILTIN_VECTOR_FILENAMES,
+        group_identity_field="model_id",
+        acceptance_profile=acceptance_profile,
     )
 
     source = f"""#include "rtd_conformance.h"
@@ -469,6 +745,53 @@ def test_independent_c11_consumer_passes_published_builtin_vectors(
     )
     assert run_result.returncode == 0, run_result.stderr
     assert run_result.stdout.startswith(f"passed {case_count} cases;")
+
+
+def test_independent_c11_consumer_passes_published_custom_fixture_layer(
+    tmp_path: Path,
+) -> None:
+    compiler = _available_c_compiler()
+    if compiler is None:
+        pytest.skip("No C compiler is available for custom conformance testing")
+
+    runner_source, fixture_count, case_count = _custom_runner_source()
+    runner_path = tmp_path / "generated_custom_conformance_runner.c"
+    executable_path = tmp_path / "rtd_custom_conformance_consumer"
+    runner_path.write_text(runner_source, encoding="utf-8")
+
+    compile_result = subprocess.run(
+        [
+            *compiler,
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-pedantic",
+            "-O2",
+            "-I",
+            str(_CONSUMER_DIR),
+            str(_CONSUMER_DIR / "rtd_conformance.c"),
+            str(runner_path),
+            "-lm",
+            "-o",
+            str(executable_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert compile_result.returncode == 0, compile_result.stderr
+
+    run_result = subprocess.run(
+        [str(executable_path)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert run_result.returncode == 0, run_result.stderr
+    assert run_result.stdout.startswith(
+        f"validated {fixture_count} fixtures; passed {case_count} cases"
+    )
 
 
 def _binary32_runner_source() -> tuple[str, int]:

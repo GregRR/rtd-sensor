@@ -40,12 +40,14 @@ typedef struct {
 typedef struct {
     const rtd_piecewise_segment *segments;
     size_t segment_count;
+    float maximum_continuity_adjustment_ratio;
 } rtd_piecewise_characteristic;
 
 typedef struct {
     float a;
     float b;
     float c;
+    int c_is_present;
 } rtd_cvd_characteristic;
 
 typedef struct {

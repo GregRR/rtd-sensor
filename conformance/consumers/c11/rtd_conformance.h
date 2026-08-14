@@ -40,12 +40,14 @@ typedef struct {
 typedef struct {
     const rtd_piecewise_segment *segments;
     size_t segment_count;
+    double maximum_continuity_adjustment_ratio;
 } rtd_piecewise_characteristic;
 
 typedef struct {
     double a;
     double b;
     double c;
+    int c_is_present;
 } rtd_cvd_characteristic;
 
 typedef struct {
@@ -73,6 +75,8 @@ typedef struct {
     rtd_conformance_status status;
     double value;
 } rtd_conformance_result;
+
+rtd_conformance_status rtd_validate_model(const rtd_model *model);
 
 rtd_conformance_result rtd_temperature_to_resistance(
     const rtd_model *model,

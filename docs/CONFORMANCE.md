@@ -485,18 +485,20 @@ conformance catalogs and vectors and does not import or link against
 `rtd_sensor`.
 
 The consumer supports the three characteristic representations currently used
-by built-in models and verifies both conversion directions plus the published
-range and invalid-input statuses. Its inverse implementation uses bounded
-global bisection for every characteristic rather than reproducing the Python
-implementation's curve-specific inversion strategies.
+by built-in and custom fixtures and verifies both conversion directions plus the
+published range and invalid-input statuses. It also constructs every published
+custom/calibrated fixture and independently verifies each fixture's expected
+`ok` or `invalid_model` definition status. Its inverse implementation uses
+bounded global bisection for every characteristic rather than reproducing the
+Python implementation's curve-specific inversion strategies.
 
 The C11 consumer is a verification implementation, not a required runtime
 architecture for downstream systems. A separate single-precision build of the
 consumer verifies the published `binary32_compatible` profile. Its derivation
 and measured error envelope are documented in
-`conformance/consumers/c11/BINARY32.md`. Successful execution demonstrates that
-the published built-in contract contains sufficient information for an
-independent implementation to reproduce the specified behavior.
+`conformance/consumers/c11/BINARY32.md`. Successful execution demonstrates that the published built-in and custom-fixture
+contract contains sufficient information for an independent implementation to
+reproduce the specified behavior.
 
 ## Coverage represented by conversion vectors
 
@@ -565,6 +567,15 @@ separately as derived metadata.
 
 Custom fixture definitions remain local to the conformance fixture catalog and
 do not acquire built-in `model_id` values.
+
+The repository's independent C11 consumer verifies this layer without importing
+Python model constructors. The generated C runner constructs all fixture
+definitions from `model-fixtures.json`, requires the seven valid definitions to
+validate, requires the six intentionally invalid definitions to return
+`invalid_model`, and then runs the complete custom binary64 conversion and
+status vector sets. The consumer's polynomial-shape validation is deliberately
+limited to the published fixture claim rather than presented as a general
+replacement for the Python package's analytical arbitrary-polynomial validator.
 
 ## Conformance claims
 
