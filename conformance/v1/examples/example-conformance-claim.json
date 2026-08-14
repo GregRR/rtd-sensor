@@ -1,0 +1,15 @@
+{
+  "artifact_type": "conformance_claim",
+  "claims": [
+    {
+      "acceptance_profile": "binary32_compatible",
+      "capability_id": "conversion.resistance_to_temperature",
+      "model_ids": [
+        "pt100",
+        "pt1000"
+      ]
+    }
+  ],
+  "contract_version": 1,
+  "format_version": 1
+}

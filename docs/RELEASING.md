@@ -13,6 +13,13 @@ PyPI release synchronized.
 - Update `version` in `CITATION.cff` to the same release version.
 - Update `date-released` in `CITATION.cff` to the release date in `YYYY-MM-DD`
   format.
+- Regenerate the conformance artifacts after the version change so every
+  generated JSON file and `conformance/v1/manifest.json` record the release
+  version:
+
+  ```bash
+  uv run python -m rtd_sensor._conformance_artifacts
+  ```
 
 Do not tag the release while `pyproject.toml`, `CHANGELOG.md`, and
 `CITATION.cff` disagree about the release.
@@ -59,20 +66,29 @@ uv run --locked pytest
 uv run --locked ruff check .
 uv run --locked ruff format --check .
 uv run --locked mypy
+uv run python -m rtd_sensor._conformance_artifacts --check
+uv run python -m rtd_sensor._conformance_release --check
 git diff --check
 git status --short
 ```
 
 All checks must pass and the working tree must be clean before tagging.
 
-## 4. Build and smoke-test distributions
+## 4. Build and smoke-test distributions and conformance assets
 
-Build the release artifacts without development-only uv source overrides:
+Build the Python release artifacts without development-only uv source
+overrides, then build the deterministic conformance bundle from the verified
+manifest:
 
 ```bash
 rm -rf dist
 uv build --no-sources
+uv run python -m rtd_sensor._conformance_release --output-dir dist
 ```
+
+The conformance command writes a versioned ZIP and matching `.sha256` sidecar.
+The ZIP contains exactly `conformance/v1/manifest.json` and the machine-readable
+files named by that manifest.
 
 Install the wheel into a clean temporary environment and verify the distribution
 version, public `rtd_sensor` import, absence of the legacy `rtd` package, and
@@ -89,8 +105,9 @@ git show vX.Y.Z --stat
 git push origin vX.Y.Z
 ```
 
-Create and publish the matching GitHub Release from that tag. Publishing the
-GitHub Release triggers `.github/workflows/release.yml`.
+Create the matching GitHub Release from that tag and attach the conformance ZIP
+and `.sha256` sidecar produced in step 4. Publishing the GitHub Release triggers
+`.github/workflows/release.yml`.
 
 ## 6. PyPI Trusted Publishing
 
@@ -113,4 +130,7 @@ small public-API smoke test. Confirm that:
 - representative built-in RTD conversions behave as expected.
 
 Finally, verify that the GitHub Release, PyPI project page, README, changelog,
-and `CITATION.cff` all identify the same released version.
+and `CITATION.cff` all identify the same released version. Also download the
+published conformance ZIP and sidecar, verify the ZIP checksum, and confirm its
+`manifest.json` records the same `rtd_sensor_version` and intended
+`contract_status`.

@@ -109,8 +109,12 @@ status vectors, an independent C11 consumer, and an empirically derived
 `binary32_compatible` acceptance profile verified with real single-precision C
 arithmetic, plus generated custom/calibrated model fixtures spanning valid and
 invalid configurable-model behavior. The independent C11 consumer now verifies
-that custom fixture layer as well, including model-definition rejection. The next
-conformance step is release integration.
+that custom fixture layer as well, including model-definition rejection. Release
+integration is also in place: the v1 tree has a generated checksum manifest, a
+machine-readable claim schema/example, deterministic ZIP packaging with a
+SHA-256 sidecar, and release-checklist verification. The next conformance step is
+the final stable-v1 acceptance audit; the manifest remains explicitly `draft`
+until that audit passes.
 
 Establish `rtd-sensor` as the authoritative reference implementation for RTD
 conversion behavior, not merely as one Python implementation of the same

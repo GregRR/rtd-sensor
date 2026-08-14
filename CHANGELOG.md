@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+* Added conformance-v1 release integration with a generated SHA-256 manifest, machine-readable implementation-claim schema and example, deterministic versioned ZIP packaging, checksum sidecars, integrity verification, and release-checklist integration while keeping the contract explicitly draft pending the final acceptance audit.
 * Extended the independent C11 conformance consumer to construct and validate every published custom/calibrated fixture definition, reproduce all custom binary64 conversion and status vectors, and independently exercise `invalid_model` semantics for malformed CVD, polynomial, piecewise, and calibrated-reference definitions.
 * Added generated custom/calibrated model conformance fixtures and paired binary64 conversion vectors covering characterized R0, custom CVD one- and two-sided intervals, an off-zero resistance-ratio crossing, polynomial and piecewise models, derived continuity adjustments, and representative `invalid_model` definitions.
 * Added an empirically derived `binary32_compatible` conformance profile with independent C11 single-precision verification, including documented endpoint-rounding handling and measured error margins.

@@ -13,6 +13,7 @@ second copy of the scientific constants.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import tomllib
 from collections.abc import Sequence
@@ -28,6 +29,8 @@ _DISTRIBUTION_NAME = "rtd-sensor"
 _CHARACTERISTICS_FILENAME = "characteristics.json"
 _MODELS_FILENAME = "models.json"
 _MODEL_FIXTURES_FILENAME = "model-fixtures.json"
+_MANIFEST_FILENAME = "manifest.json"
+_CONTRACT_STATUS = "draft"
 _CUSTOM_TEMPERATURE_TO_RESISTANCE_FILENAME = (
     "vectors/custom-temperature-to-resistance.json"
 )
@@ -1022,12 +1025,12 @@ def render_json(document: object) -> str:
     )
 
 
-def generated_artifacts(
+def _generated_payload_artifacts(
     *,
-    rtd_sensor_version: str | None = None,
+    rtd_sensor_version: str,
 ) -> dict[str, str]:
-    """Return every generated artifact path and deterministic content."""
-    producer_version = rtd_sensor_version or _project_version()
+    """Return generated catalogs and vectors, excluding the release manifest."""
+    producer_version = rtd_sensor_version
     return {
         _CHARACTERISTICS_FILENAME: render_json(
             build_characteristic_catalog(rtd_sensor_version=producer_version)
@@ -1072,6 +1075,90 @@ def generated_artifacts(
         _RESISTANCE_TO_TEMPERATURE_STATUS_FILENAME: render_json(
             build_resistance_to_temperature_status_vectors(
                 rtd_sensor_version=producer_version
+            )
+        ),
+    }
+
+
+def _repository_conformance_dir() -> Path:
+    """Return the repository's committed conformance-v1 directory."""
+    return Path(__file__).resolve().parents[2] / "conformance" / "v1"
+
+
+def _static_release_json_artifacts() -> dict[str, str]:
+    """Return committed non-generated JSON files included in a release bundle."""
+    root = _repository_conformance_dir()
+    generated_names = {
+        _CHARACTERISTICS_FILENAME,
+        _MODELS_FILENAME,
+        _MODEL_FIXTURES_FILENAME,
+        _CUSTOM_TEMPERATURE_TO_RESISTANCE_FILENAME,
+        _CUSTOM_RESISTANCE_TO_TEMPERATURE_FILENAME,
+        _CUSTOM_TEMPERATURE_TO_RESISTANCE_STATUS_FILENAME,
+        _CUSTOM_RESISTANCE_TO_TEMPERATURE_STATUS_FILENAME,
+        _TEMPERATURE_TO_RESISTANCE_FILENAME,
+        _RESISTANCE_TO_TEMPERATURE_FILENAME,
+        _TEMPERATURE_TO_RESISTANCE_STATUS_FILENAME,
+        _RESISTANCE_TO_TEMPERATURE_STATUS_FILENAME,
+        _MANIFEST_FILENAME,
+    }
+    artifacts: dict[str, str] = {}
+    for path in sorted(root.rglob("*.json")):
+        relative_path = path.relative_to(root).as_posix()
+        if relative_path in generated_names:
+            continue
+        artifacts[relative_path] = path.read_text(encoding="utf-8")
+    return artifacts
+
+
+def _manifest_file_entry(path: str, content: str) -> dict[str, object]:
+    encoded = content.encode("utf-8")
+    return {
+        "path": path,
+        "sha256": hashlib.sha256(encoded).hexdigest(),
+        "size_bytes": len(encoded),
+    }
+
+
+def build_release_manifest(
+    *,
+    rtd_sensor_version: str | None = None,
+    payload_artifacts: dict[str, str] | None = None,
+) -> dict[str, object]:
+    """Build the deterministic manifest for the machine-readable v1 bundle."""
+    producer_version = rtd_sensor_version or _project_version()
+    payload = (
+        payload_artifacts
+        if payload_artifacts is not None
+        else _generated_payload_artifacts(rtd_sensor_version=producer_version)
+    )
+    release_files = {**_static_release_json_artifacts(), **payload}
+    return {
+        "artifact_type": "conformance_manifest",
+        "format_version": _FORMAT_VERSION,
+        "contract_version": _CONTRACT_VERSION,
+        "contract_status": _CONTRACT_STATUS,
+        "rtd_sensor_version": producer_version,
+        "files": [
+            _manifest_file_entry(path, release_files[path])
+            for path in sorted(release_files)
+        ],
+    }
+
+
+def generated_artifacts(
+    *,
+    rtd_sensor_version: str | None = None,
+) -> dict[str, str]:
+    """Return every generated artifact path and deterministic content."""
+    producer_version = rtd_sensor_version or _project_version()
+    payload = _generated_payload_artifacts(rtd_sensor_version=producer_version)
+    return {
+        **payload,
+        _MANIFEST_FILENAME: render_json(
+            build_release_manifest(
+                rtd_sensor_version=producer_version,
+                payload_artifacts=payload,
             )
         ),
     }

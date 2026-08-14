@@ -77,22 +77,33 @@ Their structure is validated with JSON Schema Draft 2020-12. Normative objects
 use explicit required fields and closed schemas so unknown or misspelled fields
 cannot silently alter their meaning.
 
-The draft v1 artifact layout is:
+The draft v1 machine-readable artifact layout is:
 
 ```text
 conformance/
 └── v1/
-    ├── schemas/
-    │   ├── characteristic-catalog.schema.json
-    │   ├── model-catalog.schema.json
-    │   └── vector-set.schema.json
+    ├── manifest.json
     ├── characteristics.json
     ├── models.json
+    ├── model-fixtures.json
+    ├── examples/
+    │   └── example-conformance-claim.json
+    ├── schemas/
+    │   ├── characteristic-catalog.schema.json
+    │   ├── conformance-claim.schema.json
+    │   ├── conformance-manifest.schema.json
+    │   ├── model-catalog.schema.json
+    │   ├── model-fixture-catalog.schema.json
+    │   └── vector-set.schema.json
     └── vectors/
         ├── builtin-temperature-to-resistance.json
         ├── builtin-resistance-to-temperature.json
         ├── builtin-temperature-to-resistance-status.json
-        └── builtin-resistance-to-temperature-status.json
+        ├── builtin-resistance-to-temperature-status.json
+        ├── custom-temperature-to-resistance.json
+        ├── custom-resistance-to-temperature.json
+        ├── custom-temperature-to-resistance-status.json
+        └── custom-resistance-to-temperature-status.json
 ```
 
 The JSON artifacts are test and interchange data. Their use does not imply that
@@ -579,32 +590,41 @@ replacement for the Python package's analytical arbitrary-polynomial validator.
 
 ## Conformance claims
 
-An implementation claim identifies at least:
-
-- `contract_version`;
-- supported capability IDs;
-- supported canonical `model_id` values; and
-- numerical acceptance profile or profiles passed.
+`schemas/conformance-claim.schema.json` defines a small machine-readable claim
+format. A claim records `format_version`, `contract_version`, and one or more
+independent claim entries. Each entry names exactly one capability, one subject
+set, and one acceptance profile. Built-in subjects use `model_ids`; custom
+conformance subjects use `fixture_ids`.
 
 For example:
 
-```text
-contract_version: 1
-capabilities:
-  - conversion.resistance_to_temperature
-models:
-  - pt100
-  - pt1000
-acceptance:
-  - binary32_compatible
+```json
+{
+  "artifact_type": "conformance_claim",
+  "format_version": 1,
+  "contract_version": 1,
+  "claims": [
+    {
+      "capability_id": "conversion.resistance_to_temperature",
+      "model_ids": ["pt100", "pt1000"],
+      "acceptance_profile": "binary32_compatible"
+    }
+  ]
+}
 ```
+
+Claims are intentionally separated by capability and subject set. A
+`binary32_compatible` built-in claim therefore does not imply binary32 support
+for arbitrary custom coefficients. Custom-fixture claims are currently limited
+to `binary64_reference`, matching the published custom vector sets. Claim
+validators must also check model and fixture identifiers against the catalogs in
+the same conformance release; identifier existence is a cross-file semantic
+check rather than a JSON Schema concern.
 
 This claim does not imply support for other conversion directions, nickel
 models, custom coefficients, tolerance calculations, uncertainty analysis,
-simulation, or any hardware interface. A conformance report that includes the
-custom-model layer records fixture IDs or fixture families separately from the
-built-in `models` list; a local `fixture_id` never becomes a canonical
-`model_id`.
+simulation, or any hardware interface. A local `fixture_id` never becomes a
+canonical `model_id`.
 
 A future host/MCU protocol may reuse these identifiers and contract versions.
 The protocol references the conformance contract rather than redefining their
@@ -624,10 +644,22 @@ compatibility with the reference implementation; the project's independent
 standards, manufacturer data, and resistance/temperature references remain the
 evidence used to validate the reference implementation itself.
 
-## Release stability
+## Release bundle and stability
+
+`manifest.json` is a generated release manifest for the machine-readable v1
+tree. It records the producing `rtd-sensor` version, contract version/status, and
+SHA-256 plus byte size for every schema, catalog, example, and vector file in
+the release bundle except the manifest itself. The current manifest records
+`contract_status: "draft"`.
+
+The deterministic release ZIP contains exactly the manifest and the files it
+names. A SHA-256 sidecar covers the ZIP itself. This gives downstream projects a
+versioned artifact they can vendor or archive while keeping the normative prose
+specification in this document at the corresponding project tag.
 
 The first release that explicitly declares conformance contract v1 stable
-establishes the normative v1 artifact set.
+establishes the normative v1 artifact set and changes the manifest status to
+`stable`.
 
 After that point:
 

@@ -37,6 +37,38 @@ Repository tests also validate the generated artifacts against their Draft
 2020-12 schemas, exercise cross-file/runtime integrity, and require deterministic
 regeneration.
 
+## Release bundle and manifest
+
+`v1/manifest.json` is generated with the catalogs and vectors and records the
+package version, contract version/status, and SHA-256 plus byte size for every
+machine-readable JSON file in the conformance-v1 tree except the manifest
+itself. The manifest currently records `contract_status: "draft"`; contract v1
+is not stable until the final acceptance audit explicitly changes that status.
+
+Verify the committed release tree without building an archive with:
+
+```bash
+uv run python -m rtd_sensor._conformance_release --check
+```
+
+Build the deterministic release ZIP and its SHA-256 sidecar with:
+
+```bash
+uv run python -m rtd_sensor._conformance_release --output-dir dist
+```
+
+The ZIP contains exactly `manifest.json` plus the files named by the manifest.
+It uses stored ZIP entries with fixed metadata so repeated builds from the same
+release tree are byte-identical. Production firmware still does not need a JSON
+parser; the bundle is intended for vendoring, code generation, test harnesses,
+and CI.
+
+`v1/schemas/conformance-claim.schema.json` defines the initial machine-readable
+shape for implementation claims. Claims are per capability and subject set, so
+a consumer can claim built-in `binary32_compatible` conversion without implying
+that arbitrary custom fixtures have the same acceptance profile. A validated
+example is committed under `v1/examples/`.
+
 ## Independent C11 consumer
 
 `conformance/consumers/c11/` contains a small independent implementation used
