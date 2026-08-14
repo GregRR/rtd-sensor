@@ -1,0 +1,717 @@
+{
+  "artifact_type": "vector_set",
+  "capability_id": "conversion.temperature_to_resistance",
+  "contract_version": 1,
+  "format_version": 1,
+  "input_unit": "degree_celsius",
+  "output_unit": "ohm",
+  "rtd_sensor_version": "0.4.0",
+  "test_groups": [
+    {
+      "cases": [
+        {
+          "case_id": "calibrated_pt385_nonnominal_r0.temperature_to_resistance.neg50c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 80.40505860170626
+          },
+          "input": {
+            "value": -50.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "minimum_boundary"
+          ]
+        },
+        {
+          "case_id": "calibrated_pt385_nonnominal_r0.temperature_to_resistance.0c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 100.123
+          },
+          "input": {
+            "value": 0.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "reference_temperature"
+          ]
+        },
+        {
+          "case_id": "calibrated_pt385_nonnominal_r0.temperature_to_resistance.100c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 138.675861765
+          },
+          "input": {
+            "value": 100.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "representative"
+          ]
+        },
+        {
+          "case_id": "calibrated_pt385_nonnominal_r0.temperature_to_resistance.200c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 176.07230288000002
+          },
+          "input": {
+            "value": 200.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "maximum_boundary"
+          ]
+        }
+      ],
+      "fixture_id": "calibrated_pt385_nonnominal_r0",
+      "group_id": "calibrated_pt385_nonnominal_r0.temperature_to_resistance"
+    },
+    {
+      "cases": [
+        {
+          "case_id": "custom_cvd_two_sided.temperature_to_resistance.neg100c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 60.251059000000005
+          },
+          "input": {
+            "value": -100.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "minimum_boundary",
+            "negative_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_cvd_two_sided.temperature_to_resistance.neg50c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 80.31719928125001
+          },
+          "input": {
+            "value": -50.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "negative_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_cvd_two_sided.temperature_to_resistance.0c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 100.025
+          },
+          "input": {
+            "value": 0.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "reference_temperature",
+            "branch_boundary"
+          ]
+        },
+        {
+          "case_id": "custom_cvd_two_sided.temperature_to_resistance.100c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 138.55463
+          },
+          "input": {
+            "value": 100.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "positive_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_cvd_two_sided.temperature_to_resistance.250c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 194.17353125000002
+          },
+          "input": {
+            "value": 250.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "maximum_boundary",
+            "positive_temperature"
+          ]
+        }
+      ],
+      "fixture_id": "custom_cvd_two_sided",
+      "group_id": "custom_cvd_two_sided.temperature_to_resistance"
+    },
+    {
+      "cases": [
+        {
+          "case_id": "custom_cvd_positive_ratio_crossing.temperature_to_resistance.50c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 99.5
+          },
+          "input": {
+            "value": 50.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "minimum_boundary",
+            "positive_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_cvd_positive_ratio_crossing.temperature_to_resistance.60c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 100.0
+          },
+          "input": {
+            "value": 60.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "ratio_crossing",
+            "positive_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_cvd_positive_ratio_crossing.temperature_to_resistance.75c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 101.125
+          },
+          "input": {
+            "value": 75.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "representative",
+            "positive_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_cvd_positive_ratio_crossing.temperature_to_resistance.100c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 104.0
+          },
+          "input": {
+            "value": 100.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "maximum_boundary",
+            "positive_temperature"
+          ]
+        }
+      ],
+      "fixture_id": "custom_cvd_positive_ratio_crossing",
+      "group_id": "custom_cvd_positive_ratio_crossing.temperature_to_resistance"
+    },
+    {
+      "cases": [
+        {
+          "case_id": "custom_cvd_negative_only.temperature_to_resistance.neg100c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 98.00000000000001
+          },
+          "input": {
+            "value": -100.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "minimum_boundary",
+            "negative_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_cvd_negative_only.temperature_to_resistance.neg80c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 100.0
+          },
+          "input": {
+            "value": -80.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "ratio_crossing",
+            "negative_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_cvd_negative_only.temperature_to_resistance.neg75c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 100.37500000000001
+          },
+          "input": {
+            "value": -75.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "representative",
+            "negative_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_cvd_negative_only.temperature_to_resistance.neg50c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 101.50000000000001
+          },
+          "input": {
+            "value": -50.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "maximum_boundary",
+            "negative_temperature"
+          ]
+        }
+      ],
+      "fixture_id": "custom_cvd_negative_only",
+      "group_id": "custom_cvd_negative_only.temperature_to_resistance"
+    },
+    {
+      "cases": [
+        {
+          "case_id": "custom_polynomial_nonzero_reference.temperature_to_resistance.neg20c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 822.025
+          },
+          "input": {
+            "value": -20.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "minimum_boundary",
+            "negative_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_polynomial_nonzero_reference.temperature_to_resistance.0c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 900.625
+          },
+          "input": {
+            "value": 0.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "representative"
+          ]
+        },
+        {
+          "case_id": "custom_polynomial_nonzero_reference.temperature_to_resistance.25c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 1000.0
+          },
+          "input": {
+            "value": 25.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "reference_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_polynomial_nonzero_reference.temperature_to_resistance.75c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 1202.5
+          },
+          "input": {
+            "value": 75.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "representative",
+            "positive_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_polynomial_nonzero_reference.temperature_to_resistance.120c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 1389.0249999999999
+          },
+          "input": {
+            "value": 120.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "maximum_boundary",
+            "positive_temperature"
+          ]
+        }
+      ],
+      "fixture_id": "custom_polynomial_nonzero_reference",
+      "group_id": "custom_polynomial_nonzero_reference.temperature_to_resistance"
+    },
+    {
+      "cases": [
+        {
+          "case_id": "custom_piecewise_local_origins.temperature_to_resistance.neg10c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 90.0
+          },
+          "input": {
+            "value": -10.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "minimum_boundary",
+            "negative_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_piecewise_local_origins.temperature_to_resistance.neg5c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 95.0
+          },
+          "input": {
+            "value": -5.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "piecewise_segment",
+            "negative_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_piecewise_local_origins.temperature_to_resistance.0c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 100.0
+          },
+          "input": {
+            "value": 0.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "reference_temperature",
+            "piecewise_join"
+          ]
+        },
+        {
+          "case_id": "custom_piecewise_local_origins.temperature_to_resistance.5c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 110.00000000000001
+          },
+          "input": {
+            "value": 5.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "piecewise_segment",
+            "positive_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_piecewise_local_origins.temperature_to_resistance.10c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 120.0
+          },
+          "input": {
+            "value": 10.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "maximum_boundary",
+            "positive_temperature"
+          ]
+        }
+      ],
+      "fixture_id": "custom_piecewise_local_origins",
+      "group_id": "custom_piecewise_local_origins.temperature_to_resistance"
+    },
+    {
+      "cases": [
+        {
+          "case_id": "custom_piecewise_stitched_join.temperature_to_resistance.0c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 100.0
+          },
+          "input": {
+            "value": 0.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "minimum_boundary",
+            "reference_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_piecewise_stitched_join.temperature_to_resistance.5c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 105.0
+          },
+          "input": {
+            "value": 5.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "piecewise_segment",
+            "positive_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_piecewise_stitched_join.temperature_to_resistance.10c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 110.00000000000001
+          },
+          "input": {
+            "value": 10.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "piecewise_join",
+            "positive_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_piecewise_stitched_join.temperature_to_resistance.15c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 115.00000000000001
+          },
+          "input": {
+            "value": 15.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "piecewise_segment",
+            "positive_temperature"
+          ]
+        },
+        {
+          "case_id": "custom_piecewise_stitched_join.temperature_to_resistance.20c",
+          "expected": {
+            "acceptance": {
+              "binary64_reference": {
+                "absolute_tolerance": 1e-09
+              }
+            },
+            "status": "ok",
+            "value": 120.00000000000001
+          },
+          "input": {
+            "value": 20.0
+          },
+          "tags": [
+            "custom_fixture",
+            "round_trip_anchor",
+            "maximum_boundary",
+            "positive_temperature"
+          ]
+        }
+      ],
+      "fixture_id": "custom_piecewise_stitched_join",
+      "group_id": "custom_piecewise_stitched_join.temperature_to_resistance"
+    }
+  ]
+}

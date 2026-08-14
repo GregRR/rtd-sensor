@@ -1,0 +1,281 @@
+{
+  "artifact_type": "model_fixture_catalog",
+  "contract_version": 1,
+  "fixtures": [
+    {
+      "definition": {
+        "characteristic_id": "iec60751_pt385",
+        "maximum_temperature_c": 200.0,
+        "minimum_temperature_c": -50.0,
+        "reference_resistance_ohms": 100.123
+      },
+      "display_name": "Calibrated PT-385 model with non-nominal R0",
+      "expected_status": "ok",
+      "fixture_id": "calibrated_pt385_nonnominal_r0",
+      "fixture_kind": "characteristic_model",
+      "fixture_purpose": "Verify composition of the published PT-385 characteristic with a characterized reference resistance and narrowed model range."
+    },
+    {
+      "definition": {
+        "a": 0.00391,
+        "b": -5.8e-07,
+        "c": -4.2e-12,
+        "maximum_temperature_c": 250.0,
+        "minimum_temperature_c": -100.0,
+        "reference_resistance_ohms": 100.025
+      },
+      "display_name": "Two-sided custom Callendar-Van Dusen model",
+      "expected_status": "ok",
+      "fixture_id": "custom_cvd_two_sided",
+      "fixture_kind": "callendar_van_dusen",
+      "fixture_purpose": "Verify custom A/B/C coefficients across both negative and positive temperature branches."
+    },
+    {
+      "definition": {
+        "a": -0.0006,
+        "b": 1e-05,
+        "maximum_temperature_c": 100.0,
+        "minimum_temperature_c": 50.0,
+        "reference_resistance_ohms": 100.0
+      },
+      "display_name": "Positive-only CVD model with off-zero R/R0 crossing",
+      "expected_status": "ok",
+      "fixture_id": "custom_cvd_positive_ratio_crossing",
+      "fixture_kind": "callendar_van_dusen",
+      "fixture_purpose": "Verify a positive-only validity interval whose monotonic curve crosses R/R0 = 1 at 60 °C rather than at the excluded 0 °C reference point."
+    },
+    {
+      "definition": {
+        "a": -0.0008,
+        "b": -1e-05,
+        "c": 0.0,
+        "maximum_temperature_c": -50.0,
+        "minimum_temperature_c": -100.0,
+        "reference_resistance_ohms": 100.0
+      },
+      "display_name": "Negative-only custom CVD model",
+      "expected_status": "ok",
+      "fixture_id": "custom_cvd_negative_only",
+      "fixture_kind": "callendar_van_dusen",
+      "fixture_purpose": "Verify that inversion remains bounded to a declared negative-only interval even when resistance exceeds R0 throughout part of that range."
+    },
+    {
+      "definition": {
+        "coefficients": [
+          0.004,
+          1e-06
+        ],
+        "maximum_temperature_c": 120.0,
+        "minimum_temperature_c": -20.0,
+        "reference_resistance_ohms": 1000.0,
+        "reference_temperature_c": 25.0
+      },
+      "display_name": "Polynomial model with a non-zero reference temperature",
+      "expected_status": "ok",
+      "fixture_id": "custom_polynomial_nonzero_reference",
+      "fixture_kind": "polynomial",
+      "fixture_purpose": "Verify normalized polynomial coefficients referenced to 25 °C rather than assuming a universal 0 °C reference."
+    },
+    {
+      "definition": {
+        "maximum_continuity_adjustment_ratio": 0.0,
+        "reference_resistance_ohms": 100.0,
+        "reference_temperature_c": 0.0,
+        "segments": [
+          {
+            "coefficients": [
+              0.9,
+              0.01
+            ],
+            "maximum_temperature_c": 0.0,
+            "minimum_temperature_c": -10.0,
+            "temperature_origin_c": -10.0
+          },
+          {
+            "coefficients": [
+              1.0,
+              0.02
+            ],
+            "maximum_temperature_c": 10.0,
+            "minimum_temperature_c": 0.0,
+            "temperature_origin_c": 0.0
+          }
+        ]
+      },
+      "derived": {
+        "continuity_adjustment_kind": "additive_resistance_ratio_offset",
+        "continuity_adjustments": [
+          0.0,
+          0.0
+        ]
+      },
+      "display_name": "Piecewise polynomial model with local segment origins",
+      "expected_status": "ok",
+      "fixture_id": "custom_piecewise_local_origins",
+      "fixture_kind": "piecewise_polynomial",
+      "fixture_purpose": "Verify full per-segment polynomials, local temperature origins, and deterministic routing at an interior join."
+    },
+    {
+      "definition": {
+        "maximum_continuity_adjustment_ratio": 2e-06,
+        "reference_resistance_ohms": 100.0,
+        "reference_temperature_c": 0.0,
+        "segments": [
+          {
+            "coefficients": [
+              1.0,
+              0.01
+            ],
+            "maximum_temperature_c": 10.0,
+            "minimum_temperature_c": 0.0,
+            "temperature_origin_c": 0.0
+          },
+          {
+            "coefficients": [
+              0.999999,
+              0.01
+            ],
+            "maximum_temperature_c": 20.0,
+            "minimum_temperature_c": 10.0,
+            "temperature_origin_c": 0.0
+          }
+        ]
+      },
+      "derived": {
+        "continuity_adjustment_kind": "additive_resistance_ratio_offset",
+        "continuity_adjustments": [
+          0.0,
+          1.000000000139778e-06
+        ]
+      },
+      "display_name": "Piecewise polynomial model with bounded join stitching",
+      "expected_status": "ok",
+      "fixture_id": "custom_piecewise_stitched_join",
+      "fixture_kind": "piecewise_polynomial",
+      "fixture_purpose": "Verify that source coefficients remain unchanged while a small, explicitly authorized constant ratio offset restores continuity."
+    },
+    {
+      "definition": {
+        "characteristic_id": "iec60751_pt385",
+        "maximum_temperature_c": 200.0,
+        "minimum_temperature_c": -50.0,
+        "reference_resistance_ohms": 0.0
+      },
+      "display_name": "Invalid calibrated model with non-positive R0",
+      "expected_status": "invalid_model",
+      "fixture_id": "invalid_calibrated_r0_nonpositive",
+      "fixture_kind": "characteristic_model",
+      "fixture_purpose": "Verify invalid_model for a non-positive reference resistance."
+    },
+    {
+      "definition": {
+        "a": 0.0039083,
+        "b": -5.775e-07,
+        "maximum_temperature_c": 100.0,
+        "minimum_temperature_c": -50.0,
+        "reference_resistance_ohms": 100.0
+      },
+      "display_name": "Invalid CVD model missing C for a negative range",
+      "expected_status": "invalid_model",
+      "fixture_id": "invalid_cvd_missing_c_negative_range",
+      "fixture_kind": "callendar_van_dusen",
+      "fixture_purpose": "Verify invalid_model when a negative-temperature CVD interval omits C."
+    },
+    {
+      "definition": {
+        "a": 0.001,
+        "b": -1e-05,
+        "maximum_temperature_c": 100.0,
+        "minimum_temperature_c": 0.0,
+        "reference_resistance_ohms": 100.0
+      },
+      "display_name": "Invalid non-monotonic CVD model",
+      "expected_status": "invalid_model",
+      "fixture_id": "invalid_cvd_nonmonotonic",
+      "fixture_kind": "callendar_van_dusen",
+      "fixture_purpose": "Verify invalid_model when the declared coefficient set does not remain strictly increasing across its validity interval."
+    },
+    {
+      "definition": {
+        "coefficients": [
+          -0.01
+        ],
+        "maximum_temperature_c": 10.0,
+        "minimum_temperature_c": -10.0,
+        "reference_resistance_ohms": 100.0,
+        "reference_temperature_c": 0.0
+      },
+      "display_name": "Invalid decreasing polynomial model",
+      "expected_status": "invalid_model",
+      "fixture_id": "invalid_polynomial_decreasing",
+      "fixture_kind": "polynomial",
+      "fixture_purpose": "Verify invalid_model for a polynomial characteristic with negative slope."
+    },
+    {
+      "definition": {
+        "maximum_continuity_adjustment_ratio": 0.0,
+        "reference_resistance_ohms": 100.0,
+        "reference_temperature_c": 0.0,
+        "segments": [
+          {
+            "coefficients": [
+              1.0,
+              0.01
+            ],
+            "maximum_temperature_c": -1.0,
+            "minimum_temperature_c": -10.0,
+            "temperature_origin_c": 0.0
+          },
+          {
+            "coefficients": [
+              1.0,
+              0.01
+            ],
+            "maximum_temperature_c": 10.0,
+            "minimum_temperature_c": 0.0,
+            "temperature_origin_c": 0.0
+          }
+        ]
+      },
+      "display_name": "Invalid piecewise model with a temperature gap",
+      "expected_status": "invalid_model",
+      "fixture_id": "invalid_piecewise_gap",
+      "fixture_kind": "piecewise_polynomial",
+      "fixture_purpose": "Verify invalid_model when adjacent source intervals are not contiguous."
+    },
+    {
+      "definition": {
+        "maximum_continuity_adjustment_ratio": 1e-05,
+        "reference_resistance_ohms": 100.0,
+        "reference_temperature_c": 0.0,
+        "segments": [
+          {
+            "coefficients": [
+              1.0,
+              0.01
+            ],
+            "maximum_temperature_c": 10.0,
+            "minimum_temperature_c": 0.0,
+            "temperature_origin_c": 0.0
+          },
+          {
+            "coefficients": [
+              0.999,
+              0.01
+            ],
+            "maximum_temperature_c": 20.0,
+            "minimum_temperature_c": 10.0,
+            "temperature_origin_c": 0.0
+          }
+        ]
+      },
+      "display_name": "Invalid piecewise model with an unapproved discontinuity",
+      "expected_status": "invalid_model",
+      "fixture_id": "invalid_piecewise_unapproved_discontinuity",
+      "fixture_kind": "piecewise_polynomial",
+      "fixture_purpose": "Verify invalid_model when a source-level join requires more than the declared continuity adjustment allowance."
+    }
+  ],
+  "format_version": 1,
+  "rtd_sensor_version": "0.4.0"
+}

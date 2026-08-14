@@ -4,16 +4,22 @@ This directory contains the draft language-neutral conformance artifacts for
 `rtd-sensor`.
 
 The JSON Schemas under `v1/schemas/` define the structure of conformance-v1
-catalogs and vector sets. The catalog files `v1/characteristics.json` and
-`v1/models.json`, together with the built-in conversion vector sets under
-`v1/vectors/`, are generated from the authoritative built-in definitions and
-validated Python runtime behavior. They are not maintained independently.
+catalogs and vector sets. The catalog files `v1/characteristics.json`,
+`v1/models.json`, and `v1/model-fixtures.json`, together with the conversion
+vector sets under `v1/vectors/`, are generated from authoritative built-in
+definitions, explicit synthetic custom-model fixtures, and validated Python
+runtime behavior. They are not maintained independently.
 
-The successful-result vector sets publish both `binary64_reference` and
-`binary32_compatible` acceptance profiles for built-in conversion anchors.
-Separate status vector sets exercise finite inputs immediately outside each
-built-in model range, non-finite inputs, and zero/negative resistance handling.
-The binary32 profile derivation is documented under `consumers/c11/BINARY32.md`.
+The successful built-in vector sets publish both `binary64_reference` and
+`binary32_compatible` acceptance profiles. Successful custom-fixture vectors
+publish `binary64_reference` only; built-in binary32 tolerances are not assumed
+to apply to arbitrary custom coefficients. Built-in and custom status vector
+sets exercise finite inputs outside declared model ranges, non-finite inputs,
+and zero/negative resistance handling. The one-sided custom CVD fixtures also
+verify that 0 °C remains outside their declared validity intervals. Invalid
+custom-model semantics are represented by `expected_status: "invalid_model"`
+in the fixture catalog. The binary32 profile derivation is documented under
+`consumers/c11/BINARY32.md`.
 
 Regenerate all generated artifacts from the repository root with:
 

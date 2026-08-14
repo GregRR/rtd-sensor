@@ -19,13 +19,27 @@ from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
-from . import _curves, _definitions, _models
+from . import _conformance_fixtures, _curves, _definitions, _models
+from .models import PiecewisePolynomialRTDModel
 
 _FORMAT_VERSION = 1
 _CONTRACT_VERSION = 1
 _DISTRIBUTION_NAME = "rtd-sensor"
 _CHARACTERISTICS_FILENAME = "characteristics.json"
 _MODELS_FILENAME = "models.json"
+_MODEL_FIXTURES_FILENAME = "model-fixtures.json"
+_CUSTOM_TEMPERATURE_TO_RESISTANCE_FILENAME = (
+    "vectors/custom-temperature-to-resistance.json"
+)
+_CUSTOM_RESISTANCE_TO_TEMPERATURE_FILENAME = (
+    "vectors/custom-resistance-to-temperature.json"
+)
+_CUSTOM_TEMPERATURE_TO_RESISTANCE_STATUS_FILENAME = (
+    "vectors/custom-temperature-to-resistance-status.json"
+)
+_CUSTOM_RESISTANCE_TO_TEMPERATURE_STATUS_FILENAME = (
+    "vectors/custom-resistance-to-temperature-status.json"
+)
 _TEMPERATURE_TO_RESISTANCE_FILENAME = "vectors/builtin-temperature-to-resistance.json"
 _RESISTANCE_TO_TEMPERATURE_FILENAME = "vectors/builtin-resistance-to-temperature.json"
 _TEMPERATURE_TO_RESISTANCE_STATUS_FILENAME = (
@@ -198,6 +212,222 @@ def build_model_catalog(
         "rtd_sensor_version": producer_version,
         "models": models,
     }
+
+
+def _fixture_document(
+    fixture: _conformance_fixtures.ModelFixture,
+) -> dict[str, object]:
+    """Serialize one custom/calibrated model conformance fixture."""
+    common: dict[str, object] = {
+        "fixture_id": fixture.fixture_id,
+        "display_name": fixture.display_name,
+        "fixture_purpose": fixture.fixture_purpose,
+        "expected_status": fixture.expected_status,
+    }
+
+    if isinstance(fixture, _conformance_fixtures.CharacteristicModelFixture):
+        common.update(
+            {
+                "fixture_kind": "characteristic_model",
+                "definition": {
+                    "characteristic_id": fixture.characteristic_id,
+                    "reference_resistance_ohms": fixture.reference_resistance_ohms,
+                    "minimum_temperature_c": fixture.minimum_temperature_c,
+                    "maximum_temperature_c": fixture.maximum_temperature_c,
+                },
+            }
+        )
+        return common
+
+    if isinstance(fixture, _conformance_fixtures.CallendarVanDusenFixture):
+        definition: dict[str, object] = {
+            "reference_resistance_ohms": fixture.reference_resistance_ohms,
+            "a": fixture.a,
+            "b": fixture.b,
+            "minimum_temperature_c": fixture.minimum_temperature_c,
+            "maximum_temperature_c": fixture.maximum_temperature_c,
+        }
+        if fixture.c is not None:
+            definition["c"] = fixture.c
+        common.update(
+            {
+                "fixture_kind": "callendar_van_dusen",
+                "definition": definition,
+            }
+        )
+        return common
+
+    if isinstance(fixture, _conformance_fixtures.PolynomialFixture):
+        common.update(
+            {
+                "fixture_kind": "polynomial",
+                "definition": {
+                    "reference_resistance_ohms": fixture.reference_resistance_ohms,
+                    "reference_temperature_c": fixture.reference_temperature_c,
+                    "coefficients": list(fixture.coefficients),
+                    "minimum_temperature_c": fixture.minimum_temperature_c,
+                    "maximum_temperature_c": fixture.maximum_temperature_c,
+                },
+            }
+        )
+        return common
+
+    if isinstance(fixture, _conformance_fixtures.PiecewisePolynomialFixture):
+        common.update(
+            {
+                "fixture_kind": "piecewise_polynomial",
+                "definition": {
+                    "reference_resistance_ohms": fixture.reference_resistance_ohms,
+                    "reference_temperature_c": fixture.reference_temperature_c,
+                    "segments": [
+                        {
+                            "minimum_temperature_c": segment.minimum_temperature_c,
+                            "maximum_temperature_c": segment.maximum_temperature_c,
+                            "coefficients": list(segment.coefficients),
+                            "temperature_origin_c": segment.temperature_origin_c,
+                        }
+                        for segment in fixture.segments
+                    ],
+                    "maximum_continuity_adjustment_ratio": (
+                        fixture.maximum_continuity_adjustment_ratio
+                    ),
+                },
+            }
+        )
+        if fixture.expected_status == "ok":
+            model = _conformance_fixtures.build_fixture_model(fixture)
+            if not isinstance(model, PiecewisePolynomialRTDModel):
+                raise TypeError(
+                    "Piecewise fixture constructed with unexpected model type: "
+                    f"{fixture.fixture_id!r} -> {type(model).__name__}"
+                )
+            common["derived"] = {
+                "continuity_adjustment_kind": "additive_resistance_ratio_offset",
+                "continuity_adjustments": [
+                    _json_number(adjustment)
+                    for adjustment in model.continuity_adjustments
+                ],
+            }
+        return common
+
+    raise TypeError(
+        f"Unsupported model fixture for conformance export: {type(fixture)!r}"
+    )
+
+
+def build_model_fixture_catalog(
+    *,
+    rtd_sensor_version: str | None = None,
+) -> dict[str, object]:
+    """Build the conformance-v1 custom/calibrated model fixture catalog."""
+    return {
+        "artifact_type": "model_fixture_catalog",
+        "format_version": _FORMAT_VERSION,
+        "contract_version": _CONTRACT_VERSION,
+        "rtd_sensor_version": rtd_sensor_version or _project_version(),
+        "fixtures": [
+            _fixture_document(fixture)
+            for fixture in _conformance_fixtures.MODEL_FIXTURES
+        ],
+    }
+
+
+def _fixture_successful_expected(value: float) -> dict[str, object]:
+    """Return one successful custom-fixture result for binary64 conformance."""
+    return {
+        "status": "ok",
+        "value": _json_number(value),
+        "acceptance": {
+            "binary64_reference": {
+                "absolute_tolerance": _BINARY64_ABSOLUTE_TOLERANCE,
+            }
+        },
+    }
+
+
+def _build_custom_conversion_vector_set(
+    capability_id: str,
+    *,
+    rtd_sensor_version: str,
+) -> dict[str, object]:
+    """Build successful conversion vectors for valid custom-model fixtures."""
+    if capability_id == "conversion.temperature_to_resistance":
+        input_unit = "degree_celsius"
+        output_unit = "ohm"
+        operation_id = "temperature_to_resistance"
+    elif capability_id == "conversion.resistance_to_temperature":
+        input_unit = "ohm"
+        output_unit = "degree_celsius"
+        operation_id = "resistance_to_temperature"
+    else:
+        raise ValueError(f"Unsupported conformance capability: {capability_id!r}")
+
+    test_groups: list[dict[str, object]] = []
+    for fixture in _conformance_fixtures.MODEL_FIXTURES:
+        if fixture.expected_status != "ok":
+            continue
+        model = _conformance_fixtures.build_fixture_model(fixture)
+        cases: list[dict[str, object]] = []
+        for anchor in fixture.anchors:
+            resistance_ohms = model.celsius_to_resistance(anchor.temperature_c)
+            token = _temperature_token(anchor.temperature_c)
+            if capability_id == "conversion.temperature_to_resistance":
+                input_document = {"value": _json_number(anchor.temperature_c)}
+                expected = _fixture_successful_expected(resistance_ohms)
+            else:
+                input_document = {"value": _json_number(resistance_ohms)}
+                expected = _fixture_successful_expected(anchor.temperature_c)
+
+            tags = ["custom_fixture", "round_trip_anchor", *anchor.tags]
+            cases.append(
+                {
+                    "case_id": f"{fixture.fixture_id}.{operation_id}.{token}",
+                    "tags": list(dict.fromkeys(tags)),
+                    "input": input_document,
+                    "expected": expected,
+                }
+            )
+
+        test_groups.append(
+            {
+                "group_id": f"{fixture.fixture_id}.{operation_id}",
+                "fixture_id": fixture.fixture_id,
+                "cases": cases,
+            }
+        )
+
+    return {
+        "artifact_type": "vector_set",
+        "format_version": _FORMAT_VERSION,
+        "contract_version": _CONTRACT_VERSION,
+        "rtd_sensor_version": rtd_sensor_version,
+        "capability_id": capability_id,
+        "input_unit": input_unit,
+        "output_unit": output_unit,
+        "test_groups": test_groups,
+    }
+
+
+def build_custom_temperature_to_resistance_vectors(
+    *,
+    rtd_sensor_version: str | None = None,
+) -> dict[str, object]:
+    """Build valid custom-fixture temperature-to-resistance vectors."""
+    return _build_custom_conversion_vector_set(
+        "conversion.temperature_to_resistance",
+        rtd_sensor_version=rtd_sensor_version or _project_version(),
+    )
+
+
+def build_custom_resistance_to_temperature_vectors(
+    *,
+    rtd_sensor_version: str | None = None,
+) -> dict[str, object]:
+    """Build valid custom-fixture resistance-to-temperature vectors."""
+    return _build_custom_conversion_vector_set(
+        "conversion.resistance_to_temperature",
+        rtd_sensor_version=rtd_sensor_version or _project_version(),
+    )
 
 
 def _vector_temperatures(
@@ -610,6 +840,174 @@ def build_resistance_to_temperature_status_vectors(
     )
 
 
+def _build_custom_status_vector_set(
+    capability_id: str,
+    *,
+    rtd_sensor_version: str,
+) -> dict[str, object]:
+    """Build range and invalid-input status vectors for valid custom fixtures."""
+    if capability_id == "conversion.temperature_to_resistance":
+        input_unit = "degree_celsius"
+        output_unit = "ohm"
+        operation_id = "temperature_to_resistance_status"
+    elif capability_id == "conversion.resistance_to_temperature":
+        input_unit = "ohm"
+        output_unit = "degree_celsius"
+        operation_id = "resistance_to_temperature_status"
+    else:
+        raise ValueError(f"Unsupported conformance capability: {capability_id!r}")
+
+    test_groups: list[dict[str, object]] = []
+    for fixture in _conformance_fixtures.MODEL_FIXTURES:
+        if fixture.expected_status != "ok":
+            continue
+        model = _conformance_fixtures.build_fixture_model(fixture)
+        prefix = f"{fixture.fixture_id}.{operation_id}"
+
+        if capability_id == "conversion.temperature_to_resistance":
+            cases = [
+                _status_case(
+                    case_id=f"{prefix}.below_minimum",
+                    tags=("range_error", "outside_boundary", "below_minimum"),
+                    input_document={
+                        "value": _json_number(
+                            model.minimum_temperature_c - _BOUNDARY_TEMPERATURE_OFFSET_C
+                        )
+                    },
+                    status="out_of_range_low",
+                ),
+                _status_case(
+                    case_id=f"{prefix}.above_maximum",
+                    tags=("range_error", "outside_boundary", "above_maximum"),
+                    input_document={
+                        "value": _json_number(
+                            model.maximum_temperature_c + _BOUNDARY_TEMPERATURE_OFFSET_C
+                        )
+                    },
+                    status="out_of_range_high",
+                ),
+            ]
+            if isinstance(
+                fixture, _conformance_fixtures.CallendarVanDusenFixture
+            ) and not (
+                fixture.minimum_temperature_c <= 0.0 <= fixture.maximum_temperature_c
+            ):
+                status = (
+                    "out_of_range_low"
+                    if fixture.minimum_temperature_c > 0.0
+                    else "out_of_range_high"
+                )
+                cases.append(
+                    _status_case(
+                        case_id=f"{prefix}.excluded_reference_temperature",
+                        tags=(
+                            "range_error",
+                            "declared_range",
+                            "excluded_reference_temperature",
+                        ),
+                        input_document={"value": 0.0},
+                        status=status,
+                    )
+                )
+        else:
+            minimum_resistance = model.celsius_to_resistance(
+                model.minimum_temperature_c
+            )
+            maximum_resistance = model.celsius_to_resistance(
+                model.maximum_temperature_c
+            )
+            if minimum_resistance <= _BOUNDARY_RESISTANCE_OFFSET_OHMS:
+                raise RuntimeError(
+                    "Custom fixture minimum resistance is too small for the "
+                    "configured out-of-range conformance offset"
+                )
+            cases = [
+                _status_case(
+                    case_id=f"{prefix}.below_minimum",
+                    tags=("range_error", "outside_boundary", "below_minimum"),
+                    input_document={
+                        "value": _json_number(
+                            minimum_resistance - _BOUNDARY_RESISTANCE_OFFSET_OHMS
+                        )
+                    },
+                    status="out_of_range_low",
+                ),
+                _status_case(
+                    case_id=f"{prefix}.above_maximum",
+                    tags=("range_error", "outside_boundary", "above_maximum"),
+                    input_document={
+                        "value": _json_number(
+                            maximum_resistance + _BOUNDARY_RESISTANCE_OFFSET_OHMS
+                        )
+                    },
+                    status="out_of_range_high",
+                ),
+                _status_case(
+                    case_id=f"{prefix}.zero_resistance",
+                    tags=("invalid_input", "nonpositive_resistance"),
+                    input_document={"value": 0.0},
+                    status="invalid_input",
+                ),
+                _status_case(
+                    case_id=f"{prefix}.negative_resistance",
+                    tags=("invalid_input", "nonpositive_resistance"),
+                    input_document={"value": -1.0},
+                    status="invalid_input",
+                ),
+            ]
+
+        for special in ("nan", "positive_infinity", "negative_infinity"):
+            cases.append(
+                _status_case(
+                    case_id=f"{prefix}.{special}",
+                    tags=("invalid_input", "non_finite"),
+                    input_document={"special": special},
+                    status="invalid_input",
+                )
+            )
+
+        test_groups.append(
+            {
+                "group_id": prefix,
+                "fixture_id": fixture.fixture_id,
+                "cases": cases,
+            }
+        )
+
+    return {
+        "artifact_type": "vector_set",
+        "format_version": _FORMAT_VERSION,
+        "contract_version": _CONTRACT_VERSION,
+        "rtd_sensor_version": rtd_sensor_version,
+        "capability_id": capability_id,
+        "input_unit": input_unit,
+        "output_unit": output_unit,
+        "test_groups": test_groups,
+    }
+
+
+def build_custom_temperature_to_resistance_status_vectors(
+    *,
+    rtd_sensor_version: str | None = None,
+) -> dict[str, object]:
+    """Build custom-fixture temperature-input status vectors."""
+    return _build_custom_status_vector_set(
+        "conversion.temperature_to_resistance",
+        rtd_sensor_version=rtd_sensor_version or _project_version(),
+    )
+
+
+def build_custom_resistance_to_temperature_status_vectors(
+    *,
+    rtd_sensor_version: str | None = None,
+) -> dict[str, object]:
+    """Build custom-fixture resistance-input status vectors."""
+    return _build_custom_status_vector_set(
+        "conversion.resistance_to_temperature",
+        rtd_sensor_version=rtd_sensor_version or _project_version(),
+    )
+
+
 def render_json(document: object) -> str:
     """Return one deterministic, standards-compliant JSON artifact."""
     return (
@@ -636,6 +1034,29 @@ def generated_artifacts(
         ),
         _MODELS_FILENAME: render_json(
             build_model_catalog(rtd_sensor_version=producer_version)
+        ),
+        _MODEL_FIXTURES_FILENAME: render_json(
+            build_model_fixture_catalog(rtd_sensor_version=producer_version)
+        ),
+        _CUSTOM_TEMPERATURE_TO_RESISTANCE_FILENAME: render_json(
+            build_custom_temperature_to_resistance_vectors(
+                rtd_sensor_version=producer_version
+            )
+        ),
+        _CUSTOM_RESISTANCE_TO_TEMPERATURE_FILENAME: render_json(
+            build_custom_resistance_to_temperature_vectors(
+                rtd_sensor_version=producer_version
+            )
+        ),
+        _CUSTOM_TEMPERATURE_TO_RESISTANCE_STATUS_FILENAME: render_json(
+            build_custom_temperature_to_resistance_status_vectors(
+                rtd_sensor_version=producer_version
+            )
+        ),
+        _CUSTOM_RESISTANCE_TO_TEMPERATURE_STATUS_FILENAME: render_json(
+            build_custom_resistance_to_temperature_status_vectors(
+                rtd_sensor_version=producer_version
+            )
         ),
         _TEMPERATURE_TO_RESISTANCE_FILENAME: render_json(
             build_temperature_to_resistance_vectors(rtd_sensor_version=producer_version)

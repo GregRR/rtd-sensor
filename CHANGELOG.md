@@ -4,9 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
-* Added an empirically derived `binary32_compatible` conformance profile with independent C11 single-precision verification, including documented endpoint-rounding handling and measured error margins.
 ### Added
 
+* Added generated custom/calibrated model conformance fixtures and paired binary64 conversion vectors covering characterized R0, custom CVD one- and two-sided intervals, an off-zero resistance-ratio crossing, polynomial and piecewise models, derived continuity adjustments, and representative `invalid_model` definitions.
+* Added an empirically derived `binary32_compatible` conformance profile with independent C11 single-precision verification, including documented endpoint-rounding handling and measured error margins.
 * Added an independent C11 conformance consumer and pytest driver that compile from the published characteristic/model catalogs and verify every committed built-in conversion and status vector without importing `rtd_sensor`.
 * Added deterministic built-in range/error status vectors for both conversion directions, covering finite inputs just outside model boundaries, non-finite inputs, and zero/negative resistance semantics; successful vectors now also include explicit inside-boundary neighbors.
 * Added deterministic binary64 reference vector sets for built-in temperature-to-resistance and resistance-to-temperature conversion, covering model boundaries, reference/branch anchors, representative operating points, and every Ni120 piecewise segment and join.
@@ -16,6 +17,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+* Corrected the conformance schema for piecewise polynomial segments so a runtime-supported degree-12 segment may carry 13 coefficients including its constant term, while single-polynomial model coefficients retain their 12-item maximum.
 * Hardened the authoritative built-in definition layer by normalizing nested sequence inputs to immutable tuples, deferring alias metadata until discovery semantics are defined, and replacing unchecked built-in curve casts with import-time concrete-type validation.
 * Documented the implemented `RTDModel` boundary: the public structural protocol covers numerical conversion and sensitivity behavior, while valid ranges and descriptive identity/provenance remain separate discovery metadata concerns.
 * Centralized immutable built-in RTD characteristic and model definitions so runtime curves and models are constructed from the same scientific metadata that future conformance artifacts and discovery APIs can consume. Source coefficients and piecewise continuity authorization remain explicit, while runtime-derived continuity adjustments are kept separate.

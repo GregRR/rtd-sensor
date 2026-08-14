@@ -17,6 +17,7 @@ _SCHEMA_DIR = Path(__file__).resolve().parents[1] / "conformance" / "v1" / "sche
 _SCHEMA_NAMES = (
     "characteristic-catalog.schema.json",
     "model-catalog.schema.json",
+    "model-fixture-catalog.schema.json",
     "vector-set.schema.json",
 )
 
@@ -123,6 +124,45 @@ def _model_catalog() -> dict[str, Any]:
     }
 
 
+def _model_fixture_catalog() -> dict[str, Any]:
+    return {
+        "artifact_type": "model_fixture_catalog",
+        "format_version": 1,
+        "contract_version": 1,
+        "rtd_sensor_version": "0.5.0",
+        "fixtures": [
+            {
+                "fixture_id": "custom_cvd_positive_only",
+                "display_name": "Positive-only CVD fixture",
+                "fixture_purpose": "Exercise a restricted custom CVD interval.",
+                "fixture_kind": "callendar_van_dusen",
+                "expected_status": "ok",
+                "definition": {
+                    "reference_resistance_ohms": 100.0,
+                    "a": -6.0e-4,
+                    "b": 1.0e-5,
+                    "minimum_temperature_c": 50.0,
+                    "maximum_temperature_c": 100.0,
+                },
+            },
+            {
+                "fixture_id": "invalid_polynomial_decreasing",
+                "display_name": "Invalid decreasing polynomial fixture",
+                "fixture_purpose": "Exercise invalid_model semantics.",
+                "fixture_kind": "polynomial",
+                "expected_status": "invalid_model",
+                "definition": {
+                    "reference_resistance_ohms": 100.0,
+                    "reference_temperature_c": 0.0,
+                    "coefficients": [-0.01],
+                    "minimum_temperature_c": -10.0,
+                    "maximum_temperature_c": 10.0,
+                },
+            },
+        ],
+    }
+
+
 def _vector_set() -> dict[str, Any]:
     return {
         "artifact_type": "vector_set",
@@ -171,6 +211,8 @@ def _example_artifact_for_schema(schema_name: str) -> dict[str, Any]:
             return _characteristic_catalog()
         case "model-catalog.schema.json":
             return _model_catalog()
+        case "model-fixture-catalog.schema.json":
+            return _model_fixture_catalog()
         case "vector-set.schema.json":
             return _vector_set()
         case _:
@@ -417,3 +459,134 @@ def test_vector_set_rejects_unknown_properties() -> None:
 
     with pytest.raises(ValidationError):
         _validator("vector-set.schema.json").validate(vectors)
+
+
+def test_model_fixture_catalog_accepts_valid_and_invalid_semantic_fixtures() -> None:
+    _validator("model-fixture-catalog.schema.json").validate(_model_fixture_catalog())
+
+
+def test_model_fixture_catalog_rejects_unknown_fixture_kind() -> None:
+    catalog = _model_fixture_catalog()
+    fixture = catalog["fixtures"][0]
+    assert isinstance(fixture, dict)
+    fixture["fixture_kind"] = "arbitrary_formula"
+
+    with pytest.raises(ValidationError):
+        _validator("model-fixture-catalog.schema.json").validate(catalog)
+
+
+def test_model_fixture_catalog_allows_semantically_invalid_numeric_definition() -> None:
+    catalog = _model_fixture_catalog()
+    fixture = catalog["fixtures"][0]
+    assert isinstance(fixture, dict)
+    definition = fixture["definition"]
+    assert isinstance(definition, dict)
+    definition["reference_resistance_ohms"] = 0.0
+    fixture["expected_status"] = "invalid_model"
+
+    _validator("model-fixture-catalog.schema.json").validate(catalog)
+
+
+def test_vector_set_accepts_fixture_id_instead_of_model_id() -> None:
+    vectors = _vector_set()
+    group = vectors["test_groups"][0]
+    assert isinstance(group, dict)
+    del group["model_id"]
+    group["fixture_id"] = "custom_cvd_positive_only"
+
+    _validator("vector-set.schema.json").validate(vectors)
+
+
+def test_vector_set_rejects_group_with_model_and_fixture_id() -> None:
+    vectors = _vector_set()
+    group = vectors["test_groups"][0]
+    assert isinstance(group, dict)
+    group["fixture_id"] = "custom_cvd_positive_only"
+
+    with pytest.raises(ValidationError):
+        _validator("vector-set.schema.json").validate(vectors)
+
+
+def test_piecewise_characteristic_schema_allows_degree_twelve_segment() -> None:
+    catalog = _characteristic_catalog()
+    characteristic = catalog["characteristics"][2]
+    assert isinstance(characteristic, dict)
+    segments = characteristic["segments"]
+    assert isinstance(segments, list)
+    first = segments[0]
+    assert isinstance(first, dict)
+    first["coefficients"] = [1.0] + [0.0] * 12
+
+    _validator("characteristic-catalog.schema.json").validate(catalog)
+
+
+def test_valid_piecewise_fixture_requires_derived_continuity_metadata() -> None:
+    catalog = {
+        "artifact_type": "model_fixture_catalog",
+        "format_version": 1,
+        "contract_version": 1,
+        "rtd_sensor_version": "0.5.0",
+        "fixtures": [
+            {
+                "fixture_id": "piecewise_valid",
+                "display_name": "Valid piecewise fixture",
+                "fixture_purpose": "Exercise derived continuity metadata.",
+                "fixture_kind": "piecewise_polynomial",
+                "expected_status": "ok",
+                "definition": {
+                    "reference_resistance_ohms": 100.0,
+                    "reference_temperature_c": 0.0,
+                    "segments": [
+                        {
+                            "minimum_temperature_c": 0.0,
+                            "maximum_temperature_c": 10.0,
+                            "coefficients": [1.0, 0.01],
+                            "temperature_origin_c": 0.0,
+                        }
+                    ],
+                    "maximum_continuity_adjustment_ratio": 0.0,
+                },
+            }
+        ],
+    }
+
+    with pytest.raises(ValidationError):
+        _validator("model-fixture-catalog.schema.json").validate(catalog)
+
+
+def test_invalid_piecewise_fixture_rejects_derived_continuity_metadata() -> None:
+    catalog = {
+        "artifact_type": "model_fixture_catalog",
+        "format_version": 1,
+        "contract_version": 1,
+        "rtd_sensor_version": "0.5.0",
+        "fixtures": [
+            {
+                "fixture_id": "piecewise_invalid",
+                "display_name": "Invalid piecewise fixture",
+                "fixture_purpose": "Exercise invalid-model semantics.",
+                "fixture_kind": "piecewise_polynomial",
+                "expected_status": "invalid_model",
+                "definition": {
+                    "reference_resistance_ohms": 100.0,
+                    "reference_temperature_c": 0.0,
+                    "segments": [
+                        {
+                            "minimum_temperature_c": 0.0,
+                            "maximum_temperature_c": 10.0,
+                            "coefficients": [1.0, 0.01],
+                            "temperature_origin_c": 0.0,
+                        }
+                    ],
+                    "maximum_continuity_adjustment_ratio": 0.0,
+                },
+                "derived": {
+                    "continuity_adjustment_kind": "additive_resistance_ratio_offset",
+                    "continuity_adjustments": [0.0],
+                },
+            }
+        ],
+    }
+
+    with pytest.raises(ValidationError):
+        _validator("model-fixture-catalog.schema.json").validate(catalog)

@@ -1,0 +1,393 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "rtd-sensor conformance v1 custom model fixture catalog",
+  "description": "Schema for local custom/calibrated RTD model fixtures used by rtd-sensor conformance contract v1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "artifact_type",
+    "format_version",
+    "contract_version",
+    "rtd_sensor_version",
+    "fixtures"
+  ],
+  "properties": {
+    "artifact_type": {
+      "const": "model_fixture_catalog"
+    },
+    "format_version": {
+      "const": 1
+    },
+    "contract_version": {
+      "const": 1
+    },
+    "rtd_sensor_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "fixtures": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/fixture"
+      }
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9._-]*$"
+    },
+    "nonempty_string": {
+      "type": "string",
+      "minLength": 1
+    },
+    "expected_status": {
+      "enum": [
+        "ok",
+        "invalid_model"
+      ]
+    },
+    "polynomial_coefficients": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "items": {
+        "type": "number"
+      }
+    },
+    "piecewise_coefficients": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 13,
+      "items": {
+        "type": "number"
+      }
+    },
+    "piecewise_segment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum_temperature_c",
+        "maximum_temperature_c",
+        "coefficients",
+        "temperature_origin_c"
+      ],
+      "properties": {
+        "minimum_temperature_c": {
+          "type": "number"
+        },
+        "maximum_temperature_c": {
+          "type": "number"
+        },
+        "coefficients": {
+          "$ref": "#/$defs/piecewise_coefficients"
+        },
+        "temperature_origin_c": {
+          "type": "number"
+        }
+      }
+    },
+    "characteristic_model_fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fixture_id",
+        "display_name",
+        "fixture_purpose",
+        "fixture_kind",
+        "expected_status",
+        "definition"
+      ],
+      "properties": {
+        "fixture_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "display_name": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "fixture_purpose": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "fixture_kind": {
+          "const": "characteristic_model"
+        },
+        "expected_status": {
+          "$ref": "#/$defs/expected_status"
+        },
+        "definition": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "characteristic_id",
+            "reference_resistance_ohms",
+            "minimum_temperature_c",
+            "maximum_temperature_c"
+          ],
+          "properties": {
+            "characteristic_id": {
+              "$ref": "#/$defs/identifier"
+            },
+            "reference_resistance_ohms": {
+              "type": "number"
+            },
+            "minimum_temperature_c": {
+              "type": "number"
+            },
+            "maximum_temperature_c": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "callendar_van_dusen_fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fixture_id",
+        "display_name",
+        "fixture_purpose",
+        "fixture_kind",
+        "expected_status",
+        "definition"
+      ],
+      "properties": {
+        "fixture_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "display_name": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "fixture_purpose": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "fixture_kind": {
+          "const": "callendar_van_dusen"
+        },
+        "expected_status": {
+          "$ref": "#/$defs/expected_status"
+        },
+        "definition": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reference_resistance_ohms",
+            "a",
+            "b",
+            "minimum_temperature_c",
+            "maximum_temperature_c"
+          ],
+          "properties": {
+            "reference_resistance_ohms": {
+              "type": "number"
+            },
+            "a": {
+              "type": "number"
+            },
+            "b": {
+              "type": "number"
+            },
+            "c": {
+              "type": "number"
+            },
+            "minimum_temperature_c": {
+              "type": "number"
+            },
+            "maximum_temperature_c": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "polynomial_fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fixture_id",
+        "display_name",
+        "fixture_purpose",
+        "fixture_kind",
+        "expected_status",
+        "definition"
+      ],
+      "properties": {
+        "fixture_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "display_name": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "fixture_purpose": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "fixture_kind": {
+          "const": "polynomial"
+        },
+        "expected_status": {
+          "$ref": "#/$defs/expected_status"
+        },
+        "definition": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reference_resistance_ohms",
+            "reference_temperature_c",
+            "coefficients",
+            "minimum_temperature_c",
+            "maximum_temperature_c"
+          ],
+          "properties": {
+            "reference_resistance_ohms": {
+              "type": "number"
+            },
+            "reference_temperature_c": {
+              "type": "number"
+            },
+            "coefficients": {
+              "$ref": "#/$defs/polynomial_coefficients"
+            },
+            "minimum_temperature_c": {
+              "type": "number"
+            },
+            "maximum_temperature_c": {
+              "type": "number"
+            }
+          }
+        }
+      }
+    },
+    "piecewise_polynomial_fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fixture_id",
+        "display_name",
+        "fixture_purpose",
+        "fixture_kind",
+        "expected_status",
+        "definition"
+      ],
+      "properties": {
+        "fixture_id": {
+          "$ref": "#/$defs/identifier"
+        },
+        "display_name": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "fixture_purpose": {
+          "$ref": "#/$defs/nonempty_string"
+        },
+        "fixture_kind": {
+          "const": "piecewise_polynomial"
+        },
+        "expected_status": {
+          "$ref": "#/$defs/expected_status"
+        },
+        "definition": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "reference_resistance_ohms",
+            "reference_temperature_c",
+            "segments",
+            "maximum_continuity_adjustment_ratio"
+          ],
+          "properties": {
+            "reference_resistance_ohms": {
+              "type": "number"
+            },
+            "reference_temperature_c": {
+              "type": "number"
+            },
+            "segments": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/$defs/piecewise_segment"
+              }
+            },
+            "maximum_continuity_adjustment_ratio": {
+              "type": "number"
+            }
+          }
+        },
+        "derived": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "continuity_adjustment_kind",
+            "continuity_adjustments"
+          ],
+          "properties": {
+            "continuity_adjustment_kind": {
+              "const": "additive_resistance_ratio_offset"
+            },
+            "continuity_adjustments": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "expected_status": {
+                "const": "ok"
+              }
+            },
+            "required": [
+              "expected_status"
+            ]
+          },
+          "then": {
+            "required": [
+              "derived"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "expected_status": {
+                "const": "invalid_model"
+              }
+            },
+            "required": [
+              "expected_status"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "derived"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "fixture": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/characteristic_model_fixture"
+        },
+        {
+          "$ref": "#/$defs/callendar_van_dusen_fixture"
+        },
+        {
+          "$ref": "#/$defs/polynomial_fixture"
+        },
+        {
+          "$ref": "#/$defs/piecewise_polynomial_fixture"
+        }
+      ]
+    }
+  }
+}

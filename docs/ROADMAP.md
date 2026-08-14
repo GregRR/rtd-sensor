@@ -107,7 +107,10 @@ characteristic/model definition layer, the initial Draft 2020-12 schemas,
 deterministic characteristic/model catalogs, generated built-in conversion and
 status vectors, an independent C11 consumer, and an empirically derived
 `binary32_compatible` acceptance profile verified with real single-precision C
-arithmetic. The next conformance layer is custom/calibrated model fixtures.
+arithmetic, plus generated custom/calibrated model fixtures spanning valid and
+invalid configurable-model behavior. The next conformance step is independent
+cross-language verification of the custom fixture layer before release
+integration.
 
 Establish `rtd-sensor` as the authoritative reference implementation for RTD
 conversion behavior, not merely as one Python implementation of the same
@@ -147,16 +150,21 @@ cross-project compatibility problem rather than a local library change.
 
 The Draft 2020-12 vector-set schema and deterministic artifact generator are in
 place. Committed built-in vectors now cover successful temperature-to-resistance
-and resistance-to-temperature behavior for all six current models using the
-`binary64_reference` acceptance profile, plus separate status sets for finite
-out-of-range inputs, non-finite values, and zero/negative resistance.
+and resistance-to-temperature behavior for all six current models using both
+`binary64_reference` and `binary32_compatible` acceptance profiles, plus
+separate status sets for finite out-of-range inputs, non-finite values, and
+zero/negative resistance.
 
 An independent C11 consumer now compiles against model/characteristic data
 derived from the committed artifacts and passes the complete published built-in
 conversion and status vector set using a different inverse strategy from
-Python. Custom/calibrated-model fixtures remain later work. The next numerical
-cross-language numerical step is complete for built-in conversion;
-custom/calibrated-model fixtures remain the next conformance expansion.
+Python. Generated custom/calibrated fixtures now cover characterized R0, custom
+CVD one- and two-sided ranges, the off-zero R/R0 crossing regression, polynomial
+and piecewise models, bounded continuity stitching, representative
+`invalid_model` definitions, and explicit custom range/status behavior. Their
+successful vectors currently claim only the `binary64_reference` profile.
+Independent cross-language verification of these fixture semantics is the next
+conformance expansion.
 
 #### 2.2 Representative coverage, not exported test-suite duplication
 
@@ -256,9 +264,10 @@ calculation_failure
 ```
 
 Built-in status vectors currently exercise the range and invalid-input outcomes.
-`invalid_model` belongs to later custom/calibrated-model fixtures, and
-`calculation_failure` remains reserved for a valid model/input whose required
-numerical result cannot be produced. These semantic names map independently to
+The custom fixture catalog now exercises `invalid_model` through definitions
+that must fail model construction. `calculation_failure` remains reserved for a
+valid model/input whose required numerical result cannot be produced. These
+semantic names map independently to
 Python exceptions, C/C++ enums, protocol status codes, or other
 language-appropriate mechanisms.
 

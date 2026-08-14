@@ -307,8 +307,10 @@ A representative structure is:
 }
 ```
 
-`group_id` and `case_id` are stable diagnostic identifiers. Case ordering has no
-semantic meaning.
+`group_id` and `case_id` are stable diagnostic identifiers. A vector group
+contains exactly one target identifier: built-in groups use `model_id`, while
+custom/calibrated groups use local `fixture_id`. Case ordering has no semantic
+meaning.
 
 Tags are descriptive classifiers used for coverage and diagnostics. They are not
 part of the pass/fail rule.
@@ -369,9 +371,10 @@ For `status: "ok"`, a finite expected numerical value is present.
 
 For non-`ok` statuses, a numerical expected value is not present. The initial
 built-in status vector sets exercise `out_of_range_low`, `out_of_range_high`, and
-`invalid_input`. `invalid_model` is reserved for later custom/calibrated-model
-fixtures, while `calculation_failure` remains available for a valid model/input
-case in which a required numerical result cannot be produced.
+`invalid_input`. The custom model fixture catalog exercises `invalid_model` by
+marking definitions that must be rejected before conversion is attempted.
+`calculation_failure` remains available for a valid model/input case in which a
+required numerical result cannot be produced.
 
 These statuses describe semantics rather than language-specific control flow.
 Python exceptions, C/C++ enums, result objects, or protocol status codes may all
@@ -517,21 +520,50 @@ as a dense lookup table.
 
 ## Custom-model conformance
 
-Custom-model conformance is a separately claimable layer.
+Custom-model conformance is a separately claimable layer. The generated
+`model-fixtures.json` catalog defines synthetic custom/calibrated model cases
+using local `fixture_id` values. These fixtures are interoperability test data,
+not additional built-in RTD identities or independent scientific reference
+measurements.
 
-The custom-model layer defines fixture families for:
+Each fixture records an `expected_status` of `ok` or `invalid_model`. A fixture
+with `expected_status: "ok"` must construct a valid model before conversion is
+attempted. A fixture with `expected_status: "invalid_model"` must be rejected
+as a model definition; its intentionally invalid numerical or structural
+semantics are therefore allowed by the fixture catalog schema even though the
+corresponding runtime model constructor rejects them.
 
-- characterized non-nominal reference resistance;
+The fixture catalog uses four definition kinds: `characteristic_model`,
+`callendar_van_dusen`, `polynomial`, and `piecewise_polynomial`.
+
+The initial custom-model layer covers:
+
+- characterized non-nominal reference resistance on the PT-385 characteristic;
 - custom Callendar-Van Dusen coefficients;
 - positive-only and negative-only declared ranges;
-- valid custom models whose resistance ratio crosses 1 away from 0 °C;
-- polynomial models;
-- piecewise-polynomial models;
-- explicitly represented continuity adjustments; and
-- invalid, non-monotonic, gapped, overlapping, or otherwise unsupported model
-  definitions.
+- a valid positive-only model whose resistance ratio crosses 1 at 60 °C rather
+  than at the excluded 0 °C reference point;
+- a polynomial model with a non-zero reference temperature;
+- piecewise-polynomial models with local segment origins;
+- explicitly authorized piecewise continuity adjustments; and
+- invalid non-positive-R0, missing-C, non-monotonic, decreasing, gapped, and
+  unapproved-discontinuity definitions.
 
-Custom fixture definitions are local to their fixture catalog or vector set and
+Successful custom fixture conversions are published in
+`custom-temperature-to-resistance.json` and
+`custom-resistance-to-temperature.json`. Matching custom status sets exercise
+declared range boundaries, invalid numerical inputs, and the explicit exclusion
+of 0 °C from the positive-only and negative-only CVD validity intervals. Their
+vector groups reference `fixture_id` rather than `model_id`. The initial custom
+success vectors publish only the `binary64_reference` acceptance profile. The
+built-in `binary32_compatible` tolerances are not generalized to arbitrary
+custom coefficients or conditioning without a separate empirical study.
+
+For valid piecewise fixtures, source segment coefficients remain in the fixture
+definition while implementation-derived continuity offsets are serialized
+separately as derived metadata.
+
+Custom fixture definitions remain local to the conformance fixture catalog and
 do not acquire built-in `model_id` values.
 
 ## Conformance claims
@@ -558,7 +590,10 @@ acceptance:
 
 This claim does not imply support for other conversion directions, nickel
 models, custom coefficients, tolerance calculations, uncertainty analysis,
-simulation, or any hardware interface.
+simulation, or any hardware interface. A conformance report that includes the
+custom-model layer records fixture IDs or fixture families separately from the
+built-in `models` list; a local `fixture_id` never becomes a canonical
+`model_id`.
 
 A future host/MCU protocol may reuse these identifiers and contract versions.
 The protocol references the conformance contract rather than redefining their
