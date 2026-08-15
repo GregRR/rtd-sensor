@@ -6,9 +6,8 @@
 
 This module contains immutable source data for the verified built-in RTD
 characteristics and models. Runtime curve/model objects are constructed from
-these definitions so conversion behavior, future conformance artifacts, and
-future discovery metadata do not maintain independent copies of scientific
-parameters.
+these definitions so conversion behavior, conformance artifacts, and public
+discovery metadata do not maintain independent copies of scientific parameters.
 
 The definitions deliberately preserve source coefficients separately from
 runtime-derived values such as piecewise continuity adjustments.
@@ -438,6 +437,7 @@ if len(BUILTIN_CHARACTERISTIC_DEFINITIONS) != len(_CHARACTERISTIC_DEFINITIONS):
     raise RuntimeError("Duplicate built-in RTD characteristic ID")
 
 
+# Order is part of catalog.supported_models() public behavior; append new built-ins.
 _MODEL_DEFINITIONS = (
     BuiltinRTDModelDefinition(
         model_id="pt100",

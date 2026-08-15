@@ -313,6 +313,30 @@ calibrated_temperature_c = convert_temperature(calibrated_probe, 119.42)
 
 The existing `rtd_sensor.uncertainty.RTDUncertaintyModel` remains a narrower structural interface for callers that provide only the inverse conversion and `dT/dR` behavior required by uncertainty propagation. Every full `RTDModel` satisfies that narrower interface.
 
+## Built-in model discovery
+
+Applications that need to discover supported built-ins at runtime can use the read-only `rtd_sensor.catalog` API instead of maintaining their own model table:
+
+```python
+from rtd_sensor import catalog
+
+model_ids = catalog.supported_models()
+# ("pt100", "pt500", "pt1000", "ni1000", "ni1000_tk5000", "ni120")
+
+info = catalog.model_info("pt100")
+print(info.characteristic_id)  # iec60751_pt385
+print(info.reference_resistance_ohms)  # 100.0
+print(info.minimum_temperature_c)  # -200.0
+print(info.maximum_temperature_c)  # 850.0
+
+model = catalog.get_model("pt100")
+temperature_c = model.resistance_to_celsius(119.397125)
+```
+
+`BuiltinRTDModelInfo` descriptors are immutable and are derived from the same authoritative definitions used to construct the runtime models and stable conformance artifacts. They expose canonical model and characteristic identities, display names, material and curve kind, reference resistance/temperature, valid temperature range, and characteristic source references.
+
+The catalog contains only verified package built-ins. Canonical IDs are exact and stable; the discovery API intentionally does not provide aliases or a public registration/plugin mechanism for user-defined models. Custom model objects can continue to satisfy the structural `RTDModel` protocol without becoming globally registered identities.
+
 ## IEC 60751 tolerance classes
 
 The `rtd_sensor.tolerance` module calculates the maximum permitted temperature deviation for the standard IEC 60751:2022 tolerance classes. The standard distinguishes complete thermometers from bare platinum resistors, and it assigns different validity ranges to wire-wound and film construction.

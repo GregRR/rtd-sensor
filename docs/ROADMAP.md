@@ -42,13 +42,11 @@ should remain responsible for interpreting that resistance through an RTD model.
 Application code composes the two layers; neither package should duplicate the
 other layer's responsibilities.
 
-Item 1 is implemented. Item 2 is the current high-priority work and should be
-completed before an MCU RTD implementation is treated as a production
-dependency, because behavioral contracts, identifiers, tolerances, and exported
-reference data are much harder to retrofit once another implementation depends
-on them. Items 3 through 5 complete the preferred integration milestone. The
-remaining items are ordered follow-on work and should build on the same public
-contracts.
+Items 1 through 3 are implemented, including stable conformance contract v1 and
+the public built-in catalog. Item 4 is the next integration focus, followed by
+item 5 to complete the preferred 0.5.0 acquisition/model composition milestone.
+The remaining items are ordered follow-on work and should build on the same
+public contracts.
 
 ### 1. Public RTD model protocol — implemented foundation
 
@@ -416,37 +414,25 @@ the published model metadata and reference vectors, reproduce the specified
 behavior within documented tolerances, and map failures to the defined semantic
 statuses without inspecting Python implementation internals.
 
-### 3. Public built-in model discovery and immutable metadata
+### 3. Public built-in model discovery and immutable metadata — implemented
 
-Expose read-only discovery without exposing the internal registry itself. A
-likely API shape is:
+The public `rtd_sensor.catalog` module provides read-only discovery without exposing the internal registries themselves:
 
 ```python
-supported_models()
-get_model("pt100")
-model_info("pt100")
+from rtd_sensor import catalog
+
+model_ids = catalog.supported_models()
+model = catalog.get_model("pt100")
+info = catalog.model_info("pt100")
 ```
 
-Exact names remain subject to API review. The important contract is that
-downstream applications, configuration files, CLIs, and GUIs should not need to
-maintain their own copy of the built-in identity table.
+`supported_models()` returns the stable canonical built-in IDs in authoritative definition order. `get_model()` returns a cached immutable adapter exposing only the public `RTDModel` numerical protocol rather than the private concrete runtime model. `model_info()` returns a frozen `BuiltinRTDModelInfo` descriptor containing canonical model and characteristic identity, display names, material, curve kind, reference resistance and temperature, valid temperature range, and immutable source references.
 
-Discovery should:
+The metadata view is generated directly from the authoritative `_definitions` layer used by runtime model construction and conformance generation, so applications, configuration files, CLIs, and GUIs do not need a separately maintained capability table. Pt100, Pt500, and Pt1000 therefore retain distinct model identities while correctly sharing the `iec60751_pt385` characteristic identity.
 
-- use the existing immutable built-in registry as the single source of truth;
-- return models satisfying the public RTD model protocol;
-- reject unknown identities explicitly and predictably;
-- preserve stable canonical identities such as `pt100`, `pt500`, `pt1000`,
-  `ni1000`, `ni1000_tk5000`, and `ni120`; and
-- avoid a public plugin/registration mechanism until a real second registration
-  use case demonstrates that one is needed.
+Unknown canonical IDs raise `KeyError`, non-string IDs raise `TypeError`, and identifiers are not silently normalized or aliased. There is intentionally no public plugin/registration mechanism yet; user-defined structural `RTDModel` implementations remain independent of the closed set of verified built-in identities.
 
-A separate immutable descriptor can expose application-facing metadata such as
-canonical identity, display name, characteristic/provenance label, reference
-resistance and temperature, valid temperature range, material/family when
-explicitly known, and unambiguous aliases. Metadata must be generated from or
-colocated with authoritative model definitions so it does not become another
-drifting capability list.
+Regression tests lock the descriptor view to the authoritative definitions, preserve nested immutability, verify stable package-owned lookup adapters, prevent leakage of private runtime-model attributes, cross-check model behavior against discovery metadata, and statically verify that catalog lookups satisfy the public `RTDModel` protocol.
 
 ### 4. Neutral resistance-reader interface outside `simulation`
 

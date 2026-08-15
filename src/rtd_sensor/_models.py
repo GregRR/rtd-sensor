@@ -146,8 +146,8 @@ def _built_in_model(
 
     Built-in identity originates in the authoritative definition registry.
     Registration here creates the runtime identity-to-model view used by
-    simulation and the built-in public modules without duplicating scientific
-    model metadata.
+    simulation, public catalog discovery, and the built-in sensor modules
+    without duplicating scientific model metadata.
     """
     if not isinstance(identity, str):
         raise TypeError("RTD model identity must be a string")

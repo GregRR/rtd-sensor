@@ -3,6 +3,7 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 from rtd_sensor import (
+    catalog,
     models,
     ni120,
     ni1000,
@@ -52,6 +53,12 @@ def test_package_exports_ni120_module() -> None:
     assert imported_ni120 is ni120
 
 
+def test_package_exports_catalog_module() -> None:
+    from rtd_sensor import catalog as imported_catalog
+
+    assert imported_catalog is catalog
+
+
 def test_package_exports_models_module() -> None:
     from rtd_sensor import models as imported_models
 
@@ -68,6 +75,7 @@ def test_package_public_api() -> None:
     import rtd_sensor
 
     assert set(rtd_sensor.__all__) == {
+        "catalog",
         "models",
         "ni1000",
         "ni1000_tk5000",
@@ -78,6 +86,16 @@ def test_package_public_api() -> None:
         "simulation",
         "tolerance",
         "uncertainty",
+    }
+
+
+def test_catalog_public_api() -> None:
+    assert set(catalog.__all__) == {
+        "BuiltinRTDModelInfo",
+        "RTDSourceReference",
+        "get_model",
+        "model_info",
+        "supported_models",
     }
 
 

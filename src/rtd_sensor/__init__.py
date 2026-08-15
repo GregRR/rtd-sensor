@@ -14,6 +14,7 @@ Example:
 """
 
 from . import (
+    catalog,
     models,
     ni120,
     ni1000,
@@ -27,6 +28,7 @@ from . import (
 )
 
 __all__ = [
+    "catalog",
     "models",
     "ni1000",
     "ni1000_tk5000",
