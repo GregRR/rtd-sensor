@@ -114,7 +114,7 @@ JSON Schema structure validation.
 
 ## Versioning
 
-Conformance artifacts carry three distinct version concepts.
+Conformance artifacts carry four distinct version and maturity concepts.
 
 ### Format version
 
@@ -148,6 +148,19 @@ The addition of a new model, characteristic, vector set, or separately
 claimable capability does not by itself change the meaning of existing
 contract-version-1 behavior.
 
+### Contract status
+
+`contract_status` records whether the artifact set is still subject to pre-freeze
+change or has been declared stable under the contract-version rules.
+
+The initial development value is `draft`. The final v1 freeze changes it to
+`stable` only after the acceptance audit is complete. The `draft` to `stable`
+transition does not itself change `contract_version`; it freezes the current
+semantics rather than redefining them.
+
+Once a contract version is stable, incompatible behavioral changes require a new
+`contract_version` rather than returning the stable artifact set to draft status.
+
 ### Producing package version
 
 Each generated artifact also records the `rtd-sensor` version that produced or
@@ -155,6 +168,20 @@ validated it.
 
 The package version is provenance. It does not replace either `format_version`
 or `contract_version`.
+
+### Schema identity
+
+Stable v1 intentionally does not publish JSON Schema `$id` values. The schemas
+are self-contained and use local `$defs`, and the project does not yet have a
+durable schema-host URI that should become a permanent downstream identity. A
+provisional repository or raw-content URL would create a stronger compatibility
+commitment than leaving `$id` absent.
+
+Adding the eventual canonical `$id` values, without changing schema structure or
+behavior, does not by itself require a `format_version` or `contract_version`
+increment. After an `$id` has been published and downstream tooling may cache or
+pin it, changing that identity is a separate compatibility decision and must be
+reviewed explicitly.
 
 ## Identifier rules
 
@@ -384,8 +411,11 @@ For non-`ok` statuses, a numerical expected value is not present. The initial
 built-in status vector sets exercise `out_of_range_low`, `out_of_range_high`, and
 `invalid_input`. The custom model fixture catalog exercises `invalid_model` by
 marking definitions that must be rejected before conversion is attempted.
-`calculation_failure` remains available for a valid model/input case in which a
-required numerical result cannot be produced.
+`calculation_failure` is reserved for a valid model/input case in which a
+required numerical result cannot be produced. No initial v1 vector intentionally
+exercises this status because the current published models and valid fixture
+inputs do not provide a natural, scientifically meaningful failure case; the
+contract does not fabricate one solely to exercise the enum value.
 
 These statuses describe semantics rather than language-specific control flow.
 Python exceptions, C/C++ enums, result objects, or protocol status codes may all
@@ -499,7 +529,10 @@ The consumer supports the three characteristic representations currently used
 by built-in and custom fixtures and verifies both conversion directions plus the
 published range and invalid-input statuses. It also constructs every published
 custom/calibrated fixture and independently verifies each fixture's expected
-`ok` or `invalid_model` definition status. Its inverse implementation uses
+`ok` or `invalid_model` definition status. For piecewise fixtures, it consumes
+the published derived continuity adjustments and independently verifies their
+bounds, closed joins, and reference-temperature anchoring; it does not re-derive
+those adjustments from the source coefficients. Its inverse implementation uses
 bounded global bisection for every characteristic rather than reproducing the
 Python implementation's curve-specific inversion strategies.
 

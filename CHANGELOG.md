@@ -19,6 +19,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+* Hardened the final conformance-v1 freeze criteria with custom-fixture characteristic cross-reference coverage, identifier-grammar consistency checks, explicit contract-status and schema-identity rules, reserved `calculation_failure` semantics, clarified C11 continuity verification scope, and a dedicated stability-declaration release checklist.
 * Corrected the conformance schema for piecewise polynomial segments so a runtime-supported degree-12 segment may carry 13 coefficients including its constant term, while single-polynomial model coefficients retain their 12-item maximum.
 * Hardened the authoritative built-in definition layer by normalizing nested sequence inputs to immutable tuples, deferring alias metadata until discovery semantics are defined, and replacing unchecked built-in curve casts with import-time concrete-type validation.
 * Documented the implemented `RTDModel` boundary: the public structural protocol covers numerical conversion and sensitivity behavior, while valid ranges and descriptive identity/provenance remain separate discovery metadata concerns.

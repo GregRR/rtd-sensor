@@ -24,6 +24,28 @@ PyPI release synchronized.
 Do not tag the release while `pyproject.toml`, `CHANGELOG.md`, and
 `CITATION.cff` disagree about the release.
 
+### Declaring a conformance contract stable
+
+Declaring a conformance contract stable is a one-time freeze operation, not a
+routine release step. Before changing `contract_status` from `draft` to `stable`:
+
+- complete the final conformance acceptance/schema-freeze review and resolve all
+  findings required for stability;
+- obtain the narrow verification of any pre-freeze corrections without mixing
+  unrelated feature work into the freeze;
+- deliberately set the package version that should identify the source state
+  producing the first stable artifacts;
+- change only the contract maturity/version-provenance state required for the
+  freeze, then regenerate all conformance artifacts and the manifest;
+- run both conformance `--check` commands and the complete release gate; and
+- inspect the regenerated manifest before committing the freeze so
+  `contract_version`, `contract_status`, and `rtd_sensor_version` are exactly the
+  intended values.
+
+Do not use the stability declaration commit to introduce new conformance
+semantics. The purpose of the commit is to freeze behavior that has already been
+reviewed.
+
 ## 2. Audit documentation consistency
 
 Before tagging, review the README, DESIGN, ROADMAP, package metadata, citation

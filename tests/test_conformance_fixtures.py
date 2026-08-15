@@ -66,6 +66,20 @@ def test_fixture_ids_are_local_and_unique() -> None:
     assert not set(fixture_ids) & set(_definitions.BUILTIN_MODEL_DEFINITIONS)
 
 
+def test_characteristic_model_fixtures_reference_known_characteristics() -> None:
+    known_characteristics = set(_definitions.BUILTIN_CHARACTERISTIC_DEFINITIONS)
+
+    for document in _fixture_documents():
+        if document["fixture_kind"] != "characteristic_model":
+            continue
+
+        definition = document["definition"]
+        assert isinstance(definition, dict)
+        characteristic_id = definition["characteristic_id"]
+        assert isinstance(characteristic_id, str)
+        assert characteristic_id in known_characteristics
+
+
 def test_fixture_catalog_preserves_declared_fixture_order_and_status() -> None:
     expected = [
         (fixture.fixture_id, fixture.expected_status)

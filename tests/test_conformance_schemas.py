@@ -21,6 +21,15 @@ _SCHEMA_NAMES = (
     "vector-set.schema.json",
 )
 
+_IDENTIFIER_PATTERN = r"^[a-z][a-z0-9._-]*$"
+_IDENTIFIER_SCHEMA_NAMES = (
+    "characteristic-catalog.schema.json",
+    "conformance-claim.schema.json",
+    "model-catalog.schema.json",
+    "model-fixture-catalog.schema.json",
+    "vector-set.schema.json",
+)
+
 
 def _load_schema(name: str) -> dict[str, Any]:
     with (_SCHEMA_DIR / name).open(encoding="utf-8") as handle:
@@ -31,6 +40,14 @@ def _load_schema(name: str) -> dict[str, Any]:
 
 def _validator(name: str) -> Draft202012Validator:
     return Draft202012Validator(_load_schema(name))
+
+
+def test_identifier_grammar_is_consistent_across_schemas() -> None:
+    for schema_name in _IDENTIFIER_SCHEMA_NAMES:
+        schema = _load_schema(schema_name)
+        identifier = schema["$defs"]["identifier"]
+        assert isinstance(identifier, dict)
+        assert identifier["pattern"] == _IDENTIFIER_PATTERN
 
 
 def _source_reference() -> dict[str, Any]:
