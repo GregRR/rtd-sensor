@@ -1,6 +1,6 @@
 # RTD conformance artifacts
 
-This directory contains the draft language-neutral conformance artifacts for
+This directory contains the stable language-neutral conformance-v1 artifacts for
 `rtd-sensor`.
 
 The JSON Schemas under `v1/schemas/` define the structure of conformance-v1
@@ -42,8 +42,9 @@ regeneration.
 `v1/manifest.json` is generated with the catalogs and vectors and records the
 package version, contract version/status, and SHA-256 plus byte size for every
 machine-readable JSON file in the conformance-v1 tree except the manifest
-itself. The manifest currently records `contract_status: "draft"`; contract v1
-is not stable until the final acceptance audit explicitly changes that status.
+itself. The manifest records `contract_status: "stable"`; conformance contract v1 has
+completed its acceptance/schema-freeze review and is governed by the versioning
+rules in `docs/CONFORMANCE.md`.
 
 Verify the committed release tree without building an archive with:
 

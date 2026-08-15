@@ -30,7 +30,7 @@ _CHARACTERISTICS_FILENAME = "characteristics.json"
 _MODELS_FILENAME = "models.json"
 _MODEL_FIXTURES_FILENAME = "model-fixtures.json"
 _MANIFEST_FILENAME = "manifest.json"
-_CONTRACT_STATUS = "draft"
+_CONTRACT_STATUS = "stable"
 _CUSTOM_TEMPERATURE_TO_RESISTANCE_FILENAME = (
     "vectors/custom-temperature-to-resistance.json"
 )

@@ -6,19 +6,20 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
-* Added conformance-v1 release integration with a generated SHA-256 manifest, machine-readable implementation-claim schema and example, deterministic versioned ZIP packaging, checksum sidecars, integrity verification, and release-checklist integration while keeping the contract explicitly draft pending the final acceptance audit.
+* Added conformance-v1 release integration with a generated SHA-256 manifest, machine-readable implementation-claim schema and example, deterministic versioned ZIP packaging, checksum sidecars, integrity verification, and release-checklist integration.
 * Extended the independent C11 conformance consumer to construct and validate every published custom/calibrated fixture definition, reproduce all custom binary64 conversion and status vectors, and independently exercise `invalid_model` semantics for malformed CVD, polynomial, piecewise, and calibrated-reference definitions.
 * Added generated custom/calibrated model conformance fixtures and paired binary64 conversion vectors covering characterized R0, custom CVD one- and two-sided intervals, an off-zero resistance-ratio crossing, polynomial and piecewise models, derived continuity adjustments, and representative `invalid_model` definitions.
 * Added an empirically derived `binary32_compatible` conformance profile with independent C11 single-precision verification, including documented endpoint-rounding handling and measured error margins.
 * Added an independent C11 conformance consumer and pytest driver that compile from the published characteristic/model catalogs and verify every committed built-in conversion and status vector without importing `rtd_sensor`.
 * Added deterministic built-in range/error status vectors for both conversion directions, covering finite inputs just outside model boundaries, non-finite inputs, and zero/negative resistance semantics; successful vectors now also include explicit inside-boundary neighbors.
 * Added deterministic binary64 reference vector sets for built-in temperature-to-resistance and resistance-to-temperature conversion, covering model boundaries, reference/branch anchors, representative operating points, and every Ni120 piecewise segment and join.
-* Added deterministic generation of the draft conformance-v1 characteristic and model catalogs directly from the authoritative built-in RTD definitions, with committed generated JSON, schema validation, drift detection, and source-versus-derived piecewise metadata regression coverage.
+* Added deterministic generation of the conformance-v1 characteristic and model catalogs directly from the authoritative built-in RTD definitions, with committed generated JSON, schema validation, drift detection, and source-versus-derived piecewise metadata regression coverage.
 * Added initial JSON Schema Draft 2020-12 definitions for conformance characteristic catalogs, model catalogs, and conversion vector sets, with schema self-validation and representative valid/invalid document coverage.
 * Added a public structural `rtd_sensor.models.RTDModel` protocol covering forward and inverse resistance/temperature conversion plus local `dR/dT` and `dT/dR` sensitivity. Built-in sensor modules, public configurable models, and compatible third-party model objects can satisfy the protocol without package-specific inheritance.
 
 ### Changed
 
+* Declared language-neutral RTD conformance contract v1 stable after the final acceptance/schema-freeze review, with the first stable artifacts produced by development version 0.5.0.dev0.
 * Hardened the final conformance-v1 freeze criteria with custom-fixture characteristic cross-reference coverage, identifier-grammar consistency checks, explicit contract-status and schema-identity rules, reserved `calculation_failure` semantics, clarified C11 continuity verification scope, and a dedicated stability-declaration release checklist.
 * Corrected the conformance schema for piecewise polynomial segments so a runtime-supported degree-12 segment may carry 13 coefficients including its constant term, while single-polynomial model coefficients retain their 12-item maximum.
 * Hardened the authoritative built-in definition layer by normalizing nested sequence inputs to immutable tuples, deferring alias metadata until discovery semantics are defined, and replacing unchecked built-in curve casts with import-time concrete-type validation.

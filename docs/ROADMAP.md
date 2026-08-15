@@ -95,7 +95,7 @@ Strict mypy regressions verify the intended built-in, configurable, third-party,
 and uncertainty-only relationships without changing conversion mathematics or
 validation semantics.
 
-### 2. Language-neutral RTD conformance contract — high priority
+### 2. Language-neutral RTD conformance contract — stable v1 complete
 
 The detailed conformance design is maintained in `docs/CONFORMANCE.md`. The
 roadmap section below records its goals and sequencing; the design document is
@@ -112,9 +112,11 @@ invalid configurable-model behavior. The independent C11 consumer now verifies
 that custom fixture layer as well, including model-definition rejection. Release
 integration is also in place: the v1 tree has a generated checksum manifest, a
 machine-readable claim schema/example, deterministic ZIP packaging with a
-SHA-256 sidecar, and release-checklist verification. The next conformance step is
-the final stable-v1 acceptance audit; the manifest remains explicitly `draft`
-until that audit passes.
+SHA-256 sidecar, and release-checklist verification. The final acceptance and
+schema-freeze audit is complete, and conformance contract v1 is now stable.
+Further incompatible behavioral changes require a new contract version. The next
+0.5 integration focus is public built-in model discovery and immutable metadata
+views from the same authoritative definitions.
 
 Establish `rtd-sensor` as the authoritative reference implementation for RTD
 conversion behavior, not merely as one Python implementation of the same
@@ -257,7 +259,7 @@ on the meaning of failures such as:
 - impossible/non-monotonic model configuration; and
 - inverse-calculation or convergence failure.
 
-The draft v1 language-neutral status vocabulary is now defined as:
+The stable v1 language-neutral status vocabulary is:
 
 ```text
 ok

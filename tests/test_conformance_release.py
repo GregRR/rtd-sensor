@@ -29,13 +29,13 @@ def _load_json(path: Path) -> dict[str, Any]:
     return document
 
 
-def test_release_manifest_is_valid_and_records_draft_contract_status() -> None:
+def test_release_manifest_is_valid_and_records_stable_contract_status() -> None:
     schema = _load_json(_SCHEMA_DIR / "conformance-manifest.schema.json")
     manifest = _load_json(_CONFORMANCE_DIR / "manifest.json")
 
     Draft202012Validator.check_schema(schema)
     Draft202012Validator(schema).validate(manifest)
-    assert manifest["contract_status"] == "draft"
+    assert manifest["contract_status"] == "stable"
     assert manifest["contract_version"] == 1
     assert manifest["rtd_sensor_version"] == _conformance_artifacts._project_version()
 
