@@ -252,7 +252,7 @@ R(T) = Rref × (1 + c1*x + c2*x² + ... + cn*xⁿ)
 
 The model analytically differentiates the polynomial, validates that resistance stays finite and positive, and locates derivative extrema to prove the characteristic remains strictly increasing over its declared range. Resistance-to-temperature conversion then uses dependency-free bounded bisection on that validated curve instead of an approximate inverse polynomial.
 
-Do not force a published piecewise or tabulated characteristic into this single-polynomial API. Use `PiecewisePolynomialRTDModel` for a source that publishes separate interval equations; authoritative table-based characteristics remain a separate planned model type.
+Do not force a published piecewise or tabulated characteristic into this single-polynomial API. Use `PiecewisePolynomialRTDModel` for a source that publishes separate interval equations and `TabulatedRTDModel` when the authoritative source is a resistance/temperature table.
 
 ## Piecewise polynomial RTD models
 
@@ -289,6 +289,31 @@ example = PiecewisePolynomialRTDModel(
 Segments must be contiguous, positive-resistance, and strictly increasing. The model preserves each source coefficient tuple and provides one bounded inverse across the complete characteristic. Interior temperature boundaries route to the segment on their right; if adjacent segments have different slopes, sensitivity at the boundary therefore reports that right-hand slope.
 
 Published piecewise fits are sometimes independently rounded and miss exact continuity by a tiny amount. The default API does not hide such a mismatch. A caller may explicitly set `maximum_continuity_adjustment_ratio` to authorize only a bounded additive correction to each segment's normalized constant term. The reference-temperature segment remains the anchor, derivatives are unchanged, and the applied offsets are exposed as `continuity_adjustments` for auditability. This mechanism is for documented source-rounding effects, not for making genuinely incompatible segments appear valid.
+
+## Tabulated RTD models
+
+`TabulatedRTDModel` preserves an authoritative resistance/temperature table instead of fitting a new equation to it. Supply immutable `TabulatedRTDPoint` rows in strictly increasing temperature and resistance order:
+
+```python
+from rtd_sensor.models import TabulatedRTDModel, TabulatedRTDPoint
+
+example = TabulatedRTDModel(
+    points=(
+        TabulatedRTDPoint(temperature_c=0.0, resistance_ohms=100.0),
+        TabulatedRTDPoint(temperature_c=50.0, resistance_ohms=119.4),
+        TabulatedRTDPoint(temperature_c=100.0, resistance_ohms=138.5),
+    ),
+    name="Illustrative table-backed RTD",
+    table_source="Example only — not a real sensor table",
+    source_precision="temperature 0.1 °C; resistance 0.1 Ω",
+)
+
+assert example.celsius_to_resistance(75.0) == 128.95
+```
+
+The model uses piecewise-linear interpolation between adjacent source rows. Linear interpolation is deliberate: it retains every supplied point, cannot overshoot a strictly monotonic table, introduces no fitted curvature, and has an exact inverse within each interval. The first release does not extrapolate at all; temperatures or resistances beyond the source table raise `RTDOutOfRangeError`.
+
+At an interior source point, local sensitivity uses the interval on the point's right; the final point uses the last interval. This gives deterministic `dR/dT` and `dT/dR` behavior when adjacent table intervals have different slopes, matching the one-sided convention used for piecewise-polynomial joins. `source_precision` is optional provenance metadata: extra digits produced by interpolation do not imply more scientific precision than the published table.
 
 ## Public RTD model protocol
 

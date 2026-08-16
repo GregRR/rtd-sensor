@@ -9,7 +9,12 @@ import pytest
 
 from rtd_sensor._curves import IEC_60751_PT385
 from rtd_sensor._models import RTDModel
-from rtd_sensor.models import CallendarVanDusenRTDModel, IEC60751RTDModel
+from rtd_sensor.models import (
+    CallendarVanDusenRTDModel,
+    IEC60751RTDModel,
+    TabulatedRTDModel,
+    TabulatedRTDPoint,
+)
 
 IEC_A = 3.9083e-3
 IEC_B = -5.775e-7
@@ -147,3 +152,36 @@ def test_custom_cvd_boundaries_round_trip_across_seeded_parameter_space() -> Non
             resistance = model.celsius_to_resistance(temperature_c)
             converted = model.resistance_to_celsius(resistance)
             assert converted == pytest.approx(temperature_c, abs=1e-9)
+
+
+def test_tabulated_source_knots_round_trip_across_seeded_tables() -> None:
+    """Exercise exact source-knot round trips over varied monotonic tables."""
+    random_generator = random.Random(20260816)
+
+    for _ in range(256):
+        temperatures_c = [random_generator.uniform(-200.0, 0.0)]
+        resistances_ohms = [10.0 ** random_generator.uniform(-2.0, 4.0)]
+
+        for _ in range(2):
+            temperatures_c.append(
+                temperatures_c[-1] + 10.0 ** random_generator.uniform(-3.0, 3.0)
+            )
+            resistances_ohms.append(
+                resistances_ohms[-1] + 10.0 ** random_generator.uniform(-6.0, 4.0)
+            )
+
+        points = tuple(
+            TabulatedRTDPoint(temperature_c=temperature_c, resistance_ohms=resistance)
+            for temperature_c, resistance in zip(
+                temperatures_c, resistances_ohms, strict=True
+            )
+        )
+        model = TabulatedRTDModel(points=points)
+
+        for point in points:
+            resistance = model.celsius_to_resistance(point.temperature_c)
+            temperature = model.resistance_to_celsius(point.resistance_ohms)
+            assert resistance == point.resistance_ohms
+            assert temperature == point.temperature_c
+            assert model.resistance_to_celsius(resistance) == point.temperature_c
+            assert model.celsius_to_resistance(temperature) == point.resistance_ohms

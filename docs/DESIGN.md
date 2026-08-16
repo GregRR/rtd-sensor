@@ -452,7 +452,7 @@ The low-level curve and model infrastructure remains internal. Public modules sh
 
 ### Public configurable and calibrated models
 
-The public advanced-model API has four deliberately distinct levels.
+The public advanced-model API has five deliberately distinct levels.
 
 `rtd_sensor.models.IEC60751RTDModel` represents an RTD that retains the standardized IEC 60751 PT-385 curve while allowing:
 
@@ -464,7 +464,7 @@ The built-in `rtd_sensor.pt100`, `rtd_sensor.pt500`, and `rtd_sensor.pt1000` mod
 
 `rtd_sensor.models.CallendarVanDusenRTDModel` represents a **platinum RTD** for which a calibration certificate, manufacturer, or other traceable technical source provides an IEC-style `R0`, `A`, `B`, `C` Callendar–Van Dusen coefficient set. It requires an explicit valid temperature range because custom coefficients have no package-defined universal range.
 
-Callendar–Van Dusen is intentionally a platinum-specific abstraction in this package. Nickel, copper, and other non-platinum characteristics must not be forced into `CallendarVanDusenRTDModel` merely because their published resistance-temperature relationship is polynomial. They should use `PolynomialRTDModel`, `PiecewisePolynomialRTDModel`, or a future characteristic type such as a tabulated representation that faithfully matches the source definition.
+Callendar–Van Dusen is intentionally a platinum-specific abstraction in this package. Nickel, copper, and other non-platinum characteristics must not be forced into `CallendarVanDusenRTDModel` merely because their published resistance-temperature relationship is polynomial. They should use `PolynomialRTDModel`, `PiecewisePolynomialRTDModel`, or `TabulatedRTDModel`, whichever representation faithfully matches the source definition.
 
 The custom-CVD model follows these rules:
 
@@ -502,7 +502,7 @@ The slope is evaluated analytically. Its extrema are located from roots of the p
 
 Once the curve is proven strictly increasing, resistance-to-temperature conversion uses bounded bisection on the authoritative forward polynomial. The library does not require SciPy and does not substitute a lower-accuracy approximate inverse polynomial merely for speed.
 
-The single-polynomial model must not be used to distort an authoritative piecewise or tabulated characteristic. Piecewise-polynomial characteristics use the separate representation described below; table-backed characteristics remain planned and are recorded in `ROADMAP.md`.
+The single-polynomial model must not be used to distort an authoritative piecewise or tabulated characteristic. Piecewise-polynomial and table-backed characteristics use the separate representations described below.
 
 ### Piecewise polynomial characteristics
 
@@ -517,6 +517,18 @@ Only constant offsets are used for stitching, so source-segment slopes and highe
 This bounded-stitching mechanism must not be used to conceal genuinely incompatible equations. The permitted adjustment is part of the model definition and should be justified from source precision or an equivalent traceable reason.
 
 The generic model also deliberately supports a reference temperature other than 0 °C. That capability is architectural future-proofing; it does not imply that any particular future Cu10 or other characteristic is supported until its provenance and reference definition are independently established.
+
+### Tabulated characteristics
+
+`rtd_sensor.models.TabulatedRTDModel` represents a characteristic whose authoritative source is a resistance/temperature table rather than an equation. Each immutable `TabulatedRTDPoint` retains one public numeric source row `(temperature_c, resistance_ohms)`; the model snapshots the ordered point sequence without fitting, smoothing, continuity correction, or coefficient generation. Optional `table_source` and `source_precision` strings retain provenance and the source table's stated resolution/precision context.
+
+The initial interpolation policy is deliberately piecewise linear. A monotonic cubic or spline can imply curvature the source never published and can introduce overshoot or more complicated inverse behavior. Linear interpolation instead preserves every source point, remains strictly monotonic when the table is strictly monotonic, and is exactly invertible inside each source interval without a numerical root finder. This scalar, dependency-free calculation is the reference behavior for the table model.
+
+Construction requires at least two finite points with strictly increasing temperatures and strictly increasing positive resistances. The increasing-resistance rule preserves the package-wide positive-temperature-coefficient and unique-inverse invariant. Table order is source order; the model does not sort or silently repair malformed input.
+
+Extrapolation is not part of the initial public API. Forward or inverse conversion beyond the first/last table point raises `RTDOutOfRangeError`. This avoids turning a source table into an unsupported mathematical characteristic outside its traceable range. If extrapolation is ever added, it requires an explicit policy rather than changing this default silently.
+
+Within an interval, `dR/dT` is the exact line slope and `dT/dR` is its reciprocal. At an interior source knot, sensitivity uses the interval on the knot's right; the final knot uses the last interval. The convention is deterministic but does not claim that a slope-changing table knot has a unique mathematical derivative. Interpolated floating-point output may display more digits than the source rows; those digits do not create additional scientific precision.
 
 ### IEC 60751 tolerance classes
 
@@ -604,7 +616,7 @@ A nominal resistance or TCR value alone is not sufficient evidence that two RTDs
 
 Nominal conversion, calibration, tolerance, and uncertainty are related but separate concerns. Basic resistance-temperature conversion should continue to return the ideal value represented by the selected model. Calibration, tolerance, and uncertainty should be layered on top rather than silently altering nominal conversion behavior.
 
-The scalar, dependency-free implementation should remain the reference calculation. Future piecewise, tabulated, vectorized, fitting, or lookup implementations should be verified against their authoritative source representation and must preserve the same range and inversion guarantees.
+The scalar, dependency-free implementation should remain the reference calculation. Future vectorized, fitting, or lookup implementations should be verified against their authoritative source representation and must preserve the same range and inversion guarantees.
 
 ### Support-readiness policy
 
@@ -696,8 +708,7 @@ The following decisions remain intentionally deferred:
 2. ITS-90 interpolation support for reference-grade calibrated PRTs.
 3. Covariance-aware uncertainty propagation, effective degrees of freedom, and Monte Carlo methods.
 4. Optional vectorized conversion support.
-5. Exact public APIs for piecewise-polynomial and tabulated characteristics.
-6. Calibration-point fitting APIs and how fitted-coefficient covariance should
+5. Calibration-point fitting APIs and how fitted-coefficient covariance should
    integrate with later uncertainty propagation.
 
 

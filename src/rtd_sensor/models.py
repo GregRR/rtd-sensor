@@ -8,10 +8,11 @@ The built-in :mod:`rtd_sensor.pt100`, :mod:`rtd_sensor.pt500`, and
 :mod:`rtd_sensor.pt1000` modules remain the simplest interfaces for nominal
 IEC 60751 sensors. This module provides advanced models for individually
 characterized RTDs, platinum RTDs with user-supplied Callendar-Van Dusen
-coefficient sets, and generic RTD characteristics defined by a traceable
-polynomial. Callendar-Van Dusen is a
-platinum-specific model; non-platinum RTDs should use a characteristic form
-that matches their documented resistance-temperature relationship.
+coefficient sets, generic polynomial characteristics, piecewise polynomial
+characteristics, and authoritative resistance/temperature tables.
+Callendar-Van Dusen is a platinum-specific model; non-platinum RTDs should
+use a characteristic form that matches their documented resistance-temperature
+relationship.
 
 `RTDModel` is the public structural protocol for code that accepts any
 compatible built-in, configurable, or third-party RTD model.
@@ -20,8 +21,10 @@ compatible built-in, configurable, or third-party RTD model.
 from __future__ import annotations
 
 import math
+from bisect import bisect_right
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import Literal
 
 from . import _curves
 from ._curves import CallendarVanDusenCurve as _CallendarVanDusenCurve
@@ -40,6 +43,8 @@ __all__ = [
     "PiecewisePolynomialSegment",
     "PolynomialRTDModel",
     "RTDModel",
+    "TabulatedRTDModel",
+    "TabulatedRTDPoint",
 ]
 
 
@@ -433,8 +438,8 @@ class PolynomialRTDModel:
     Notes:
         This class represents a *single global polynomial*. Published
         piecewise-polynomial and tabulated RTD characteristics should not be
-        forced into this form; dedicated representations for those models are
-        planned separately.
+        forced into this form; use the dedicated public representation that
+        matches the source.
     """
 
     reference_resistance_ohms: float
@@ -705,3 +710,207 @@ class PiecewisePolynomialRTDModel:
     def temperature_sensitivity_celsius_per_ohm(self, temperature_c: float) -> float:
         """Return the active segment's analytical dT/dR sensitivity."""
         return self._model.temperature_sensitivity_celsius_per_ohm(temperature_c)
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class TabulatedRTDPoint:
+    """One authoritative temperature/resistance point from an RTD table.
+
+    The numeric values are retained by :class:`TabulatedRTDModel`; they are not
+    fitted, smoothed, or adjusted before interpolation.
+    """
+
+    temperature_c: float
+    resistance_ohms: float
+
+    def __post_init__(self) -> None:
+        temperature_c = _as_float(self.temperature_c, name="Table temperature")
+        resistance_ohms = _as_float(self.resistance_ohms, name="Table resistance")
+
+        if not math.isfinite(temperature_c):
+            raise InvalidRTDModelError("Table temperature must be finite")
+        if not math.isfinite(resistance_ohms):
+            raise InvalidRTDModelError("Table resistance must be finite")
+        if resistance_ohms <= 0.0:
+            raise InvalidRTDModelError("Table resistance must be greater than zero")
+
+        object.__setattr__(self, "temperature_c", temperature_c)
+        object.__setattr__(self, "resistance_ohms", resistance_ohms)
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class TabulatedRTDModel:
+    """RTD model defined by authoritative temperature/resistance table points.
+
+    Adjacent source points are joined with piecewise-linear interpolation. This
+    method preserves every supplied table point exactly, cannot overshoot a
+    monotonic RTD table, and has an exact linear inverse on each interval. The
+    model never extrapolates beyond the first or last source point.
+
+    The table must contain at least two points with strictly increasing
+    temperature and strictly increasing positive resistance. At an interior
+    source point where adjacent interval slopes differ, sensitivity follows the
+    interval on the point's right. The final source point uses the last interval.
+    This matches the deterministic one-sided convention used by piecewise
+    polynomial characteristics.
+
+    Args:
+        points: Ordered authoritative temperature/resistance source points.
+        name: Human-readable model or characteristic name.
+        table_source: Optional provenance such as a manufacturer data sheet,
+            standards document, or calibration-table identifier.
+        source_precision: Optional free-form note describing the precision or
+            resolution published by the source table. It is metadata only and
+            does not change interpolation.
+
+    Notes:
+        Interpolated values are derived from the retained source points. Extra
+        floating-point digits in an interpolated result do not imply greater
+        scientific precision than the source table provides.
+    """
+
+    points: Sequence[TabulatedRTDPoint]
+    name: str = "Tabulated RTD"
+    table_source: str | None = None
+    source_precision: str | None = None
+    interpolation_method: Literal["linear"] = field(init=False, default="linear")
+    _temperatures_c: tuple[float, ...] = field(init=False, repr=False, compare=False)
+    _resistances_ohms: tuple[float, ...] = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+    _slopes_ohms_per_celsius: tuple[float, ...] = field(
+        init=False,
+        repr=False,
+        compare=False,
+    )
+
+    def __post_init__(self) -> None:
+        points = tuple(self.points)
+        if not all(isinstance(point, TabulatedRTDPoint) for point in points):
+            raise TypeError("Points must be TabulatedRTDPoint values")
+        if len(points) < 2:
+            raise InvalidRTDModelError("At least two tabulated RTD points are required")
+
+        temperatures_c = tuple(point.temperature_c for point in points)
+        resistances_ohms = tuple(point.resistance_ohms for point in points)
+        slopes: list[float] = []
+
+        for lower, upper in zip(points, points[1:], strict=False):
+            if upper.temperature_c <= lower.temperature_c:
+                raise InvalidRTDModelError(
+                    "Table temperatures must be strictly increasing"
+                )
+            if upper.resistance_ohms <= lower.resistance_ohms:
+                raise InvalidRTDModelError(
+                    "Table resistances must be strictly increasing with temperature"
+                )
+
+            temperature_span = upper.temperature_c - lower.temperature_c
+            resistance_span = upper.resistance_ohms - lower.resistance_ohms
+            slope = resistance_span / temperature_span
+            if not math.isfinite(slope) or slope <= 0.0:
+                raise InvalidRTDModelError(
+                    "Tabulated interpolation slope must remain finite and positive"
+                )
+            slopes.append(slope)
+
+        table_source = self._validated_optional_metadata(
+            self.table_source,
+            name="Table source",
+        )
+        source_precision = self._validated_optional_metadata(
+            self.source_precision,
+            name="Source precision",
+        )
+
+        object.__setattr__(self, "points", points)
+        object.__setattr__(self, "table_source", table_source)
+        object.__setattr__(self, "source_precision", source_precision)
+        object.__setattr__(self, "_temperatures_c", temperatures_c)
+        object.__setattr__(self, "_resistances_ohms", resistances_ohms)
+        object.__setattr__(self, "_slopes_ohms_per_celsius", tuple(slopes))
+
+    @property
+    def minimum_temperature_c(self) -> float:
+        """Return the first source temperature."""
+        return self._temperatures_c[0]
+
+    @property
+    def maximum_temperature_c(self) -> float:
+        """Return the last source temperature."""
+        return self._temperatures_c[-1]
+
+    def celsius_to_resistance(self, temperature_c: float) -> float:
+        """Convert Celsius to resistance by linear table interpolation."""
+        temperature = _as_float(temperature_c, name="Temperature")
+        self._validate_temperature(temperature)
+        interval = self._interval_index(self._temperatures_c, temperature)
+        upper_temperature = self._temperatures_c[interval + 1]
+        if temperature == upper_temperature:
+            return self._resistances_ohms[interval + 1]
+
+        lower_temperature = self._temperatures_c[interval]
+        lower_resistance = self._resistances_ohms[interval]
+        slope = self._slopes_ohms_per_celsius[interval]
+        return lower_resistance + slope * (temperature - lower_temperature)
+
+    def resistance_to_celsius(self, resistance_ohms: float) -> float:
+        """Convert resistance to Celsius by exact interval inversion."""
+        resistance = _as_float(resistance_ohms, name="Resistance")
+        self._validate_resistance(resistance)
+        interval = self._interval_index(self._resistances_ohms, resistance)
+        upper_resistance = self._resistances_ohms[interval + 1]
+        if resistance == upper_resistance:
+            return self._temperatures_c[interval + 1]
+
+        lower_resistance = self._resistances_ohms[interval]
+        lower_temperature = self._temperatures_c[interval]
+        slope = self._slopes_ohms_per_celsius[interval]
+        return lower_temperature + (resistance - lower_resistance) / slope
+
+    def resistance_sensitivity_ohms_per_celsius(self, temperature_c: float) -> float:
+        """Return the active linear interval's dR/dT sensitivity."""
+        temperature = _as_float(temperature_c, name="Temperature")
+        self._validate_temperature(temperature)
+        interval = self._interval_index(self._temperatures_c, temperature)
+        return self._slopes_ohms_per_celsius[interval]
+
+    def temperature_sensitivity_celsius_per_ohm(self, temperature_c: float) -> float:
+        """Return the active linear interval's reciprocal dT/dR sensitivity."""
+        return 1.0 / self.resistance_sensitivity_ohms_per_celsius(temperature_c)
+
+    def _validate_temperature(self, temperature_c: float) -> None:
+        if not math.isfinite(temperature_c):
+            raise ValueError("Temperature must be finite")
+        if temperature_c < self.minimum_temperature_c:
+            raise RTDOutOfRangeError("Temperature is below the tabulated model range")
+        if temperature_c > self.maximum_temperature_c:
+            raise RTDOutOfRangeError("Temperature is above the tabulated model range")
+
+    def _validate_resistance(self, resistance_ohms: float) -> None:
+        if not math.isfinite(resistance_ohms):
+            raise ValueError("Resistance must be finite")
+        if resistance_ohms <= 0.0:
+            raise ValueError("Resistance must be greater than zero")
+        if resistance_ohms < self._resistances_ohms[0]:
+            raise RTDOutOfRangeError("Resistance is below the tabulated model range")
+        if resistance_ohms > self._resistances_ohms[-1]:
+            raise RTDOutOfRangeError("Resistance is above the tabulated model range")
+
+    @staticmethod
+    def _interval_index(values: tuple[float, ...], value: float) -> int:
+        index = bisect_right(values, value) - 1
+        return min(index, len(values) - 2)
+
+    @staticmethod
+    def _validated_optional_metadata(value: str | None, *, name: str) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise TypeError(f"{name} must be a string")
+        normalized = value.strip()
+        if not normalized:
+            raise InvalidRTDModelError(f"{name} must not be empty")
+        return normalized

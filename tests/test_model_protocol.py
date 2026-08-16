@@ -13,6 +13,7 @@ from rtd_sensor.models import (
     PiecewisePolynomialRTDModel,
     PolynomialRTDModel,
     RTDModel,
+    TabulatedRTDModel,
 )
 from rtd_sensor.uncertainty import RTDUncertaintyModel
 
@@ -69,9 +70,10 @@ def _configurable_models_are_rtd_models(
     cvd: CallendarVanDusenRTDModel,
     polynomial: PolynomialRTDModel,
     piecewise: PiecewisePolynomialRTDModel,
+    tabulated: TabulatedRTDModel,
 ) -> tuple[RTDModel, ...]:
     """Static regression: every public configurable model satisfies RTDModel."""
-    return (iec, cvd, polynomial, piecewise)
+    return (iec, cvd, polynomial, piecewise, tabulated)
 
 
 def _rtd_model_is_an_uncertainty_model(model: RTDModel) -> RTDUncertaintyModel:

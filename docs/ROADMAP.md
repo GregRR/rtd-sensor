@@ -510,12 +510,13 @@ Custom public model constructors translate mathematically invalid model definiti
 
 This Python hierarchy intentionally does not mirror every stable conformance-v1 status one-for-one. `RTDOutOfRangeError` groups the language-neutral low/high range statuses, unknown-model lookup remains a capability/selection concern, and `calculation_failure` stays reserved until a natural public numerical failure mode requires a dedicated Python exception.
 
-### 7. Tabulated RTD characteristics
+### 7. Tabulated RTD characteristics — implemented
 
-Implement the tabulated-characteristic design under **User-defined
-characteristics** below. Table support should integrate with the same public RTD
-model protocol, sensitivity semantics, provenance rules, and no-extrapolation
-default rather than creating a parallel conversion API.
+Implemented `TabulatedRTDModel` and immutable `TabulatedRTDPoint` rows for authoritative resistance/temperature tables. The model participates in the same public `RTDModel` protocol as equation-backed characteristics, preserves source rows without fitting, uses documented piecewise-linear interpolation with exact interval inversion, exposes local sensitivity and provenance/precision metadata, and rejects extrapolation beyond the source table.
+
+Tables must contain at least two finite rows with strictly increasing temperature and strictly increasing positive resistance. Interior-knot sensitivity follows the interval on the right and the final knot follows the last interval, matching the deterministic one-sided convention already used for piecewise characteristics.
+
+The next follow-on milestone is calibration fitting.
 
 ### 8. Calibration fitting
 
@@ -574,7 +575,7 @@ RTD characteristic
 ├── Callendar-Van Dusen platinum characteristic
 ├── single polynomial characteristic
 ├── piecewise polynomial characteristic          implemented foundation
-└── tabulated characteristic                     planned
+└── tabulated characteristic                     implemented
 
 RTD model
 ├── characteristic
@@ -694,16 +695,17 @@ standard nickel curve.
 
 ### Tabulated characteristics
 
-Planned. A manufacturer's resistance/temperature table may be more
-scientifically authoritative than fitting a new polynomial to it. Future table
-support should:
+Implemented. A manufacturer's resistance/temperature table may be more scientifically authoritative than fitting a new polynomial to it. `TabulatedRTDModel` therefore retains immutable source points and uses dependency-free piecewise-linear interpolation rather than fitting a new curve.
 
-- retain the source points unchanged;
-- require monotonic data for an invertible RTD characteristic;
-- use a documented monotonic interpolation method;
-- avoid extrapolation by default;
-- expose interpolation behavior and source precision clearly;
-- preserve table provenance.
+The implemented table contract:
+
+- retains the supplied source rows without fitting or adjustment;
+- requires strictly increasing temperature and resistance for a unique inverse;
+- uses documented piecewise-linear interpolation;
+- prohibits extrapolation outside the table range;
+- exposes `interpolation_method == "linear"` plus optional source-precision metadata;
+- preserves optional table provenance; and
+- uses the same four-operation public `RTDModel` protocol and one-sided knot-sensitivity convention as the other characteristic forms.
 
 ## Calibration and model fitting
 
