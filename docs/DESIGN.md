@@ -13,7 +13,7 @@ Verified built-in characteristics currently include:
 - Ni1000 TK5000 / Nickel NL 5000 ppm/K: nominal resistance 1000 Ω at 0 °C
 - North American Ni120 / 6720 ppm/K: nominal resistance 120 Ω at 0 °C
 
-The library also supports traceable custom RTD models, IEC 60751 platinum tolerance calculations, measurement-uncertainty analysis, and simulation.
+The library also supports traceable custom equation- and table-backed RTD models, built-in model discovery, hardware-neutral resistance/model composition, a small public exception taxonomy, IEC 60751 platinum tolerance calculations, measurement-uncertainty analysis, simulation, and stable language-neutral conformance artifacts.
 
 The project exists so applications can share one tested scientific conversion and modeling layer while keeping hardware acquisition code separate.
 
@@ -296,7 +296,7 @@ The public `rtd_sensor.measurement.read_temperature_celsius()` helper is the app
 
 New integrations should prefer explicit `model=` composition. The existing built-in `rtd_type` string convenience and the historical Pt100 default for untyped readers remain for compatibility. `model` and `rtd_type` are mutually exclusive. If a reader itself declares `rtd_type`, an explicit model object is rejected rather than treated as an override: `RTDModel` deliberately carries no identity metadata, so the package cannot prove that the declarations describe the same characteristic. A matching explicit `rtd_type` remains valid, while a contradictory one is rejected before consuming a reading.
 
-The helper deliberately preserves failure ownership. Exceptions raised while acquiring resistance propagate as acquisition failures, and exceptions raised by the selected model propagate as model/conversion failures. A later public exception taxonomy may provide additional stable model-side distinctions, but this composition seam must not translate hardware failures into RTD-model failures.
+The helper deliberately preserves failure ownership. Exceptions raised while acquiring resistance propagate as acquisition failures, and exceptions raised by the selected model propagate as model/conversion failures. The public exception taxonomy provides stable package-owned model-side distinctions while preserving this boundary: the composition seam must not translate hardware failures or arbitrary third-party model failures into RTD-domain failures.
 
 `rtd_sensor.simulation.read_temperature_celsius` remains an exact compatibility re-export of the neutral helper. Higher-level channel objects that bind hardware configuration, a reader, a model, labels, or control behavior belong in application/hardware packages rather than this scientific core.
 
@@ -607,10 +607,11 @@ The scientific conversion layer must not require a wire-count parameter.
 ### Planned characteristic expansion
 
 The current development roadmap is maintained in [`ROADMAP.md`](ROADMAP.md).
-The 0.4.x work has added generic single- and piecewise-polynomial infrastructure
+Version 0.4.0 added generic single- and piecewise-polynomial infrastructure
 plus distinct built-in Ni1000 6180, Ni1000 TK5000, and North American Ni120
-characteristics. Later research includes additional nickel/Balco variants and
-Cu10/Cu100 candidates.
+characteristics. Version 0.5.0 added the table-backed characteristic form and
+public discovery/composition contracts. Later characteristic research includes
+additional nickel/Balco variants and Cu10/Cu100 candidates.
 
 A nominal resistance or TCR value alone is not sufficient evidence that two RTDs share one characteristic. Every built-in characteristic must retain explicit identity and provenance, and apparently similar manufacturer curves must remain distinct when their published resistance/temperature behavior differs.
 

@@ -9,7 +9,8 @@ authors:
     given-names: "Greg"
 abstract: >-
   Python RTD resistance/temperature conversion and modeling for IEC 60751
-  platinum and nickel RTDs, with tolerance, uncertainty, and simulation tools.
+  platinum RTDs and documented nickel RTD characteristics, with tolerance,
+  uncertainty, and simulation tools.
 repository-code: "https://github.com/GregRR/rtd-sensor"
 url: "https://pypi.org/project/rtd-sensor/"
 license: MPL-2.0

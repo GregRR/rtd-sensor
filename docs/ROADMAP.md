@@ -44,11 +44,11 @@ should remain responsible for interpreting that resistance through an RTD model.
 Application code composes the two layers; neither package should duplicate the
 other layer's responsibilities.
 
-Items 1 through 7 are implemented and form the 0.5.0 release scope. Release
-preparation begins after item 7; feature development should not continue into
-item 8 until 0.5.0 has completed its release-readiness gate and been published.
+Items 1 through 7 shipped in version 0.5.0 on 2026-08-16. Version 0.5.1 is a
+corrective documentation/release-process release and does not add roadmap feature
+scope. Feature development resumes with item 8 on the 0.6.0 line.
 
-The next planned release is **0.6.0**. Items 8 and 9 are its required roadmap
+The next planned feature release is **0.6.0**. Items 8 and 9 are its required roadmap
 milestone, with the release boundary immediately after item 9. Item 10 is
 ongoing, provenance-dependent built-in expansion: support-ready characteristics
 may land during the 0.6.0 cycle, but item 10 is not a blocker for the 0.6.0
@@ -57,7 +57,8 @@ research cannot silently postpone a completed release milestone.
 
 ### Release boundaries
 
-- **0.5.0:** items 1–7; stop after item 7 for release preparation and publication.
+- **0.5.0:** items 1–7; published 2026-08-16.
+- **0.5.1:** corrective documentation/release-process release; no new roadmap items.
 - **0.6.0:** items 8–9; stop after item 9 for release preparation and publication.
 - **Item 10:** may land when scientifically support-ready, but does not move the
   0.6.0 release boundary.
@@ -130,9 +131,9 @@ integration is also in place: the v1 tree has a generated checksum manifest, a
 machine-readable claim schema/example, deterministic ZIP packaging with a
 SHA-256 sidecar, and release-checklist verification. The final acceptance and
 schema-freeze audit is complete, and conformance contract v1 is now stable.
-Further incompatible behavioral changes require a new contract version. The next
-0.5 integration focus is public built-in model discovery and immutable metadata
-views from the same authoritative definitions.
+Further incompatible behavioral changes require a new contract version. Public
+built-in model discovery and immutable metadata views from the same authoritative
+definitions shipped in 0.5.0 as roadmap item 3.
 
 Establish `rtd-sensor` as the authoritative reference implementation for RTD
 conversion behavior, not merely as one Python implementation of the same
@@ -202,7 +203,7 @@ Representative vector sets should eventually cover:
 - characterized reference resistance / calibrated `R0`;
 - custom Callendar-Van Dusen coefficient sets;
 - single-polynomial and piecewise-polynomial models;
-- tabulated models once implemented; and
+- tabulated models when their conformance representation is added; and
 - other future characteristics only after they become supported.
 
 Each capability should be separable so an embedded implementation can claim a
@@ -294,9 +295,9 @@ semantic names map independently to
 Python exceptions, C/C++ enums, protocol status codes, or other
 language-appropriate mechanisms.
 
-This work should coordinate with the public exception taxonomy later in this
-roadmap so Python application exceptions and cross-language statuses describe
-the same underlying conditions rather than evolving independently.
+This contract is coordinated with the implemented public exception taxonomy in
+item 6 so Python application exceptions and cross-language statuses describe the
+same underlying conditions without requiring a one-to-one mapping.
 
 #### 2.7 Layered conformance profiles
 
@@ -534,9 +535,9 @@ Implemented `TabulatedRTDModel` and immutable `TabulatedRTDPoint` rows for autho
 
 Tables must contain at least two finite rows with strictly increasing temperature and strictly increasing positive resistance. Interior-knot sensitivity follows the interval on the right and the final knot follows the last interval, matching the deterministic one-sided convention already used for piecewise characteristics.
 
-With item 7 complete, the next action is the 0.5.0 release-readiness and
-publication process described in `docs/RELEASING.md`. Calibration fitting starts
-the 0.6.0 development line only after that release is complete.
+Items 1 through 7 shipped in 0.5.0. The 0.5.1 corrective release is limited to
+documentation consistency and release-process hardening; calibration fitting
+remains the first planned feature milestone on the 0.6.0 line.
 
 ### 8. Calibration fitting — planned for 0.6.0
 

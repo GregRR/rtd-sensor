@@ -1,13 +1,16 @@
 # rtd-sensor
 
-`rtd-sensor` is a small, platform-independent Python library for resistance-to-temperature and temperature-to-resistance conversion and modeling of resistance temperature detectors (RTDs).
-Its verified built-in sensor modules currently cover IEC 60751 Pt100, Pt500, Pt1000,
-the former-DIN Ni1000 6178/6180 ppm/K characteristic, Ni1000 TK5000, and the
-North American Ni120 / 6720 ppm/K characteristic. The library
-also provides configurable and calibrated Callendar–Van Dusen models, generic
-single- and piecewise-polynomial RTD models for traceable manufacturer/user
-characteristics, standard platinum tolerance calculations, measurement-uncertainty
-tools, and simulation support.
+`rtd-sensor` is a platform-independent Python library for resistance-to-temperature
+and temperature-to-resistance conversion and modeling of resistance temperature
+detectors (RTDs). Its verified built-in characteristics include IEC 60751 PT-385
+Pt100, Pt500, and Pt1000, along with documented Ni1000 and Ni120 nickel RTD
+characteristics.
+
+Beyond basic conversion, the library supports configurable Callendar–Van Dusen
+models for traceable coefficient sets; generic polynomial, piecewise-polynomial, and
+table-backed custom characteristics; IEC 60751 platinum tolerance calculations;
+measurement uncertainty; simulation; built-in model discovery; hardware-neutral
+measurement composition; and stable language-neutral conformance artifacts.
 
 It is intended for developers building software, test, measurement, and scientific
 applications that already have an RTD resistance measurement and need conversion,
@@ -15,24 +18,20 @@ modeling, tolerance, uncertainty, or simulation tools.
 
 ## Scope
 
-`rtd-sensor` currently handles:
+`rtd-sensor` currently provides these verified built-in characteristics:
 
-```text
-Pt100 resistance in ohms  ↔ temperature in Celsius
-Pt500 resistance in ohms  ↔ temperature in Celsius
-Pt1000 resistance in ohms ↔ temperature in Celsius
-Ni1000 6180 resistance in ohms ↔ temperature in Celsius
-Ni1000 TK5000 resistance in ohms ↔ temperature in Celsius
-Ni120 6720 resistance in ohms ↔ temperature in Celsius
-```
+| Built-in | Characteristic | R0 at 0 °C | Supported characteristic range |
+| --- | --- | ---: | ---: |
+| Pt100 | IEC 60751 PT-385 platinum | 100 Ω | -200 °C to 850 °C |
+| Pt500 | IEC 60751 PT-385 platinum | 500 Ω | -200 °C to 850 °C |
+| Pt1000 | IEC 60751 PT-385 platinum | 1000 Ω | -200 °C to 850 °C |
+| Ni1000 6180 | former DIN 43760 / Nickel ND 6178/6180 ppm/K | 1000 Ω | -60 °C to 250 °C |
+| Ni1000 TK5000 | Nickel NL 5000 ppm/K | 1000 Ω | -60 °C to 250 °C |
+| Ni120 6720 | North American / Minco NA 6720 ppm/K | 120 Ω | -80 °C to 260 °C |
 
-The Pt100/Pt500/Pt1000 modules use the IEC 60751 PT-385 platinum curve:
-
-* Pt100: 100 Ω at 0 °C
-* Pt500: 500 Ω at 0 °C
-* Pt1000: 1000 Ω at 0 °C
-* α ≈ 0.00385
-* ideal standardized curve from -200 °C through 850 °C
+Each built-in converts resistance in ohms to temperature in Celsius and temperature
+in Celsius to resistance in ohms. Pt100, Pt500, and Pt1000 share the normalized
+IEC 60751 PT-385 platinum curve (α ≈ 0.00385) and differ by nominal resistance.
 
 `rtd_sensor.ni1000` implements the distinct former DIN 43760 nickel characteristic with
 1000 Ω at 0 °C, approximately 6178/6180 ppm/K over 0–100 °C, and a
@@ -54,9 +53,13 @@ Only RTD characteristics whose equations, validity ranges, independent reference
 - convert a compensated RTD resistance measurement to temperature;
 - calculate the expected resistance of an RTD at a known temperature;
 - model an individual IEC 60751 probe with a characterized R0 or custom Callendar–Van Dusen coefficients;
+- preserve authoritative manufacturer/user table data with a table-backed RTD model;
+- discover verified built-in models and their immutable metadata;
+- compose a hardware-neutral resistance reader with any structural RTD model;
 - evaluate IEC 60751 platinum tolerance limits;
-- propagate resistance-measurement uncertainty into temperature uncertainty; or
-- generate RTD measurements for software testing and simulation.
+- propagate resistance-measurement uncertainty into temperature uncertainty;
+- generate RTD measurements for software testing and simulation; or
+- validate independent implementations against the stable conformance-v1 artifacts.
 
 Hardware acquisition remains separate. For example, if a MAX31865 or another
 acquisition layer has already produced a compensated resistance measurement,
@@ -621,10 +624,15 @@ uv run --locked mypy
 ## Further documentation
 
 See [`docs/DESIGN.md`](docs/DESIGN.md) for detailed architecture and mathematical
-assumptions, [`docs/ROADMAP.md`](docs/ROADMAP.md) for planned RTD families and
-future characteristic/calibration work, [`docs/RELEASING.md`](docs/RELEASING.md)
-for the release checklist, and [`CITATION.cff`](CITATION.cff) for software
-citation metadata.
+assumptions, [`docs/CONFORMANCE.md`](docs/CONFORMANCE.md) for the stable
+language-neutral RTD conformance contract, and
+[`conformance/README.md`](conformance/README.md) for the published catalogs,
+schemas, vectors, fixtures, and independent-consumer artifacts.
+
+See [`docs/ROADMAP.md`](docs/ROADMAP.md) for planned RTD families and future
+characteristic/calibration work, [`docs/RELEASING.md`](docs/RELEASING.md) for the
+release checklist, and [`CITATION.cff`](CITATION.cff) for software citation
+metadata.
 
 ## License
 

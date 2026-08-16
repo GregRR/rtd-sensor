@@ -32,8 +32,11 @@ jobs:
       - name: Install Python 3.14
         run: uv python install 3.14
 
+      - name: Check lockfile consistency
+        run: uv lock --check
+
       - name: Sync locked development environment
-        run: uv sync --locked
+        run: uv sync --locked --dev
 
       - name: Verify release tag matches project version
         env:
@@ -68,11 +71,64 @@ jobs:
       - name: Run mypy
         run: uv run --locked mypy
 
-      - name: Check Git whitespace
-        run: git diff --check
+      - name: Check generated conformance artifacts
+        run: uv run --locked python -m rtd_sensor._conformance_artifacts --check
+
+      - name: Check conformance release integrity
+        run: uv run --locked python -m rtd_sensor._conformance_release --check
+
+      - name: Check tracked files for whitespace errors
+        run: git diff --check "$(git hash-object -t tree /dev/null)" HEAD
+
+      - name: Confirm checks did not modify the tree
+        run: test -z "$(git status --short)"
 
       - name: Build distributions without uv source overrides
         run: uv build --no-sources
+
+      - name: Smoke-test built distributions in clean environments
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          test "$(find dist -maxdepth 1 -type f -name '*.whl' | wc -l)" -eq 1
+          test "$(find dist -maxdepth 1 -type f -name '*.tar.gz' | wc -l)" -eq 1
+
+          index=0
+          for artifact in dist/*.whl dist/*.tar.gz; do
+            env_dir=".release-smoke-${index}"
+            uv venv --python 3.14 "${env_dir}"
+            uv pip install --python "${env_dir}/bin/python" "${artifact}"
+            "${env_dir}/bin/python" - <<'PY'
+          import importlib.metadata
+          import importlib.util
+          import os
+
+          expected_version = os.environ["RELEASE_TAG"].removeprefix("v")
+          actual_version = importlib.metadata.version("rtd-sensor")
+          if actual_version != expected_version:
+              raise SystemExit(
+                  f"installed version {actual_version!r} does not match "
+                  f"release version {expected_version!r}"
+              )
+
+          import rtd_sensor
+          from rtd_sensor import catalog, pt100
+
+          if importlib.util.find_spec("rtd") is not None:
+              raise SystemExit("legacy rtd import package is unexpectedly present")
+
+          if abs(pt100.resistance_to_celsius(100.0)) > 1e-12:
+              raise SystemExit("installed Pt100 smoke conversion failed")
+
+          if "pt100" not in catalog.supported_models():
+              raise SystemExit("installed catalog smoke check failed")
+
+          if rtd_sensor.catalog is not catalog:
+              raise SystemExit("installed public package export smoke check failed")
+          PY
+            rm -rf "${env_dir}"
+            index=$((index + 1))
+          done
 
       - name: Upload distributions for publishing
         uses: actions/upload-artifact@v4

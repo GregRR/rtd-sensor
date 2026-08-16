@@ -1,67 +1,112 @@
-# Release checklist
+# Release readiness and publishing
 
-Use this checklist for every `rtd-sensor` release. The goal is to keep the
-package metadata, citation metadata, documentation, Git tag, GitHub Release, and
-PyPI release synchronized.
+Use this process for every `rtd-sensor` release. A release is ready only when
+this question can be answered yes:
 
-## 1. Prepare release metadata
+> Is the exact commit, documentation, metadata, artifact, and publishing
+> mechanism about to be exposed to users internally consistent and demonstrably
+> correct?
 
-- Update `project.version` in `pyproject.toml`.
-- Update `uv.lock` if the project metadata change requires it.
-- Move the release notes from `Unreleased` into a dated version section in
-  `CHANGELOG.md`.
-- Update `version` in `CITATION.cff` to the same release version.
-- Update `date-released` in `CITATION.cff` to the release date in `YYYY-MM-DD`
-  format.
-- Regenerate the conformance artifacts after the version change so every
-  generated JSON file and `conformance/v1/manifest.json` record the release
-  version:
+Repository beautification is not a release gate. Branch deletion, commit
+squashing, interactive rebasing, and similar history cleanup belong in normal
+maintenance rather than release preparation.
 
-  ```bash
-  uv run python -m rtd_sensor._conformance_artifacts
-  ```
+## 1. Define the release
 
-Do not tag the release while `pyproject.toml`, `CHANGELOG.md`, and
-`CITATION.cff` disagree about the release.
+Before changing release metadata:
+
+- [ ] Confirm the target version.
+- [ ] Review the diff from the previous release tag.
+- [ ] Confirm the intended fixes/features/documentation are present.
+- [ ] Confirm intentionally deferred work remains documented as deferred.
+- [ ] Confirm no known release-blocking issue remains.
+- [ ] Confirm the release scope matches what will be described to users.
+
+For corrective releases, explicitly record what is *not* in scope so a patch
+release cannot silently become the next feature milestone.
+
+## 2. Version and package metadata
+
+Review every authoritative or duplicated version/identity location:
+
+- [ ] `project.version` in `pyproject.toml` is the target release version.
+- [ ] `uv.lock` agrees with the project metadata.
+- [ ] `CITATION.cff` has the target `version` and `date-released`.
+- [ ] `CHANGELOG.md` contains a dated section for the target version.
+- [ ] Distribution name is `rtd-sensor`.
+- [ ] Import package is `rtd_sensor`.
+- [ ] `requires-python`, dependency constraints, classifiers, URLs, license,
+      author metadata, and build configuration are current.
+- [ ] Repository searches for the previous version have been investigated.
+
+After changing `project.version`, regenerate the version-bearing conformance
+artifacts:
+
+```bash
+uv run python -m rtd_sensor._conformance_artifacts
+```
+
+Do not tag while `pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `CITATION.cff`, or
+the generated conformance artifacts disagree about the intended release.
 
 ### Declaring a conformance contract stable
 
 Declaring a conformance contract stable is a one-time freeze operation, not a
-routine release step. Before changing `contract_status` from `draft` to `stable`:
+routine release step. Before changing `contract_status` from `draft` to
+`stable`:
 
-- complete the final conformance acceptance/schema-freeze review and resolve all
-  findings required for stability;
-- obtain the narrow verification of any pre-freeze corrections without mixing
-  unrelated feature work into the freeze;
-- deliberately set the package version that should identify the source state
+- complete the final conformance acceptance/schema-freeze review;
+- resolve every finding required for stability;
+- obtain narrow verification of pre-freeze corrections without mixing unrelated
+  feature work into the freeze;
+- deliberately set the package version that identifies the source state
   producing the first stable artifacts;
 - change only the contract maturity/version-provenance state required for the
   freeze, then regenerate all conformance artifacts and the manifest;
 - run both conformance `--check` commands and the complete release gate; and
-- inspect the regenerated manifest before committing the freeze so
-  `contract_version`, `contract_status`, and `rtd_sensor_version` are exactly the
-  intended values.
+- inspect the regenerated manifest before committing the freeze.
 
 Do not use the stability declaration commit to introduce new conformance
-semantics. The purpose of the commit is to freeze behavior that has already been
-reviewed.
+semantics.
 
-## 2. Audit documentation consistency
+## 3. Documentation-drift audit
 
-Before tagging, review the README, DESIGN, ROADMAP, package metadata, citation
-metadata, source comments, and tests for documentation drift.
+**This is a hard release gate.** Review the complete documentation set, not only
+the files expected to change:
 
-Confirm that:
+- [ ] `README.md`
+- [ ] `docs/DESIGN.md`
+- [ ] `docs/CONFORMANCE.md`
+- [ ] `docs/ROADMAP.md`
+- [ ] `docs/RELEASING.md`
+- [ ] `CHANGELOG.md`
+- [ ] `CITATION.cff`
+- [ ] public API docstrings and source comments
+- [ ] examples, installation instructions, and command snippets
+- [ ] package/import names, supported-version statements, and release highlights
 
-- the README Scope and `docs/DESIGN.md` describe the same currently supported
-  built-in RTD characteristics;
-- `docs/ROADMAP.md` does not describe already-shipped functionality as planned
-  or future work;
-- `pyproject.toml` metadata accurately describes the current package scope;
-- `CITATION.cff` identifies the current release version and release date;
-- current examples and source comments use the `rtd_sensor` namespace; and
-- references to `pt100-core` or the legacy `rtd` namespace occur only where
-  historical or migration context requires them.
+For the documentation set as a whole, verify:
+
+- [ ] implemented functionality is described as implemented;
+- [ ] planned/deferred functionality is still described as planned/deferred;
+- [ ] public APIs match the current code;
+- [ ] examples use current imports, names, arguments, and behavior;
+- [ ] installation commands are current;
+- [ ] old project/package/import names occur only in intentional history or
+      migration material;
+- [ ] old version numbers occur only where historical or otherwise intentional;
+- [ ] terminology is consistent across documents;
+- [ ] documents do not contradict one another;
+- [ ] documentation does not claim unsupported behavior; and
+- [ ] important newly implemented user-facing behavior is not omitted.
+
+A document that is individually accurate can still conflict with another
+current document. Cross-document consistency is an explicit release check.
+
+## 4. Repository drift sweep
+
+Search broadly outside the major documentation files for stale values and
+obsolete interfaces. Investigate every match rather than blindly replacing it.
 
 A useful legacy-name audit is:
 
@@ -71,16 +116,22 @@ grep -RInE \
   README.md CHANGELOG.md docs src tests
 ```
 
-Review every match rather than requiring zero matches: migration examples and
-historical changelog entries are intentionally retained.
+Also search for:
 
-When a release adds, removes, or changes an RTD characteristic or major
-capability, explicitly review every capability inventory rather than assuming
-search-and-replace will catch semantic drift.
+- previous release versions;
+- old CLI/API names and deprecated arguments;
+- obsolete examples or URLs;
+- stale feature names;
+- TODOs/comments that describe completed work as unfinished;
+- tests or configuration using obsolete interfaces; and
+- stale names/versions in CI or release workflows.
 
-## 3. Run the release gate
+Historical changelog and migration references are intentionally retained when
+they are still accurate.
 
-From a clean working tree, run:
+## 5. Source validation
+
+Run the complete source-tree gate from the intended release candidate:
 
 ```bash
 uv lock --check
@@ -94,13 +145,26 @@ git diff --check
 git status --short
 ```
 
-All checks must pass and the working tree must be clean before tagging.
+All checks must pass. Any failure must be understood and consciously resolved;
+an unexplained failure is release-blocking.
 
-## 4. Build and smoke-test distributions and conformance assets
+Before declaring the release candidate final, all intended release changes must
+be tracked and committed and the working tree must be clean. At that point,
+plain `git diff --check` has no working-tree diff left to inspect, so also check
+the complete committed release delta from the previous release tag:
 
-Build the Python release artifacts without development-only uv source
-overrides, then build the deterministic conformance bundle from the verified
-manifest:
+```bash
+git diff --check vPREVIOUS..HEAD
+```
+
+Replace `vPREVIOUS` with the actual previous release tag (for example,
+`v0.5.0` while preparing 0.5.1).
+
+## 6. Build and inspect the actual release artifacts
+
+Source-tree success does not prove the distributable artifacts are correct.
+Build from the intended release candidate without development-only uv source
+overrides:
 
 ```bash
 rm -rf dist
@@ -108,18 +172,96 @@ uv build --no-sources
 uv run python -m rtd_sensor._conformance_release --output-dir dist
 ```
 
-The conformance command writes a versioned ZIP and matching `.sha256` sidecar.
-The ZIP contains exactly `conformance/v1/manifest.json` and the machine-readable
-files named by that manifest.
+Then verify:
 
-Install the wheel into a clean temporary environment and verify the distribution
-version, public `rtd_sensor` import, absence of the legacy `rtd` package, and
-representative public conversions.
+- [ ] exactly the expected wheel and source distribution were produced;
+- [ ] package filenames and versions are correct;
+- [ ] wheel/source contents contain expected package files and no unintended
+      local/generated material;
+- [ ] package metadata inside the artifact is correct;
+- [ ] the conformance ZIP and `.sha256` sidecar were produced;
+- [ ] the conformance ZIP contains exactly the manifest and files named by it;
+- [ ] the conformance manifest records the intended package version and stable
+      contract status; and
+- [ ] the checksum sidecar validates the conformance ZIP.
 
-## 5. Tag and publish the GitHub Release
+Install the Python artifacts into clean temporary environments and verify the
+installed distribution rather than the source checkout:
 
-Create an annotated version tag, verify it points at the intended release
-commit, and push it:
+- [ ] `importlib.metadata.version("rtd-sensor")` reports the target version;
+- [ ] `import rtd_sensor` succeeds;
+- [ ] the legacy `rtd` package is absent;
+- [ ] representative built-in conversion succeeds; and
+- [ ] representative 0.5.x public APIs such as catalog/model composition are
+      importable and usable.
+
+## 7. User-facing installation and quickstart test
+
+Follow the README exactly as a new user would. Do not substitute a command that
+is known to work for the command the documentation actually gives users.
+
+From a clean environment:
+
+- [ ] run the documented installation command exactly;
+- [ ] run the documented basic-usage example exactly;
+- [ ] run representative advanced examples relevant to the release;
+- [ ] confirm no undocumented setup is required;
+- [ ] confirm package/import/API names and arguments are current;
+- [ ] verify described outputs and behavior remain sensible; and
+- [ ] verify the documented minimum Python version when feasible.
+
+If the primary documentation fails this test, the release is not ready even if
+the package itself works.
+
+## 8. CI and release automation
+
+Before publishing:
+
+- [ ] required CI jobs pass on the exact release commit;
+- [ ] local `HEAD` and remote `main` identify the same intended release commit;
+- [ ] `.github/workflows/ci.yml` has been reviewed;
+- [ ] `.github/workflows/release.yml` has been reviewed;
+- [ ] workflow triggers and tag/version assumptions are correct;
+- [ ] action/runtime/tool versions and permissions are intentional;
+- [ ] Trusted Publishing uses the `pypi` environment as intended;
+- [ ] build and publish commands target `rtd-sensor` exactly once; and
+- [ ] the workflow validates/builds from the requested release tag.
+
+The release workflow is a safety net, not a substitute for the manual
+release-candidate review. Do not assume it is correct merely because an earlier
+release worked.
+
+## 9. Release-candidate review
+
+**STOP HERE BEFORE TAGGING OR PUBLISHING.** Everything through this point should
+remain reversible.
+
+Confirm:
+
+- [ ] working tree is clean;
+- [ ] local `HEAD` is the intended release commit;
+- [ ] remote `main` points to the intended release commit;
+- [ ] target version is correct everywhere;
+- [ ] changelog/release highlights are complete;
+- [ ] documentation-drift audit passed;
+- [ ] repository drift sweep passed;
+- [ ] source validation passed;
+- [ ] release artifacts built and were inspected;
+- [ ] built artifacts were installed and smoke-tested in clean environments;
+- [ ] README installation/quickstart succeeded from a clean environment;
+- [ ] CI is green on the exact release commit;
+- [ ] release automation has been reviewed; and
+- [ ] no unresolved release-blocking issue remains.
+
+Only after every applicable item passes should the release candidate be
+approved.
+
+## 10. Tag and publish
+
+Commit and push any final release-preparation changes, then confirm CI on that
+exact pushed commit before creating the tag.
+
+Create and verify the annotated tag:
 
 ```bash
 git tag -a vX.Y.Z -m "rtd-sensor vX.Y.Z"
@@ -127,32 +269,58 @@ git show vX.Y.Z --stat
 git push origin vX.Y.Z
 ```
 
+Push the specific intended tag rather than using `git push --tags`.
+
 Create the matching GitHub Release from that tag and attach the conformance ZIP
-and `.sha256` sidecar produced in step 4. Publishing the GitHub Release triggers
+and `.sha256` sidecar produced in step 6. Publishing the GitHub Release triggers
 `.github/workflows/release.yml`.
 
-## 6. PyPI Trusted Publishing
+The release workflow validates the requested tag, builds the Python
+distributions, smoke-tests the built artifacts, and publishes them to PyPI
+through Trusted Publishing. Do not manually run `uv publish` during the normal
+release path.
 
-The release workflow reruns the validation gate, builds distributions with
-`uv build --no-sources`, and publishes them to PyPI through the `pypi` GitHub
-environment using Trusted Publishing. Do not manually run `uv publish` during
-the normal release path.
+The workflow also supports an explicit manual `workflow_dispatch` tag input for
+recovery from a publishing-workflow failure after a GitHub Release already
+exists. Use that recovery path only after the workflow defect is corrected and
+the requested tag is re-verified; never rebuild or retag an already published
+version merely to retry publishing.
 
-Confirm the GitHub Actions release workflow completes successfully before
-considering the release complete.
+## 11. Post-release verification
 
-## 7. Verify the public release
+A green publishing workflow does not prove the public release is correct.
+Verify the externally visible release itself:
 
-Install the exact released version from PyPI into a clean environment and run a
-small public-API smoke test. Confirm that:
+- [ ] GitHub Release exists and points to the correct tag;
+- [ ] tag points to the correct commit;
+- [ ] PyPI shows the expected version;
+- [ ] public package metadata is correct;
+- [ ] expected artifacts are present and unexpected artifacts are absent;
+- [ ] the exact published version installs into a fresh environment;
+- [ ] the installed version is the newly published version;
+- [ ] representative public-API smoke tests pass against the published package;
+- [ ] README and release notes render correctly;
+- [ ] documentation links and relevant badges/version links work;
+- [ ] the normal public installation command resolves to the new release;
+- [ ] the published conformance ZIP checksum validates;
+- [ ] the conformance manifest records the same package version and intended
+      contract status; and
+- [ ] post-release follow-up work is recorded before development advances to the
+      next release cycle.
 
-- `importlib.metadata.version("rtd-sensor")` reports the released version;
-- `import rtd_sensor` succeeds;
-- the legacy `rtd` package is absent; and
-- representative built-in RTD conversions behave as expected.
+The release is complete only after the public artifact itself has been verified.
 
-Finally, verify that the GitHub Release, PyPI project page, README, changelog,
-and `CITATION.cff` all identify the same released version. Also download the
-published conformance ZIP and sidecar, verify the ZIP checksum, and confirm its
-`manifest.json` records the same `rtd_sensor_version` and intended
-`contract_status`.
+## Maintenance deliberately excluded from the release gate
+
+The following may be useful repository maintenance, but they do not normally
+block a release:
+
+- deleting stale or merged branches;
+- squashing cosmetic commits;
+- interactive rebasing for prettier history;
+- rewriting already-shared history;
+- general repository beautification; and
+- nonessential issue/project-board cleanup.
+
+Release readiness stays focused on the exact commit, documentation, metadata,
+artifacts, and publishing mechanism being exposed to users.

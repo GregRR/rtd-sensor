@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "rtd-sensor"
 version = "0.5.0"
-description = "Python RTD resistance/temperature conversion and modeling for IEC 60751 platinum and nickel RTDs, with tolerance and uncertainty tools."
+description = "Python RTD resistance/temperature conversion and modeling for IEC 60751 platinum RTDs and documented nickel RTD characteristics, with tolerance and uncertainty tools."
 readme = "README.md"
 requires-python = ">=3.14"
 license = "MPL-2.0"
@@ -60,6 +60,7 @@ dev = [
 Homepage = "https://github.com/GregRR/rtd-sensor"
 Repository = "https://github.com/GregRR/rtd-sensor"
 Documentation = "https://github.com/GregRR/rtd-sensor/tree/main/docs"
+Conformance = "https://github.com/GregRR/rtd-sensor/tree/main/conformance"
 Changelog = "https://github.com/GregRR/rtd-sensor/blob/main/CHANGELOG.md"
 Issues = "https://github.com/GregRR/rtd-sensor/issues"
 
