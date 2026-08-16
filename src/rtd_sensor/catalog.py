@@ -19,6 +19,7 @@ from typing import Literal
 
 from . import _definitions, _models
 from ._protocols import RTDModel as _RTDModel
+from .exceptions import UnknownRTDModelError
 
 __all__ = [
     "BuiltinRTDModelInfo",
@@ -155,7 +156,7 @@ def get_model(model_id: str) -> _RTDModel:
 
     Raises:
         TypeError: If ``model_id`` is not a string.
-        KeyError: If ``model_id`` is not a supported canonical built-in ID.
+        UnknownRTDModelError: If ``model_id`` is not a supported canonical built-in ID.
     """
     canonical_id = _require_known_model_id(model_id)
     return _MODEL_BY_ID[canonical_id]
@@ -166,7 +167,7 @@ def model_info(model_id: str) -> BuiltinRTDModelInfo:
 
     Raises:
         TypeError: If ``model_id`` is not a string.
-        KeyError: If ``model_id`` is not a supported canonical built-in ID.
+        UnknownRTDModelError: If ``model_id`` is not a supported canonical built-in ID.
     """
     canonical_id = _require_known_model_id(model_id)
     return _MODEL_INFO_BY_ID[canonical_id]
@@ -176,5 +177,5 @@ def _require_known_model_id(model_id: str) -> str:
     if not isinstance(model_id, str):
         raise TypeError("RTD model ID must be a string")
     if model_id not in _MODEL_INFO_BY_ID:
-        raise KeyError(f"Unknown built-in RTD model ID: {model_id!r}")
+        raise UnknownRTDModelError(f"Unknown built-in RTD model ID: {model_id!r}")
     return model_id

@@ -379,6 +379,25 @@ The built-in `rtd_type="pt1000"` convenience and historical untyped-reader Pt100
 
 Existing `rtd_sensor.simulation.ResistanceReader` and `simulation.read_temperature_celsius` imports continue to work as compatibility re-exports of the neutral measurement API. Simulation readers and future physical acquisition readers are therefore peers at the compensated-resistance boundary.
 
+## Public exceptions
+
+Applications that need stable branching for package-owned RTD domain failures can use the deliberately small `rtd_sensor.exceptions` hierarchy:
+
+```python
+from rtd_sensor import exceptions, pt100
+
+try:
+    temperature_c = pt100.resistance_to_celsius(measured_resistance)
+except exceptions.RTDOutOfRangeError:
+    # The resistance was read, but it cannot represent a temperature
+    # inside this RTD model's supported range.
+    ...
+```
+
+`RTDOutOfRangeError`, `InvalidRTDModelError`, and `RTDModelSelectionError` remain subclasses of `ValueError`, so existing callers that already catch `ValueError` continue to work. `UnknownRTDModelError` remains a subclass of `KeyError` for the same reason. All four also derive from `RTDError`, allowing applications to catch package-owned RTD domain failures without also catching unrelated hardware exceptions.
+
+The hierarchy does not wrap acquisition failures from `ResistanceReader` implementations or exceptions raised by arbitrary third-party `RTDModel` objects. Non-finite or otherwise invalid scalar inputs that are not range failures also retain their established `ValueError`/`TypeError` behavior.
+
 ## IEC 60751 tolerance classes
 
 The `rtd_sensor.tolerance` module calculates the maximum permitted temperature deviation for the standard IEC 60751:2022 tolerance classes. The standard distinguishes complete thermometers from bare platinum resistors, and it assigns different validity ranges to wire-wound and film construction.

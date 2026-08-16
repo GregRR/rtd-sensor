@@ -241,7 +241,9 @@ The conversion functions should reject:
 - temperatures outside the documented supported range
 - resistance values that cannot represent a temperature inside that range
 
-Domain/range failures should use clear `ValueError` messages unless a dedicated exception hierarchy becomes justified. Type-category mistakes may use `TypeError`; in particular, Boolean values passed as physical numerical quantities are rejected as the wrong input type rather than coerced to numbers.
+The public `rtd_sensor.exceptions` module provides a deliberately small taxonomy for package-owned RTD domain failures. `RTDOutOfRangeError`, `InvalidRTDModelError`, and `RTDModelSelectionError` subclass `ValueError`; `UnknownRTDModelError` subclasses `KeyError`; and all four also derive from `RTDError`. Existing callers that catch the historical built-in exception types therefore remain compatible while applications can branch on package-owned RTD failures without parsing messages.
+
+The taxonomy is intentionally selective. Non-finite/non-positive scalar input validation continues to use the established `ValueError` behavior unless the failure is specifically a supported-range violation, and type-category mistakes continue to use `TypeError`. Hardware/acquisition exceptions and arbitrary third-party model exceptions are not translated into `RTDError`.
 
 The package should not silently clamp physical measurements. One narrow numerical exception is permitted at normalized curve boundaries: converting an exact endpoint through `R0 × ratio` and then back through `R / R0` can land exactly one representable floating-point value beyond the original ratio. The curve layer may normalize that one-ULP artifact back to the mathematical endpoint, while the public resistance-in-ohms validation remains strict. Values farther outside the supported range must still be rejected.
 

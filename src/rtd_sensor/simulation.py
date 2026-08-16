@@ -25,6 +25,7 @@ from dataclasses import dataclass, field
 from . import _models
 from ._protocols import RTDModel as _RTDModelProtocol
 from ._validation import as_float as _as_float
+from .exceptions import RTDModelSelectionError
 from .measurement import ResistanceReader, read_temperature_celsius
 
 __all__ = [
@@ -240,7 +241,7 @@ def _model_for_rtd_type(rtd_type: RTDType) -> _RTDModelProtocol:
         return _models.BUILTIN_RTD_MODELS[rtd_type]
     except KeyError as error:
         supported = ", ".join(sorted(SUPPORTED_RTD_TYPES))
-        raise ValueError(
+        raise RTDModelSelectionError(
             f"Unsupported RTD type {rtd_type!r}; expected one of: {supported}"
         ) from error
 

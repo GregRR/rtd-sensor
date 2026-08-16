@@ -430,7 +430,7 @@ info = catalog.model_info("pt100")
 
 The metadata view is generated directly from the authoritative `_definitions` layer used by runtime model construction and conformance generation, so applications, configuration files, CLIs, and GUIs do not need a separately maintained capability table. Pt100, Pt500, and Pt1000 therefore retain distinct model identities while correctly sharing the `iec60751_pt385` characteristic identity.
 
-Unknown canonical IDs raise `KeyError`, non-string IDs raise `TypeError`, and identifiers are not silently normalized or aliased. There is intentionally no public plugin/registration mechanism yet; user-defined structural `RTDModel` implementations remain independent of the closed set of verified built-in identities.
+Unknown canonical IDs raise `UnknownRTDModelError` (a `KeyError` subclass), non-string IDs raise `TypeError`, and identifiers are not silently normalized or aliased. There is intentionally no public plugin/registration mechanism yet; user-defined structural `RTDModel` implementations remain independent of the closed set of verified built-in identities.
 
 Regression tests lock the descriptor view to the authoritative definitions, preserve nested immutability, verify stable package-owned lookup adapters, prevent leakage of private runtime-model attributes, cross-check model behavior against discovery metadata, and statically verify that catalog lookups satisfy the public `RTDModel` protocol.
 
@@ -492,18 +492,23 @@ exceptions propagate unchanged, preserving the hardware/scientific boundary for
 the small public exception taxonomy considered in item 6. Higher-level channel
 composition remains outside `rtd-sensor`.
 
-### 6. Small public exception taxonomy
+### 6. Small public exception taxonomy — implemented
 
-Consider a deliberately small exception hierarchy so applications can
-distinguish model/range failures from hardware failures without parsing error
-strings. Where practical, new value-related exceptions should subclass
-`ValueError` so existing callers remain compatible.
+The public `rtd_sensor.exceptions` module now provides one small domain hierarchy:
 
-Useful distinctions may include unknown built-in model identity, out-of-range
-temperature/resistance, and invalid custom model configuration. Avoid a large
-hierarchy; the goal is stable application branching, especially between
-"hardware read failed" and "resistance was read successfully but is invalid for
-the configured model."
+```text
+RTDError
+├── UnknownRTDModelError     (also KeyError)
+├── RTDOutOfRangeError       (also ValueError)
+├── InvalidRTDModelError     (also ValueError)
+└── RTDModelSelectionError   (also ValueError)
+```
+
+The dual inheritance preserves the package's established catch behavior while giving applications stable exception classes for unknown built-in identity, supported-range failure, invalid custom-model configuration, and reader/model selection ambiguity. Built-in and configurable model conversions use `RTDOutOfRangeError` only for finite values outside the supported range; non-finite/non-positive scalar validation keeps its previous `ValueError` behavior.
+
+Custom public model constructors translate mathematically invalid model definitions into `InvalidRTDModelError` while retaining `TypeError` for type-category mistakes. Catalog lookup uses `UnknownRTDModelError`, and the neutral measurement composition layer uses `RTDModelSelectionError` for package-owned selection conflicts. Hardware-reader exceptions and arbitrary third-party `RTDModel` exceptions continue to propagate unchanged rather than being relabeled as RTD-domain failures.
+
+This Python hierarchy intentionally does not mirror every stable conformance-v1 status one-for-one. `RTDOutOfRangeError` groups the language-neutral low/high range statuses, unknown-model lookup remains a capability/selection concern, and `calculation_failure` stays reserved until a natural public numerical failure mode requires a dedicated Python exception.
 
 ### 7. Tabulated RTD characteristics
 

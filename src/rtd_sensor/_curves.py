@@ -14,6 +14,7 @@ from typing import Protocol
 
 from . import _definitions
 from ._validation import as_float as _as_float
+from .exceptions import RTDOutOfRangeError
 
 __all__ = [
     "BUILTIN_RTD_CURVES",
@@ -295,7 +296,7 @@ class CallendarVanDusenCurve:
         if not (
             self.minimum_temperature_c <= temperature_c <= self.maximum_temperature_c
         ):
-            raise ValueError(
+            raise RTDOutOfRangeError(
                 "Temperature must be between "
                 f"{self.minimum_temperature_c:g} °C and "
                 f"{self.maximum_temperature_c:g} °C"
@@ -342,11 +343,11 @@ def _validated_resistance_ratio_at_bounds(
     if resistance_ratio < minimum_ratio:
         if resistance_ratio == minimum_neighbor:
             return minimum_ratio
-        raise ValueError("Resistance ratio is below the supported range")
+        raise RTDOutOfRangeError("Resistance ratio is below the supported range")
     if resistance_ratio > maximum_ratio:
         if resistance_ratio == maximum_neighbor:
             return maximum_ratio
-        raise ValueError("Resistance ratio is above the supported range")
+        raise RTDOutOfRangeError("Resistance ratio is above the supported range")
 
     return resistance_ratio
 
@@ -907,7 +908,7 @@ class PiecewisePolynomialRTDCurve:
         if not (
             self.minimum_temperature_c <= temperature_c <= self.maximum_temperature_c
         ):
-            raise ValueError(
+            raise RTDOutOfRangeError(
                 "Temperature must be between "
                 f"{self.minimum_temperature_c:g} °C and "
                 f"{self.maximum_temperature_c:g} °C"
@@ -1087,7 +1088,7 @@ class PolynomialRTDCurve:
         if not (
             self.minimum_temperature_c <= temperature_c <= self.maximum_temperature_c
         ):
-            raise ValueError(
+            raise RTDOutOfRangeError(
                 "Temperature must be between "
                 f"{self.minimum_temperature_c:g} °C and "
                 f"{self.maximum_temperature_c:g} °C"

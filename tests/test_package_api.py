@@ -4,6 +4,7 @@
 
 from rtd_sensor import (
     catalog,
+    exceptions,
     measurement,
     models,
     ni120,
@@ -60,6 +61,12 @@ def test_package_exports_catalog_module() -> None:
     assert imported_catalog is catalog
 
 
+def test_package_exports_exceptions_module() -> None:
+    from rtd_sensor import exceptions as imported_exceptions
+
+    assert imported_exceptions is exceptions
+
+
 def test_package_exports_measurement_module() -> None:
     from rtd_sensor import measurement as imported_measurement
 
@@ -83,6 +90,7 @@ def test_package_public_api() -> None:
 
     assert set(rtd_sensor.__all__) == {
         "catalog",
+        "exceptions",
         "measurement",
         "models",
         "ni1000",
@@ -104,6 +112,16 @@ def test_catalog_public_api() -> None:
         "get_model",
         "model_info",
         "supported_models",
+    }
+
+
+def test_exceptions_public_api() -> None:
+    assert set(exceptions.__all__) == {
+        "InvalidRTDModelError",
+        "RTDError",
+        "RTDModelSelectionError",
+        "RTDOutOfRangeError",
+        "UnknownRTDModelError",
     }
 
 

@@ -14,6 +14,7 @@ from types import MappingProxyType
 from . import _definitions
 from ._curves import BUILTIN_RTD_CURVES, RTDCurve
 from ._validation import as_float as _as_float
+from .exceptions import RTDOutOfRangeError
 
 __all__ = [
     "PT100_IEC_60751",
@@ -127,9 +128,13 @@ class RTDModel:
         maximum_resistance = self.celsius_to_resistance(self.maximum_temperature_c)
 
         if resistance_ohms < minimum_resistance:
-            raise ValueError(f"Resistance is below the supported {self.name} range")
+            raise RTDOutOfRangeError(
+                f"Resistance is below the supported {self.name} range"
+            )
         if resistance_ohms > maximum_resistance:
-            raise ValueError(f"Resistance is above the supported {self.name} range")
+            raise RTDOutOfRangeError(
+                f"Resistance is above the supported {self.name} range"
+            )
 
 
 _BUILTIN_RTD_MODELS: dict[str, RTDModel] = {}

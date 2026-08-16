@@ -421,6 +421,16 @@ These statuses describe semantics rather than language-specific control flow.
 Python exceptions, C/C++ enums, result objects, or protocol status codes may all
 represent the same contract status.
 
+For the public Python API, `rtd_sensor.exceptions.RTDOutOfRangeError` groups the
+`out_of_range_low` and `out_of_range_high` outcomes under one catchable range
+category, while `InvalidRTDModelError` represents invalid public custom-model
+configuration where the operation is within this contract's scope.
+`UnknownRTDModelError` and `RTDModelSelectionError` are Python discovery/composition
+errors rather than conversion-vector statuses. Invalid scalar inputs continue to
+use the established `ValueError`/`TypeError` behavior, and no dedicated Python
+`calculation_failure` exception is defined until a natural public failure mode
+requires one.
+
 `unsupported_model` is reserved for capability negotiation. It indicates that
 an implementation does not claim the requested model or capability and is not a
 successful conformance result for a vector that the implementation claims to

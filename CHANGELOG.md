@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+* Added a small public `rtd_sensor.exceptions` taxonomy for unknown built-in identities, model-selection conflicts, out-of-range conversion, and invalid custom-model configuration while preserving existing `KeyError`/`ValueError` compatibility.
 * Added hardware-neutral resistance-to-temperature composition through `rtd_sensor.measurement.read_temperature_celsius()`, accepting arbitrary structural `RTDModel` objects while preserving the built-in `rtd_type` convenience and `simulation.read_temperature_celsius` compatibility import.
 * Added a public hardware-neutral `rtd_sensor.measurement.ResistanceReader` structural protocol for acquisition layers that provide compensated sensor-element resistance in ohms, with the existing `simulation.ResistanceReader` import preserved as a compatibility re-export.
 * Added a public read-only `rtd_sensor.catalog` API for built-in model discovery, immutable model/characteristic metadata, authoritative provenance views, and canonical-ID lookup through protocol-only adapters that keep concrete runtime models and internal registries private.

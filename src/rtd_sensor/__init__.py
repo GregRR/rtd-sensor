@@ -15,6 +15,7 @@ Example:
 
 from . import (
     catalog,
+    exceptions,
     measurement,
     models,
     ni120,
@@ -30,6 +31,7 @@ from . import (
 
 __all__ = [
     "catalog",
+    "exceptions",
     "measurement",
     "models",
     "ni1000",

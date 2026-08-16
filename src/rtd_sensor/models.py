@@ -31,6 +31,7 @@ from ._curves import PolynomialRTDSegment as _PolynomialRTDSegment
 from ._models import RTDModel as _RTDModel
 from ._protocols import RTDModel
 from ._validation import as_float as _as_float
+from .exceptions import InvalidRTDModelError, RTDOutOfRangeError
 
 __all__ = [
     "CallendarVanDusenRTDModel",
@@ -84,21 +85,30 @@ class IEC60751RTDModel:
         )
 
         if not math.isfinite(minimum_temperature_c):
-            raise ValueError("Minimum temperature must be finite")
+            raise InvalidRTDModelError("Minimum temperature must be finite")
         if not math.isfinite(maximum_temperature_c):
-            raise ValueError("Maximum temperature must be finite")
+            raise InvalidRTDModelError("Maximum temperature must be finite")
         if minimum_temperature_c >= maximum_temperature_c:
-            raise ValueError("Minimum temperature must be below maximum temperature")
+            raise InvalidRTDModelError(
+                "Minimum temperature must be below maximum temperature"
+            )
         if minimum_temperature_c < _curves.IEC_60751_PT385.minimum_temperature_c:
-            raise ValueError("Minimum temperature is below the IEC 60751 PT-385 range")
+            raise InvalidRTDModelError(
+                "Minimum temperature is below the IEC 60751 PT-385 range"
+            )
         if maximum_temperature_c > _curves.IEC_60751_PT385.maximum_temperature_c:
-            raise ValueError("Maximum temperature is above the IEC 60751 PT-385 range")
+            raise InvalidRTDModelError(
+                "Maximum temperature is above the IEC 60751 PT-385 range"
+            )
 
-        model = _RTDModel(
-            name=self.name,
-            reference_resistance_ohms=r0_ohms,
-            curve=_curves.IEC_60751_PT385,
-        )
+        try:
+            model = _RTDModel(
+                name=self.name,
+                reference_resistance_ohms=r0_ohms,
+                curve=_curves.IEC_60751_PT385,
+            )
+        except ValueError as error:
+            raise InvalidRTDModelError(str(error)) from error
 
         object.__setattr__(self, "r0_ohms", model.r0_ohms)
         object.__setattr__(
@@ -149,7 +159,7 @@ class IEC60751RTDModel:
         if not (
             self.minimum_temperature_c <= temperature_c <= self.maximum_temperature_c
         ):
-            raise ValueError(
+            raise RTDOutOfRangeError(
                 "Temperature must be between "
                 f"{self.minimum_temperature_c:g} °C and "
                 f"{self.maximum_temperature_c:g} °C"
@@ -169,9 +179,9 @@ class IEC60751RTDModel:
         )
 
         if resistance_ohms < minimum_resistance:
-            raise ValueError("Resistance is below the declared model range")
+            raise RTDOutOfRangeError("Resistance is below the declared model range")
         if resistance_ohms > maximum_resistance:
-            raise ValueError("Resistance is above the declared model range")
+            raise RTDOutOfRangeError("Resistance is above the declared model range")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -245,24 +255,26 @@ class CallendarVanDusenRTDModel:
         c = None if self.c is None else _as_float(self.c, name="C coefficient")
 
         if not math.isfinite(r0_ohms):
-            raise ValueError("R0 must be finite")
+            raise InvalidRTDModelError("R0 must be finite")
         if r0_ohms <= 0.0:
-            raise ValueError("R0 must be greater than zero")
+            raise InvalidRTDModelError("R0 must be greater than zero")
         if not math.isfinite(a):
-            raise ValueError("A coefficient must be finite")
+            raise InvalidRTDModelError("A coefficient must be finite")
         if not math.isfinite(b):
-            raise ValueError("B coefficient must be finite")
+            raise InvalidRTDModelError("B coefficient must be finite")
         if c is not None and not math.isfinite(c):
-            raise ValueError("C coefficient must be finite")
+            raise InvalidRTDModelError("C coefficient must be finite")
         if not math.isfinite(minimum_temperature_c):
-            raise ValueError("Minimum temperature must be finite")
+            raise InvalidRTDModelError("Minimum temperature must be finite")
         if not math.isfinite(maximum_temperature_c):
-            raise ValueError("Maximum temperature must be finite")
+            raise InvalidRTDModelError("Maximum temperature must be finite")
         if minimum_temperature_c >= maximum_temperature_c:
-            raise ValueError("Minimum temperature must be below maximum temperature")
+            raise InvalidRTDModelError(
+                "Minimum temperature must be below maximum temperature"
+            )
 
         if minimum_temperature_c < 0.0 and c is None:
-            raise ValueError(
+            raise InvalidRTDModelError(
                 "C coefficient is required for a negative-temperature range"
             )
 
@@ -275,26 +287,32 @@ class CallendarVanDusenRTDModel:
         # source never claimed and can falsely reject an otherwise valid
         # restricted fit.  Keep the mathematical validation and inversion
         # domain exactly equal to the caller's declared validity interval.
-        curve = _CallendarVanDusenCurve(
-            name=f"{self.name} Callendar-Van Dusen curve",
-            a=a,
-            b=b,
-            c=effective_c,
-            minimum_temperature_c=minimum_temperature_c,
-            maximum_temperature_c=maximum_temperature_c,
-        )
+        try:
+            curve = _CallendarVanDusenCurve(
+                name=f"{self.name} Callendar-Van Dusen curve",
+                a=a,
+                b=b,
+                c=effective_c,
+                minimum_temperature_c=minimum_temperature_c,
+                maximum_temperature_c=maximum_temperature_c,
+            )
+        except ValueError as error:
+            raise InvalidRTDModelError(str(error)) from error
 
         coefficient_source = self.coefficient_source
         if coefficient_source is not None:
             coefficient_source = coefficient_source.strip()
             if not coefficient_source:
-                raise ValueError("Coefficient source must not be empty")
+                raise InvalidRTDModelError("Coefficient source must not be empty")
 
-        model = _RTDModel(
-            name=self.name,
-            reference_resistance_ohms=r0_ohms,
-            curve=curve,
-        )
+        try:
+            model = _RTDModel(
+                name=self.name,
+                reference_resistance_ohms=r0_ohms,
+                curve=curve,
+            )
+        except ValueError as error:
+            raise InvalidRTDModelError(str(error)) from error
 
         object.__setattr__(self, "r0_ohms", model.r0_ohms)
         object.__setattr__(self, "a", a)
@@ -349,7 +367,7 @@ class CallendarVanDusenRTDModel:
         if not (
             self.minimum_temperature_c <= temperature_c <= self.maximum_temperature_c
         ):
-            raise ValueError(
+            raise RTDOutOfRangeError(
                 "Temperature must be between "
                 f"{self.minimum_temperature_c:g} °C and "
                 f"{self.maximum_temperature_c:g} °C"
@@ -369,9 +387,9 @@ class CallendarVanDusenRTDModel:
         )
 
         if resistance_ohms < minimum_resistance:
-            raise ValueError("Resistance is below the declared model range")
+            raise RTDOutOfRangeError("Resistance is below the declared model range")
         if resistance_ohms > maximum_resistance:
-            raise ValueError("Resistance is above the declared model range")
+            raise RTDOutOfRangeError("Resistance is above the declared model range")
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -454,20 +472,23 @@ class PolynomialRTDModel:
         if coefficient_source is not None:
             coefficient_source = coefficient_source.strip()
             if not coefficient_source:
-                raise ValueError("Coefficient source must not be empty")
+                raise InvalidRTDModelError("Coefficient source must not be empty")
 
-        curve = _PolynomialRTDCurve(
-            name=f"{self.name} polynomial characteristic",
-            coefficients=coefficients,
-            reference_temperature_c=reference_temperature_c,
-            minimum_temperature_c=minimum_temperature_c,
-            maximum_temperature_c=maximum_temperature_c,
-        )
-        model = _RTDModel(
-            name=self.name,
-            reference_resistance_ohms=reference_resistance_ohms,
-            curve=curve,
-        )
+        try:
+            curve = _PolynomialRTDCurve(
+                name=f"{self.name} polynomial characteristic",
+                coefficients=coefficients,
+                reference_temperature_c=reference_temperature_c,
+                minimum_temperature_c=minimum_temperature_c,
+                maximum_temperature_c=maximum_temperature_c,
+            )
+            model = _RTDModel(
+                name=self.name,
+                reference_resistance_ohms=reference_resistance_ohms,
+                curve=curve,
+            )
+        except ValueError as error:
+            raise InvalidRTDModelError(str(error)) from error
 
         object.__setattr__(
             self,
@@ -527,12 +548,15 @@ class PiecewisePolynomialSegment:
     temperature_origin_c: float = 0.0
 
     def __post_init__(self) -> None:
-        internal = _PolynomialRTDSegment(
-            minimum_temperature_c=self.minimum_temperature_c,
-            maximum_temperature_c=self.maximum_temperature_c,
-            coefficients=tuple(self.coefficients),
-            temperature_origin_c=self.temperature_origin_c,
-        )
+        try:
+            internal = _PolynomialRTDSegment(
+                minimum_temperature_c=self.minimum_temperature_c,
+                maximum_temperature_c=self.maximum_temperature_c,
+                coefficients=tuple(self.coefficients),
+                temperature_origin_c=self.temperature_origin_c,
+            )
+        except ValueError as error:
+            raise InvalidRTDModelError(str(error)) from error
         object.__setattr__(
             self, "minimum_temperature_c", internal.minimum_temperature_c
         )
@@ -617,27 +641,30 @@ class PiecewisePolynomialRTDModel:
         if coefficient_source is not None:
             coefficient_source = coefficient_source.strip()
             if not coefficient_source:
-                raise ValueError("Coefficient source must not be empty")
+                raise InvalidRTDModelError("Coefficient source must not be empty")
 
-        curve = _PiecewisePolynomialRTDCurve(
-            name=f"{self.name} piecewise polynomial characteristic",
-            segments=tuple(
-                _PolynomialRTDSegment(
-                    minimum_temperature_c=segment.minimum_temperature_c,
-                    maximum_temperature_c=segment.maximum_temperature_c,
-                    coefficients=tuple(segment.coefficients),
-                    temperature_origin_c=segment.temperature_origin_c,
-                )
-                for segment in segments
-            ),
-            reference_temperature_c=reference_temperature_c,
-            maximum_continuity_adjustment_ratio=maximum_adjustment,
-        )
-        model = _RTDModel(
-            name=self.name,
-            reference_resistance_ohms=reference_resistance_ohms,
-            curve=curve,
-        )
+        try:
+            curve = _PiecewisePolynomialRTDCurve(
+                name=f"{self.name} piecewise polynomial characteristic",
+                segments=tuple(
+                    _PolynomialRTDSegment(
+                        minimum_temperature_c=segment.minimum_temperature_c,
+                        maximum_temperature_c=segment.maximum_temperature_c,
+                        coefficients=tuple(segment.coefficients),
+                        temperature_origin_c=segment.temperature_origin_c,
+                    )
+                    for segment in segments
+                ),
+                reference_temperature_c=reference_temperature_c,
+                maximum_continuity_adjustment_ratio=maximum_adjustment,
+            )
+            model = _RTDModel(
+                name=self.name,
+                reference_resistance_ohms=reference_resistance_ohms,
+                curve=curve,
+            )
+        except ValueError as error:
+            raise InvalidRTDModelError(str(error)) from error
 
         object.__setattr__(
             self,

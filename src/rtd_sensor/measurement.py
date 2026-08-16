@@ -18,6 +18,7 @@ from typing import Protocol, runtime_checkable
 
 from . import catalog as _catalog
 from ._protocols import RTDModel as _RTDModel
+from .exceptions import RTDModelSelectionError, UnknownRTDModelError
 
 __all__ = ["ResistanceReader", "read_temperature_celsius"]
 
@@ -73,8 +74,8 @@ def read_temperature_celsius(
     failures into model failures or vice versa.
 
     Raises:
-        ValueError: If model-selection declarations conflict or are ambiguous,
-            or if a selected built-in RTD type is unsupported.
+        RTDModelSelectionError: If model-selection declarations conflict or are
+            ambiguous, or if a selected built-in RTD type is unsupported.
     """
     declared_type: str | None = None
 
@@ -83,7 +84,7 @@ def read_temperature_celsius(
         # value type supplied by an arbitrary third-party object.
         declared_value: object = reader.rtd_type
         if not isinstance(declared_value, str):
-            raise ValueError(
+            raise RTDModelSelectionError(
                 "Reader-declared RTD type must be a string; "
                 f"got {type(declared_value).__name__}"
             )
@@ -93,11 +94,11 @@ def read_temperature_celsius(
         _model_for_rtd_type(declared_type)
 
     if model is not None and rtd_type is not None:
-        raise ValueError("Specify either model or rtd_type, not both")
+        raise RTDModelSelectionError("Specify either model or rtd_type, not both")
 
     if model is not None:
         if declared_type is not None:
-            raise ValueError(
+            raise RTDModelSelectionError(
                 "Cannot combine an explicit RTD model with reader-declared "
                 f"RTD type {declared_type!r}; use a neutral ResistanceReader "
                 "when selecting a model object directly"
@@ -106,7 +107,7 @@ def read_temperature_celsius(
     elif rtd_type is not None:
         selected_model = _model_for_rtd_type(rtd_type)
         if declared_type is not None and rtd_type != declared_type:
-            raise ValueError(
+            raise RTDModelSelectionError(
                 f"Explicit RTD type {rtd_type!r} conflicts with "
                 f"reader-declared RTD type {declared_type!r}"
             )
@@ -120,8 +121,8 @@ def read_temperature_celsius(
 def _model_for_rtd_type(rtd_type: str) -> _RTDModel:
     try:
         return _catalog.get_model(rtd_type)
-    except KeyError as error:
+    except UnknownRTDModelError as error:
         supported = ", ".join(sorted(_catalog.supported_models()))
-        raise ValueError(
+        raise RTDModelSelectionError(
             f"Unsupported RTD type {rtd_type!r}; expected one of: {supported}"
         ) from error
