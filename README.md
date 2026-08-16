@@ -351,7 +351,33 @@ def read_resistance(reader: ResistanceReader) -> float:
 
 `ResistanceReader` is structural: hardware packages and application objects do not need to inherit from an `rtd-sensor` base class. The interface deliberately contains only `read_resistance_ohms()`; converter configuration, ADC/reference-resistor calculations, wiring topology, lead compensation, GPIO/SPI/I²C, and RTD model selection remain outside the acquisition contract.
 
-Existing `rtd_sensor.simulation.ResistanceReader` imports continue to work as a compatibility re-export of the same protocol. Simulation readers and future physical acquisition readers are therefore peers at the compensated-resistance boundary.
+Application code composes that resistance source with any public `RTDModel`:
+
+```python
+from rtd_sensor import catalog, measurement
+
+model = catalog.get_model("pt1000")
+temperature_c = measurement.read_temperature_celsius(
+    hardware_reader,
+    model=model,
+)
+```
+
+The same path accepts characterized or third-party structural models:
+
+```python
+from rtd_sensor import measurement, models
+
+model = models.IEC60751RTDModel(r0_ohms=100.037)
+temperature_c = measurement.read_temperature_celsius(
+    hardware_reader,
+    model=model,
+)
+```
+
+The built-in `rtd_type="pt1000"` convenience and historical untyped-reader Pt100 default remain available for compatibility. `model` and `rtd_type` are mutually exclusive. A reader that itself declares `rtd_type` cannot be combined with an explicit model object because the structural `RTDModel` protocol intentionally carries no identity metadata with which to prove the two declarations agree.
+
+Existing `rtd_sensor.simulation.ResistanceReader` and `simulation.read_temperature_celsius` imports continue to work as compatibility re-exports of the neutral measurement API. Simulation readers and future physical acquisition readers are therefore peers at the compensated-resistance boundary.
 
 ## IEC 60751 tolerance classes
 
@@ -519,7 +545,7 @@ reader = simulation.TemperatureSequenceReader(
 temperature_c = simulation.read_temperature_celsius(reader)
 ```
 
-Hardware or other generic resistance readers can specify the RTD type when converting a compensated resistance measurement:
+Hardware or other generic resistance readers can still specify a built-in RTD type through the compatibility helper:
 
 ```python
 temperature_c = simulation.read_temperature_celsius(
@@ -527,6 +553,8 @@ temperature_c = simulation.read_temperature_celsius(
     rtd_type="pt1000",
 )
 ```
+
+For new hardware/application composition, prefer `measurement.read_temperature_celsius(..., model=model)` so characterized and third-party model objects use the same resistance boundary. `simulation.read_temperature_celsius` is the exact same function object and remains available for compatibility.
 
 Built-in model-aware readers keep their RTD identity fixed after construction. If a reader declares `rtd_type="pt1000"`, passing a conflicting explicit `rtd_type="pt100"` to `read_temperature_celsius()` raises `ValueError` instead of silently interpreting the resistance with the wrong model. Supplying the same explicit type remains valid. `RTDType` remains a string alias because Python cannot derive a static `Literal[...]` union from the runtime registry; unsupported strings are still rejected strictly at runtime.
 

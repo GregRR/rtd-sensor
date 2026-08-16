@@ -288,6 +288,16 @@ The returned value represents the acquisition layer's best available estimate of
 
 RTD model identity is also intentionally absent from the neutral reader contract. A resistance source and an RTD model are separate pieces of application composition; simulation readers may carry built-in identity as a convenience, but future physical readers are not required to do so. `rtd_sensor.simulation.ResistanceReader` re-exports the neutral protocol for backward compatibility, so simulation and physical acquisition implementations remain peers at the same boundary.
 
+### 7.4 Resistance-to-temperature model composition
+
+The public `rtd_sensor.measurement.read_temperature_celsius()` helper is the application-level seam between acquisition and RTD interpretation. It reads compensated resistance from a `ResistanceReader` and delegates inverse conversion to any structural `RTDModel`; the composition layer does not inspect curve internals or require a package-specific model base class.
+
+New integrations should prefer explicit `model=` composition. The existing built-in `rtd_type` string convenience and the historical Pt100 default for untyped readers remain for compatibility. `model` and `rtd_type` are mutually exclusive. If a reader itself declares `rtd_type`, an explicit model object is rejected rather than treated as an override: `RTDModel` deliberately carries no identity metadata, so the package cannot prove that the declarations describe the same characteristic. A matching explicit `rtd_type` remains valid, while a contradictory one is rejected before consuming a reading.
+
+The helper deliberately preserves failure ownership. Exceptions raised while acquiring resistance propagate as acquisition failures, and exceptions raised by the selected model propagate as model/conversion failures. A later public exception taxonomy may provide additional stable model-side distinctions, but this composition seam must not translate hardware failures into RTD-model failures.
+
+`rtd_sensor.simulation.read_temperature_celsius` remains an exact compatibility re-export of the neutral helper. Higher-level channel objects that bind hardware configuration, a reader, a model, labels, or control behavior belong in application/hardware packages rather than this scientific core.
+
 ## 8. Testing strategy
 
 Tests should include:

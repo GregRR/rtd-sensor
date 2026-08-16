@@ -108,7 +108,7 @@ def test_catalog_public_api() -> None:
 
 
 def test_measurement_public_api() -> None:
-    assert set(measurement.__all__) == {"ResistanceReader"}
+    assert set(measurement.__all__) == {"ResistanceReader", "read_temperature_celsius"}
 
 
 def test_models_public_api() -> None:

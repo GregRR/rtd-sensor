@@ -42,11 +42,11 @@ should remain responsible for interpreting that resistance through an RTD model.
 Application code composes the two layers; neither package should duplicate the
 other layer's responsibilities.
 
-Items 1 through 4 are implemented, including stable conformance contract v1,
-the public built-in catalog, and a hardware-neutral resistance-reader protocol.
-Item 5 is the next integration focus and completes the preferred 0.5.0
-acquisition/model composition milestone. The remaining items are ordered
-follow-on work and should build on the same public contracts.
+Items 1 through 5 are implemented, including stable conformance contract v1,
+the public built-in catalog, a hardware-neutral resistance-reader protocol, and
+model-object reader conversion. This completes the preferred 0.5.0
+acquisition/model composition milestone. Item 6 is the next follow-on focus;
+later items should build on the same public contracts.
 
 ### 1. Public RTD model protocol — implemented foundation
 
@@ -460,32 +460,37 @@ while model selection remains a separate composition concern.
 This item intentionally moves only the acquisition contract. Model-object
 conversion and its precedence rules remain item 5.
 
-### 5. Model-object conversion for resistance readers
+### 5. Model-object conversion for resistance readers — implemented
 
-Generalize reader conversion so callers may supply an RTD model object rather
-than being limited to a built-in string identity. The target composition is:
+The neutral `rtd_sensor.measurement.read_temperature_celsius()` helper now
+combines any `ResistanceReader` with an arbitrary structural `RTDModel`:
 
 ```python
 model = get_model("pt100")
 temperature_c = read_temperature_celsius(reader, model=model)
 ```
 
-An individually characterized probe should work through the same path:
+Individually characterized probes use the same path:
 
 ```python
 model = IEC60751RTDModel(r0_ohms=100.037)
 temperature_c = read_temperature_celsius(reader, model=model)
 ```
 
-Retain the built-in identity convenience for simple applications. Define clear
-precedence and reject conflicting reader/model declarations rather than silently
-converting with the wrong characteristic.
+The existing built-in `rtd_type` convenience and historical Pt100 default for
+untyped readers are retained for compatibility. Selection is deliberately
+unambiguous: callers may pass `model` or `rtd_type`, not both. A reader that
+declares `rtd_type` may use that declaration implicitly or with the same
+explicit built-in type, but it cannot be combined with an explicit model
+object because the structural `RTDModel` protocol contains no identity metadata
+with which to prove compatibility. Invalid or contradictory declarations are
+rejected before a source reading is consumed.
 
-This is the main integration seam for a later hardware package: acquisition code
-produces compensated ohms, application configuration selects the model, and the
-conversion layer combines them. A higher-level `TemperatureChannel`-style
-composition object may belong in a hardware/application package later; it should
-not pull device concerns into `rtd-sensor`.
+`rtd_sensor.simulation.read_temperature_celsius` is an exact compatibility
+re-export of the neutral helper. Acquisition exceptions and model-conversion
+exceptions propagate unchanged, preserving the hardware/scientific boundary for
+the small public exception taxonomy considered in item 6. Higher-level channel
+composition remains outside `rtd-sensor`.
 
 ### 6. Small public exception taxonomy
 

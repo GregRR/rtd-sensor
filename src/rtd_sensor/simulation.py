@@ -6,8 +6,9 @@
 
 All simulated readers expose resistance in ohms. This allows application
 code to use the same interface for simulated data and physical hardware. The
-hardware-neutral :class:`rtd_sensor.measurement.ResistanceReader` protocol is
-re-exported here for compatibility with existing simulation imports.
+hardware-neutral :class:`rtd_sensor.measurement.ResistanceReader` protocol and
+model-composition helper are re-exported here for compatibility with existing
+simulation imports.
 
 Simulation defaults to Pt100 for backward compatibility. Pass an explicit
 ``rtd_type`` to select Pt500, Pt1000, the built-in former-DIN Ni1000
@@ -20,12 +21,11 @@ import math
 import random
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Protocol, runtime_checkable
 
 from . import _models
 from ._protocols import RTDModel as _RTDModelProtocol
 from ._validation import as_float as _as_float
-from .measurement import ResistanceReader
+from .measurement import ResistanceReader, read_temperature_celsius
 
 __all__ = [
     "FixedResistanceReader",
@@ -47,16 +47,6 @@ type RTDType = str
 # duplicating every new built-in identity in both a type alias and a lookup
 # table while retaining strict runtime validation.
 SUPPORTED_RTD_TYPES: tuple[RTDType, ...] = tuple(_models.BUILTIN_RTD_MODELS)
-
-
-@runtime_checkable
-class _ModelAwareResistanceReader(ResistanceReader, Protocol):
-    """Internal protocol for readers that declare their RTD type."""
-
-    @property
-    def rtd_type(self) -> RTDType:
-        """Return the RTD type represented by this reader."""
-        ...
 
 
 class _FixedRTDIdentity:
@@ -243,47 +233,6 @@ class NoisyTemperatureReader(_FixedRTDIdentity):
         )
 
         return self._model.celsius_to_resistance(simulated_temperature)
-
-
-def read_temperature_celsius(
-    reader: ResistanceReader,
-    *,
-    rtd_type: RTDType | None = None,
-) -> float:
-    """Read resistance from a source and convert it to Celsius.
-
-    Built-in simulation readers carry their RTD type, so no explicit
-    ``rtd_type`` is needed when reading them. For an external hardware
-    reader that exposes only resistance, pass ``rtd_type`` explicitly.
-
-    Readers without a declared RTD type default to Pt100 for backward
-    compatibility. If a reader declares its RTD type, an explicit conflicting
-    ``rtd_type`` is rejected rather than silently interpreting the resistance
-    with the wrong model.
-    """
-    declared_type: RTDType | None = None
-
-    if isinstance(reader, _ModelAwareResistanceReader):
-        declared_type = reader.rtd_type
-        # A model-aware reader's declaration is part of the conversion
-        # contract. Validate it even when the caller also supplies a type so
-        # an invalid or stale declaration cannot be silently bypassed.
-        _model_for_rtd_type(declared_type)
-
-    if rtd_type is not None:
-        model = _model_for_rtd_type(rtd_type)
-
-        if declared_type is not None and rtd_type != declared_type:
-            raise ValueError(
-                f"Explicit RTD type {rtd_type!r} conflicts with "
-                f"reader-declared RTD type {declared_type!r}"
-            )
-    else:
-        selected_type = declared_type or "pt100"
-        model = _model_for_rtd_type(selected_type)
-
-    resistance = reader.read_resistance_ohms()
-    return model.resistance_to_celsius(resistance)
 
 
 def _model_for_rtd_type(rtd_type: RTDType) -> _RTDModelProtocol:
