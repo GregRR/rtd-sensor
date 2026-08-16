@@ -42,11 +42,11 @@ should remain responsible for interpreting that resistance through an RTD model.
 Application code composes the two layers; neither package should duplicate the
 other layer's responsibilities.
 
-Items 1 through 3 are implemented, including stable conformance contract v1 and
-the public built-in catalog. Item 4 is the next integration focus, followed by
-item 5 to complete the preferred 0.5.0 acquisition/model composition milestone.
-The remaining items are ordered follow-on work and should build on the same
-public contracts.
+Items 1 through 4 are implemented, including stable conformance contract v1,
+the public built-in catalog, and a hardware-neutral resistance-reader protocol.
+Item 5 is the next integration focus and completes the preferred 0.5.0
+acquisition/model composition milestone. The remaining items are ordered
+follow-on work and should build on the same public contracts.
 
 ### 1. Public RTD model protocol — implemented foundation
 
@@ -434,27 +434,31 @@ Unknown canonical IDs raise `KeyError`, non-string IDs raise `TypeError`, and id
 
 Regression tests lock the descriptor view to the authoritative definitions, preserve nested immutability, verify stable package-owned lookup adapters, prevent leakage of private runtime-model attributes, cross-check model behavior against discovery metadata, and statically verify that catalog lookups satisfy the public `RTDModel` protocol.
 
-### 4. Neutral resistance-reader interface outside `simulation`
+### 4. Neutral resistance-reader interface outside `simulation` — implemented
 
-Move or re-export the hardware-neutral resistance-reading contract from the
-`simulation` namespace into a neutral public module such as `measurement` or
-`reading`; choose the final module name during implementation.
-
-The core interface should remain intentionally small:
+The public `rtd_sensor.measurement.ResistanceReader` protocol now owns the
+hardware-neutral resistance-reading contract:
 
 ```python
 class ResistanceReader(Protocol):
     def read_resistance_ohms(self) -> float: ...
 ```
 
-Simulation readers and future physical acquisition packages should be peers
-that implement the same protocol. Preserve existing documented
-`rtd_sensor.simulation` imports through an appropriate compatibility re-export
-rather than forcing users to migrate solely because the protocol moves.
+The interface is structural and intentionally contains only one operation.
+Hardware or application objects do not need to inherit from an `rtd-sensor`
+class; they qualify by returning the best available sensor-element resistance
+estimate in ohms. Acquisition details such as GPIO, SPI, I²C,
+ADC/reference-resistor configuration, MAX31865 handling, wiring topology, and
+lead compensation remain outside this package.
 
-This work must not add GPIO, SPI, I²C, ADC, MAX31865, or platform-driver
-dependencies. Compensated resistance in ohms remains the acquisition/core
-boundary.
+Simulation readers implement the same neutral protocol, and
+`rtd_sensor.simulation.ResistanceReader` remains an exact compatibility
+re-export so existing documented imports continue to work. The protocol does
+not require RTD identity or model metadata: acquisition produces resistance,
+while model selection remains a separate composition concern.
+
+This item intentionally moves only the acquisition contract. Model-object
+conversion and its precedence rules remain item 5.
 
 ### 5. Model-object conversion for resistance readers
 

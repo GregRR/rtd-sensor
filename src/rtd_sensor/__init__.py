@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Resistance temperature detector conversion and simulation tools.
+"""Resistance temperature detector conversion, measurement, and simulation tools.
 
 Example:
     from rtd_sensor import pt100, simulation
@@ -15,6 +15,7 @@ Example:
 
 from . import (
     catalog,
+    measurement,
     models,
     ni120,
     ni1000,
@@ -29,6 +30,7 @@ from . import (
 
 __all__ = [
     "catalog",
+    "measurement",
     "models",
     "ni1000",
     "ni1000_tk5000",

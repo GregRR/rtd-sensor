@@ -5,7 +5,9 @@
 """Simulation tools for RTD-based applications.
 
 All simulated readers expose resistance in ohms. This allows application
-code to use the same interface for simulated data and physical hardware.
+code to use the same interface for simulated data and physical hardware. The
+hardware-neutral :class:`rtd_sensor.measurement.ResistanceReader` protocol is
+re-exported here for compatibility with existing simulation imports.
 
 Simulation defaults to Pt100 for backward compatibility. Pass an explicit
 ``rtd_type`` to select Pt500, Pt1000, the built-in former-DIN Ni1000
@@ -23,6 +25,7 @@ from typing import Protocol, runtime_checkable
 from . import _models
 from ._protocols import RTDModel as _RTDModelProtocol
 from ._validation import as_float as _as_float
+from .measurement import ResistanceReader
 
 __all__ = [
     "FixedResistanceReader",
@@ -44,14 +47,6 @@ type RTDType = str
 # duplicating every new built-in identity in both a type alias and a lookup
 # table while retaining strict runtime validation.
 SUPPORTED_RTD_TYPES: tuple[RTDType, ...] = tuple(_models.BUILTIN_RTD_MODELS)
-
-
-class ResistanceReader(Protocol):
-    """An object capable of returning an RTD resistance measurement."""
-
-    def read_resistance_ohms(self) -> float:
-        """Return one resistance measurement in ohms."""
-        ...
 
 
 @runtime_checkable

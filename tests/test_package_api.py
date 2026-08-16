@@ -4,6 +4,7 @@
 
 from rtd_sensor import (
     catalog,
+    measurement,
     models,
     ni120,
     ni1000,
@@ -59,6 +60,12 @@ def test_package_exports_catalog_module() -> None:
     assert imported_catalog is catalog
 
 
+def test_package_exports_measurement_module() -> None:
+    from rtd_sensor import measurement as imported_measurement
+
+    assert imported_measurement is measurement
+
+
 def test_package_exports_models_module() -> None:
     from rtd_sensor import models as imported_models
 
@@ -76,6 +83,7 @@ def test_package_public_api() -> None:
 
     assert set(rtd_sensor.__all__) == {
         "catalog",
+        "measurement",
         "models",
         "ni1000",
         "ni1000_tk5000",
@@ -97,6 +105,10 @@ def test_catalog_public_api() -> None:
         "model_info",
         "supported_models",
     }
+
+
+def test_measurement_public_api() -> None:
+    assert set(measurement.__all__) == {"ResistanceReader"}
 
 
 def test_models_public_api() -> None:

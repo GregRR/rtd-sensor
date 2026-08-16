@@ -280,6 +280,14 @@ Future simulation additions may include ramps, heating and cooling profiles, and
 
 Simulation components expose resistance values so they exercise the same application path as real hardware.
 
+### 7.3 Hardware-neutral resistance-reader contract
+
+The public `rtd_sensor.measurement.ResistanceReader` protocol owns the boundary between acquisition and RTD interpretation. It is deliberately structural and minimal: a compatible object provides only `read_resistance_ohms()` and need not inherit from an `rtd-sensor` class.
+
+The returned value represents the acquisition layer's best available estimate of sensor-element resistance in ohms. Device-specific conversion, excitation/reference-resistor calculations, wiring topology, lead compensation, transport, and hardware fault handling remain responsibilities of the acquisition layer. The protocol therefore does not include wire count, converter type, bus operations, or raw ADC values.
+
+RTD model identity is also intentionally absent from the neutral reader contract. A resistance source and an RTD model are separate pieces of application composition; simulation readers may carry built-in identity as a convenience, but future physical readers are not required to do so. `rtd_sensor.simulation.ResistanceReader` re-exports the neutral protocol for backward compatibility, so simulation and physical acquisition implementations remain peers at the same boundary.
+
 ## 8. Testing strategy
 
 Tests should include:
@@ -345,6 +353,7 @@ src/rtd_sensor/
 ├── _curves.py
 ├── _models.py
 ├── _validation.py
+├── measurement.py
 ├── models.py
 ├── ni1000.py
 ├── ni1000_tk5000.py
@@ -359,6 +368,7 @@ src/rtd_sensor/
 tests/
 ├── test_boundary_roundtrips.py
 ├── test_custom_cvd_models.py
+├── test_measurement.py
 ├── test_models.py
 ├── test_ni1000.py
 ├── test_ni1000_tk5000.py

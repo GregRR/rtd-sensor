@@ -337,6 +337,22 @@ temperature_c = model.resistance_to_celsius(119.397125)
 
 The catalog contains only verified package built-ins. Canonical IDs are exact and stable; the discovery API intentionally does not provide aliases or a public registration/plugin mechanism for user-defined models. Custom model objects can continue to satisfy the structural `RTDModel` protocol without becoming globally registered identities.
 
+## Hardware-neutral resistance readers
+
+Acquisition layers that already produce the best available estimate of sensor-element resistance in ohms can type against the hardware-neutral `ResistanceReader` protocol:
+
+```python
+from rtd_sensor.measurement import ResistanceReader
+
+
+def read_resistance(reader: ResistanceReader) -> float:
+    return reader.read_resistance_ohms()
+```
+
+`ResistanceReader` is structural: hardware packages and application objects do not need to inherit from an `rtd-sensor` base class. The interface deliberately contains only `read_resistance_ohms()`; converter configuration, ADC/reference-resistor calculations, wiring topology, lead compensation, GPIO/SPI/I²C, and RTD model selection remain outside the acquisition contract.
+
+Existing `rtd_sensor.simulation.ResistanceReader` imports continue to work as a compatibility re-export of the same protocol. Simulation readers and future physical acquisition readers are therefore peers at the compensated-resistance boundary.
+
 ## IEC 60751 tolerance classes
 
 The `rtd_sensor.tolerance` module calculates the maximum permitted temperature deviation for the standard IEC 60751:2022 tolerance classes. The standard distinguishes complete thermometers from bare platinum resistors, and it assigns different validity ranges to wire-wound and film construction.
