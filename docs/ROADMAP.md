@@ -18,11 +18,13 @@ and `rtd` import package. Existing `pt100-core` releases remain part of the
 project history; migration requires updating imports to `rtd_sensor` as documented
 in the README.
 
-## 0.5.0 integration and public-interface direction
+## 0.5.0 integration and public-interface release
 
-The next major milestone should make `rtd-sensor` easier to compose with real
-acquisition code while preserving the current scientific/hardware boundary. The
-target data flow is:
+Version 0.5.0 packages roadmap items 1 through 7 as one release milestone. It
+makes `rtd-sensor` easier to compose with real acquisition code while preserving
+the scientific/hardware boundary, freezes stable conformance contract v1,
+exposes the public model/catalog/measurement contracts, adds the public exception
+taxonomy, and adds tabulated RTD characteristics. The target data flow is:
 
 ```text
 hardware / acquisition layer
@@ -42,11 +44,27 @@ should remain responsible for interpreting that resistance through an RTD model.
 Application code composes the two layers; neither package should duplicate the
 other layer's responsibilities.
 
-Items 1 through 5 are implemented, including stable conformance contract v1,
-the public built-in catalog, a hardware-neutral resistance-reader protocol, and
-model-object reader conversion. This completes the preferred 0.5.0
-acquisition/model composition milestone. Item 6 is the next follow-on focus;
-later items should build on the same public contracts.
+Items 1 through 7 are implemented and form the 0.5.0 release scope. Release
+preparation begins after item 7; feature development should not continue into
+item 8 until 0.5.0 has completed its release-readiness gate and been published.
+
+The next planned release is **0.6.0**. Items 8 and 9 are its required roadmap
+milestone, with the release boundary immediately after item 9. Item 10 is
+ongoing, provenance-dependent built-in expansion: support-ready characteristics
+may land during the 0.6.0 cycle, but item 10 is not a blocker for the 0.6.0
+release. This explicit boundary is intentional so open-ended characteristic
+research cannot silently postpone a completed release milestone.
+
+### Release boundaries
+
+- **0.5.0:** items 1–7; stop after item 7 for release preparation and publication.
+- **0.6.0:** items 8–9; stop after item 9 for release preparation and publication.
+- **Item 10:** may land when scientifically support-ready, but does not move the
+  0.6.0 release boundary.
+
+When the final required item for a named release is complete, the next project
+action is the release-readiness process in `docs/RELEASING.md`, not the next
+roadmap feature.
 
 ### 1. Public RTD model protocol — implemented foundation
 
@@ -516,9 +534,11 @@ Implemented `TabulatedRTDModel` and immutable `TabulatedRTDPoint` rows for autho
 
 Tables must contain at least two finite rows with strictly increasing temperature and strictly increasing positive resistance. Interior-knot sensitivity follows the interval on the right and the final knot follows the last interval, matching the deterministic one-sided convention already used for piecewise characteristics.
 
-The next follow-on milestone is calibration fitting.
+With item 7 complete, the next action is the 0.5.0 release-readiness and
+publication process described in `docs/RELEASING.md`. Calibration fitting starts
+the 0.6.0 development line only after that release is complete.
 
-### 8. Calibration fitting
+### 8. Calibration fitting — planned for 0.6.0
 
 Implement the fitting work described under **Calibration and model fitting**
 after the public model interface is stable. A fit should produce a normal model
@@ -526,7 +546,7 @@ object plus auditable fit results, retaining observations, residuals, RMS and
 maximum error, fitting range, weighting/uncertainty inputs, and reproducibility
 assumptions.
 
-### 9. Batch and vector conversion conveniences
+### 9. Batch and vector conversion conveniences — planned 0.6.0 release boundary
 
 Add batch conversion only after the scalar model interface is stable. Prefer a
 small dependency-free iterable API first if it can be specified clearly. Do not
@@ -534,7 +554,7 @@ make NumPy a mandatory runtime dependency for convenience; if acceleration later
 matters, consider an optional adapter/extra and verify scalar/batch numerical
 equivalence at boundaries.
 
-### 10. Additional built-in RTD characteristics
+### 10. Additional built-in RTD characteristics — ongoing, not a 0.6.0 blocker
 
 Continue adding platinum, nickel, copper, or manufacturer-specific built-ins
 only when authoritative characteristic definitions and independent validation

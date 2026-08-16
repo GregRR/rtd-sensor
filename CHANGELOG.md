@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.5.0 — 2026-08-16
+
 ### Added
 
 * Added `TabulatedRTDModel` and immutable `TabulatedRTDPoint` source rows for authoritative monotonic resistance/temperature tables, with piecewise-linear interpolation, exact interval inversion, local sensitivity, provenance/precision metadata, and strict no-extrapolation range enforcement.
