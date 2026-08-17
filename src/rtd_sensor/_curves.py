@@ -30,6 +30,7 @@ __all__ = [
 ]
 
 _BISECTION_ITERATIONS = 60
+_MAX_POLYNOMIAL_DEGREE = 12
 
 
 class RTDCurve(Protocol):
@@ -538,8 +539,10 @@ class PolynomialRTDSegment:
 
         if not coefficients:
             raise ValueError("At least one segment coefficient is required")
-        if len(coefficients) > 13:
-            raise ValueError("Segment polynomial degree must not exceed 12")
+        if len(coefficients) > _MAX_POLYNOMIAL_DEGREE + 1:
+            raise ValueError(
+                f"Segment polynomial degree must not exceed {_MAX_POLYNOMIAL_DEGREE}"
+            )
         if not all(math.isfinite(value) for value in coefficients):
             raise ValueError("Segment polynomial coefficients must be finite")
         if not math.isfinite(minimum_temperature_c):
@@ -966,8 +969,10 @@ class PolynomialRTDCurve:
 
         if not coefficients:
             raise ValueError("At least one polynomial coefficient is required")
-        if len(coefficients) > 12:
-            raise ValueError("Polynomial degree must not exceed 12")
+        if len(coefficients) > _MAX_POLYNOMIAL_DEGREE:
+            raise ValueError(
+                f"Polynomial degree must not exceed {_MAX_POLYNOMIAL_DEGREE}"
+            )
         if not all(math.isfinite(value) for value in coefficients):
             raise ValueError("Polynomial coefficients must be finite")
         if not math.isfinite(reference_temperature_c):

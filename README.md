@@ -9,8 +9,9 @@ characteristics.
 Beyond basic conversion, the library supports configurable Callendar–Van Dusen
 models for traceable coefficient sets; generic polynomial, piecewise-polynomial, and
 table-backed custom characteristics; IEC 60751 platinum tolerance calculations;
-measurement uncertainty; simulation; built-in model discovery; hardware-neutral
-measurement composition; and stable language-neutral conformance artifacts.
+measurement uncertainty; dependency-free batch conversion; simulation; built-in model
+discovery; hardware-neutral measurement composition; and stable language-neutral
+conformance artifacts.
 
 It is intended for developers building software, test, measurement, and scientific
 applications that already have an RTD resistance measurement and need conversion,
@@ -52,6 +53,7 @@ Only RTD characteristics whose equations, validity ranges, independent reference
 
 - convert a compensated RTD resistance measurement to temperature;
 - calculate the expected resistance of an RTD at a known temperature;
+- convert ordered batches of temperatures or resistances without a NumPy dependency;
 - model an individual IEC 60751 probe with a characterized R0 or custom Callendar–Van Dusen coefficients;
 - preserve authoritative manufacturer/user table data with a table-backed RTD model;
 - discover verified built-in models and their immutable metadata;
@@ -101,6 +103,25 @@ ni120_resistance_ohms = ni120.celsius_to_resistance(100.0)
 ```
 
 Physical numerical inputs such as temperature, resistance, coefficients, and uncertainty values reject Python Boolean values. This prevents `True`/`False` from being silently interpreted as `1.0`/`0.0`, while ordinary integer, floating-point, and other float-convertible numeric inputs continue to work normally. Boolean control options such as simulation `repeat=True` are unaffected.
+
+## Batch conversion
+
+`rtd_sensor.batch` applies any structural RTD model's scalar conversion behavior to
+an ordered iterable and returns an ordinary Python list. The batch helpers have no
+NumPy dependency, accept one-pass iterables such as generators, and preserve the
+model's scalar validation and exception behavior.
+
+```python
+from rtd_sensor import batch, pt100
+
+temperatures_c = [0.0, 25.0, 50.0, 100.0]
+resistances_ohms = batch.celsius_to_resistance(pt100, temperatures_c)
+round_trip_c = batch.resistance_to_celsius(pt100, resistances_ohms)
+```
+
+Conversion is fail-fast: if one element would raise in the scalar API, the same
+exception propagates from the batch call and no partial result list is returned.
+Scalar conversion remains the authoritative numerical behavior.
 
 ## Migrating from pt100-core 0.3.x
 
@@ -256,6 +277,28 @@ R(T) = Rref × (1 + c1*x + c2*x² + ... + cn*xⁿ)
 The model analytically differentiates the polynomial, validates that resistance stays finite and positive, and locates derivative extrema to prove the characteristic remains strictly increasing over its declared range. Resistance-to-temperature conversion then uses dependency-free bounded bisection on that validated curve instead of an approximate inverse polynomial.
 
 Do not force a published piecewise or tabulated characteristic into this single-polynomial API. Use `PiecewisePolynomialRTDModel` for a source that publishes separate interval equations and `TabulatedRTDModel` when the authoritative source is a resistance/temperature table.
+
+## Polynomial calibration fitting
+
+`rtd_sensor.fitting` can fit a validated `PolynomialRTDModel` directly from measured `(temperature, resistance)` calibration observations without adding NumPy or another numerical dependency:
+
+```python
+from rtd_sensor import fitting
+
+observations = (
+    fitting.CalibrationObservation(temperature_c=0.0, resistance_ohms=100.02),
+    fitting.CalibrationObservation(temperature_c=50.0, resistance_ohms=119.43),
+    fitting.CalibrationObservation(temperature_c=100.0, resistance_ohms=138.56),
+)
+
+fit = fitting.fit_polynomial(observations, degree=2)
+model = fit.model
+print(fit.evidence.rms_residual_ohms)
+```
+
+The fit result deliberately keeps the validated numerical model separate from the evidence supporting it. Evidence retains the original observations, per-point resistance residuals, RMS and maximum absolute residual error, fitting range, solver/scaling information, a conditioning diagnostic, and observation/parameter/residual-degree-of-freedom counts. Repeated temperatures are retained as independent observations rather than silently averaged. The reported RMS is a descriptive root mean square over the observations, not a degrees-of-freedom-adjusted uncertainty estimate; a nearly saturated fit can therefore have very small residuals without demonstrating predictive quality.
+
+Weighted least squares may use either a positive relative `weight` on every observation or a positive `standard_uncertainty_ohms` on every observation. Resistance standard uncertainties are converted to normalized inverse-variance weights; temperature is treated as the independent variable, so this initial fitter does not model temperature uncertainty. A caller may narrow the fitted model's validity range inside the observed calibration span, but the API does not silently extrapolate beyond that span. Rank-deficient, severely ill-conditioned, non-positive, or non-monotonic fitted curves raise `RTDFitError` instead of returning a deployable model.
 
 ## Piecewise polynomial RTD models
 
@@ -422,7 +465,7 @@ except exceptions.RTDOutOfRangeError:
     ...
 ```
 
-`RTDOutOfRangeError`, `InvalidRTDModelError`, and `RTDModelSelectionError` remain subclasses of `ValueError`, so existing callers that already catch `ValueError` continue to work. `UnknownRTDModelError` remains a subclass of `KeyError` for the same reason. All four also derive from `RTDError`, allowing applications to catch package-owned RTD domain failures without also catching unrelated hardware exceptions.
+`RTDOutOfRangeError`, `InvalidRTDModelError`, `RTDModelSelectionError`, and `RTDFitError` remain subclasses of `ValueError`, so existing callers that already catch `ValueError` continue to work. `UnknownRTDModelError` remains a subclass of `KeyError` for the same reason. All five also derive from `RTDError`, allowing applications to catch package-owned RTD domain failures without also catching unrelated hardware exceptions.
 
 The hierarchy does not wrap acquisition failures from `ResistanceReader` implementations or exceptions raised by arbitrary third-party `RTDModel` objects. Non-finite or otherwise invalid scalar inputs that are not range failures also retain their established `ValueError`/`TypeError` behavior.
 

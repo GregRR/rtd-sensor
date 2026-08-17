@@ -16,12 +16,14 @@ def test_public_exception_inheritance_preserves_legacy_catch_types() -> None:
     assert issubclass(exceptions.UnknownRTDModelError, KeyError)
     assert issubclass(exceptions.RTDOutOfRangeError, ValueError)
     assert issubclass(exceptions.InvalidRTDModelError, ValueError)
+    assert issubclass(exceptions.RTDFitError, ValueError)
     assert issubclass(exceptions.RTDModelSelectionError, ValueError)
 
     for exception_type in (
         exceptions.UnknownRTDModelError,
         exceptions.RTDOutOfRangeError,
         exceptions.InvalidRTDModelError,
+        exceptions.RTDFitError,
         exceptions.RTDModelSelectionError,
     ):
         assert issubclass(exception_type, exceptions.RTDError)

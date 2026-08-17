@@ -14,8 +14,10 @@ Example:
 """
 
 from . import (
+    batch,
     catalog,
     exceptions,
+    fitting,
     measurement,
     models,
     ni120,
@@ -30,8 +32,10 @@ from . import (
 )
 
 __all__ = [
+    "batch",
     "catalog",
     "exceptions",
+    "fitting",
     "measurement",
     "models",
     "ni1000",

@@ -232,12 +232,12 @@ def fahrenheit_to_resistance(temperature_f: float) -> float: ...
 
 Those convenience functions are not currently part of the public API. Celsius is the native temperature representation used by the supported characteristic definitions.
 
-### 5.1 Planned 0.6.0 batch conversion API
+### 5.1 Batch conversion API
 
 Batch conversion is a Python convenience layer, not an expansion of the public
 `RTDModel` structural protocol. Adding required batch methods to `RTDModel` would
 unnecessarily break third-party structural implementations that already satisfy
-the scalar protocol. The initial 0.6.0 design therefore uses a separate
+the scalar protocol. The 0.6.0 implementation uses a separate
 `rtd_sensor.batch` module with two generic operations conceptually equivalent to:
 
 ```python
@@ -287,7 +287,7 @@ The conversion functions should reject:
 - temperatures outside the documented supported range
 - resistance values that cannot represent a temperature inside that range
 
-The public `rtd_sensor.exceptions` module provides a deliberately small taxonomy for package-owned RTD domain failures. `RTDOutOfRangeError`, `InvalidRTDModelError`, and `RTDModelSelectionError` subclass `ValueError`; `UnknownRTDModelError` subclasses `KeyError`; and all four also derive from `RTDError`. Existing callers that catch the historical built-in exception types therefore remain compatible while applications can branch on package-owned RTD failures without parsing messages.
+The public `rtd_sensor.exceptions` module provides a deliberately small taxonomy for package-owned RTD domain failures. `RTDOutOfRangeError`, `InvalidRTDModelError`, `RTDModelSelectionError`, and `RTDFitError` subclass `ValueError`; `UnknownRTDModelError` subclasses `KeyError`; and all five also derive from `RTDError`. Existing callers that catch the historical built-in exception types therefore remain compatible while applications can branch on package-owned RTD failures without parsing messages.
 
 The taxonomy is intentionally selective. Non-finite/non-positive scalar input validation continues to use the established `ValueError` behavior unless the failure is specifically a supported-range violation, and type-category mistakes continue to use `TypeError`. Hardware/acquisition exceptions and arbitrary third-party model exceptions are not translated into `RTDError`.
 
@@ -552,6 +552,12 @@ is not required by the initial fitting milestone. If an `R0`-only fitter is adde
 later, its deployable result must use the same characterized-standard-
 characteristic representation as `IEC60751RTDModel`, not a parallel model kind.
 
+The initial public fitting layer is `rtd_sensor.fitting`. It treats temperature as
+the independent variable and resistance as the fitted dependent variable. A
+resistance standard uncertainty may therefore weight resistance residuals, but the
+initial ordinary least-squares model does not represent temperature uncertainty or
+perform errors-in-variables regression.
+
 A fitting call is successful only when both the numerical fit and the resulting
 RTD model are scientifically usable over the declared fitted range. The initial
 contract therefore follows these rules:
@@ -563,13 +569,15 @@ contract therefore follows these rules:
   measurements, are retained in the fit evidence, and are never silently averaged
   or discarded;
 * rank-deficient systems and non-finite numerical solutions are fitting failures;
-* the solver must use a numerically stable least-squares formulation and must not
-  rely on forming normal equations merely for convenience;
-* a conditioning diagnostic for the actual scaled fitting system must be retained
-  in the fit evidence; severe ill-conditioning is a fitting failure rather than a
-  condition that may be silently accepted, with the documented rejection threshold
-  established and regression-tested as part of the implementation's numerical
-  validation before the public API is frozen;
+* the observed temperature span is linearly scaled to `[-1, 1]` before fitting and
+  the least-squares system is solved by Householder QR rather than by forming normal
+  equations;
+* fit evidence retains the scaling center/half-range and the infinity-norm condition
+  number of the resulting Householder `R` factor; the initial guardrail rejects a
+  scaled-system condition number above `1e10`; this threshold is a numerical
+  stability guardrail, not an accuracy guarantee, and regression coverage must keep
+  both well-spaced high-degree systems and deliberately clustered pathological
+  systems on the intended sides of the boundary;
 * the fitted candidate must satisfy the same finite, positive-resistance, strictly
   increasing, unique-inverse requirements as a directly constructed polynomial
   model over the complete declared range; if it does not, the fitting operation
@@ -592,10 +600,31 @@ conversion status `calculation_failure`.
 Residuals are always retained in physical resistance units. RMS residual error and
 maximum absolute residual error are reported unweighted so they remain directly
 interpretable even when weighting is used. When caller-supplied weights or
-calibration-point standard uncertainties influence the fit, the corresponding
-weighted objective/statistic is retained **in addition to**, not instead of, the
-unweighted diagnostics. The fit evidence must record how supplied uncertainties
-were converted into weights so another implementation can reproduce the objective.
+resistance standard uncertainties influence the fit, the corresponding weighted
+objective/statistic is retained **in addition to**, not instead of, the unweighted
+diagnostics. A fit is either wholly unweighted, uses an explicit positive relative
+weight for every observation, or uses a positive resistance standard uncertainty
+for every observation; weighting conventions are not mixed within one fit. Effective
+weights are normalized so the largest is `1.0`, which leaves the least-squares
+solution unchanged while avoiding arbitrary overall scale. Standard uncertainties
+are converted to normalized inverse-variance weights proportional to `1 / u²`, and
+the original observations plus effective weights are retained so the objective is
+reproducible.
+
+The reported unweighted RMS residual is the descriptive quantity
+`sqrt(sum(residual²) / observation_count)`, not a degrees-of-freedom-adjusted
+estimate of residual standard deviation. Fit evidence therefore also records the
+observation count, fitted-parameter count (`degree + 1`), and residual degrees of
+freedom. A saturated fit with zero residual degrees of freedom can interpolate its
+observations nearly exactly; a small RMS or maximum residual in that case must not be
+interpreted by itself as evidence of predictive quality or freedom from overfitting.
+The weighted RMS is likewise a descriptive weighted residual measure normalized by
+total effective weight, not a reduced-chi-square or degrees-of-freedom-adjusted
+statistic.
+
+The fitted `PolynomialRTDModel` uses the midpoint of the declared fitted validity
+range as its reference temperature. This is a deterministic numerical anchor, not a
+claim that a calibration observation exists at that exact temperature.
 
 #### Portable model-definition format decision
 

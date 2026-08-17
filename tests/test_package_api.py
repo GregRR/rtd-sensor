@@ -3,8 +3,10 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 from rtd_sensor import (
+    batch,
     catalog,
     exceptions,
+    fitting,
     measurement,
     models,
     ni120,
@@ -55,6 +57,16 @@ def test_package_exports_ni120_module() -> None:
     assert imported_ni120 is ni120
 
 
+def test_package_exports_batch_module() -> None:
+    from rtd_sensor import batch as imported_batch
+
+    assert imported_batch is batch
+
+
+def test_batch_public_api() -> None:
+    assert set(batch.__all__) == {"celsius_to_resistance", "resistance_to_celsius"}
+
+
 def test_package_exports_catalog_module() -> None:
     from rtd_sensor import catalog as imported_catalog
 
@@ -65,6 +77,21 @@ def test_package_exports_exceptions_module() -> None:
     from rtd_sensor import exceptions as imported_exceptions
 
     assert imported_exceptions is exceptions
+
+
+def test_package_exports_fitting_module() -> None:
+    from rtd_sensor import fitting as imported_fitting
+
+    assert imported_fitting is fitting
+
+
+def test_fitting_public_api() -> None:
+    assert set(fitting.__all__) == {
+        "CalibrationObservation",
+        "PolynomialFitEvidence",
+        "PolynomialFitResult",
+        "fit_polynomial",
+    }
 
 
 def test_package_exports_measurement_module() -> None:
@@ -89,8 +116,10 @@ def test_package_public_api() -> None:
     import rtd_sensor
 
     assert set(rtd_sensor.__all__) == {
+        "batch",
         "catalog",
         "exceptions",
+        "fitting",
         "measurement",
         "models",
         "ni1000",
@@ -118,6 +147,7 @@ def test_catalog_public_api() -> None:
 def test_exceptions_public_api() -> None:
     assert set(exceptions.__all__) == {
         "InvalidRTDModelError",
+        "RTDFitError",
         "RTDError",
         "RTDModelSelectionError",
         "RTDOutOfRangeError",

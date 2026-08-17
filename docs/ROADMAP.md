@@ -535,21 +535,23 @@ Implemented `TabulatedRTDModel` and immutable `TabulatedRTDPoint` rows for autho
 
 Tables must contain at least two finite rows with strictly increasing temperature and strictly increasing positive resistance. Interior-knot sensitivity follows the interval on the right and the final knot follows the last interval, matching the deterministic one-sided convention already used for piecewise characteristics.
 
-Items 1 through 7 shipped in 0.5.0. The 0.5.1 corrective release is limited to
-documentation consistency and release-process hardening; calibration fitting
-remains the first planned feature milestone on the 0.6.0 line.
+Items 1 through 7 shipped in 0.5.0. The 0.5.1 corrective release was limited to
+documentation consistency and release-process hardening. Items 8 and 9 are now
+implemented on the 0.6.0 development line; items 10 and 11 remain before the
+0.6.0 release boundary.
 
-### 8. Calibration fitting — planned for 0.6.0
+### 8. Calibration fitting — implemented for 0.6.0
 
-Implement the fitting work described under **Calibration and model fitting**.
-Retain observations and enough numerical evidence to make a successful fit
-auditable and reproducible, and reject rank-deficient, severely ill-conditioned,
-or scientifically invalid fitted models rather than returning a deployable curve.
-Portable reconstruction of a successful result is handled separately by item 10.
+Implemented the initial polynomial fitting scope described under **Calibration and
+model fitting**, including immutable observations and fit evidence, optional
+weighting, scaled Householder-QR least squares, conditioning diagnostics, and
+validated `PolynomialRTDModel` results. Rank-deficient, severely ill-conditioned,
+and scientifically invalid fitted models are rejected rather than returned as
+deployable curves. Portable reconstruction of a successful result remains item 10.
 
-### 9. Batch and vector conversion conveniences — planned for 0.6.0
+### 9. Batch and vector conversion conveniences — implemented for 0.6.0
 
-Add the dependency-free `rtd_sensor.batch` convenience layer specified in
+Implemented the dependency-free `rtd_sensor.batch` convenience layer specified in
 `DESIGN.md`: eager ordered list results, fail-fast scalar-equivalent exceptions,
 and one-pass iterable inputs without extending the public `RTDModel` protocol.
 NumPy remains optional and is not a runtime dependency.
