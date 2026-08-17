@@ -8,14 +8,16 @@ characteristics.
 
 Beyond basic conversion, the library supports configurable Callendar–Van Dusen
 models for traceable coefficient sets; generic polynomial, piecewise-polynomial, and
-table-backed custom characteristics; IEC 60751 platinum tolerance calculations;
-measurement uncertainty; dependency-free batch conversion; simulation; built-in model
+table-backed custom characteristics; dependency-free polynomial calibration fitting
+and batch conversion; versioned portable model definitions; IEC 60751 platinum
+tolerance calculations; measurement uncertainty; simulation; built-in model
 discovery; hardware-neutral measurement composition; and stable language-neutral
-conformance artifacts.
+conformance artifacts with independent C11/binary32 verification.
 
 It is intended for developers building software, test, measurement, and scientific
 applications that already have an RTD resistance measurement and need conversion,
-modeling, tolerance, uncertainty, or simulation tools.
+modeling, calibration, tolerance, uncertainty, simulation, or cross-language
+validation tools.
 
 ## Scope
 
@@ -55,6 +57,8 @@ Only RTD characteristics whose equations, validity ranges, independent reference
 - calculate the expected resistance of an RTD at a known temperature;
 - convert ordered batches of temperatures or resistances without a NumPy dependency;
 - model an individual IEC 60751 probe with a characterized R0 or custom Callendar–Van Dusen coefficients;
+- fit a validated polynomial RTD model from calibration observations while retaining auditable fit evidence;
+- serialize and reconstruct supported configurable or fitted models with a versioned portable definition;
 - preserve authoritative manufacturer/user table data with a table-backed RTD model;
 - discover verified built-in models and their immutable metadata;
 - compose a hardware-neutral resistance reader with any structural RTD model;
@@ -335,7 +339,7 @@ than guessed. Optional metadata is non-behavioral and preserved separately from
 the reconstructed model; physical probe identity, hardware configuration, and
 application-specific channel semantics remain outside the artifact. The versioned
 JSON Schema and language-neutral format notes are in
-[`portable/README.md`](portable/README.md).
+[`portable/README.md`](https://github.com/GregRR/rtd-sensor/blob/main/portable/README.md).
 
 ## Piecewise polynomial RTD models
 
@@ -703,20 +707,20 @@ uv run --locked mypy
 
 ## Further documentation
 
-See [`docs/DESIGN.md`](docs/DESIGN.md) for detailed architecture and mathematical
-assumptions, [`docs/CONFORMANCE.md`](docs/CONFORMANCE.md) for the stable
+See [`docs/DESIGN.md`](https://github.com/GregRR/rtd-sensor/blob/main/docs/DESIGN.md) for detailed architecture and mathematical
+assumptions, [`docs/CONFORMANCE.md`](https://github.com/GregRR/rtd-sensor/blob/main/docs/CONFORMANCE.md) for the stable
 language-neutral RTD conformance contract,
-[`conformance/README.md`](conformance/README.md) for the published conformance
-artifacts, [`docs/CROSS_LANGUAGE_IMPLEMENTATIONS.md`](docs/CROSS_LANGUAGE_IMPLEMENTATIONS.md)
+[`conformance/README.md`](https://github.com/GregRR/rtd-sensor/blob/main/conformance/README.md) for the published conformance
+artifacts, [`docs/CROSS_LANGUAGE_IMPLEMENTATIONS.md`](https://github.com/GregRR/rtd-sensor/blob/main/docs/CROSS_LANGUAGE_IMPLEMENTATIONS.md)
 for downstream C/C++/MCU implementation guidance, and
-[`portable/README.md`](portable/README.md) for the versioned language-neutral
+[`portable/README.md`](https://github.com/GregRR/rtd-sensor/blob/main/portable/README.md) for the versioned language-neutral
 portable-model format and schema.
 
-See [`docs/ROADMAP.md`](docs/ROADMAP.md) for planned RTD families and future
-characteristic/calibration work, [`docs/RELEASING.md`](docs/RELEASING.md) for the
-release checklist, and [`CITATION.cff`](CITATION.cff) for software citation
+See [`docs/ROADMAP.md`](https://github.com/GregRR/rtd-sensor/blob/main/docs/ROADMAP.md) for planned RTD families and future
+characteristic/calibration work, [`docs/RELEASING.md`](https://github.com/GregRR/rtd-sensor/blob/main/docs/RELEASING.md) for the
+release checklist, and [`CITATION.cff`](https://github.com/GregRR/rtd-sensor/blob/main/CITATION.cff) for software citation
 metadata.
 
 ## License
 
-This project is licensed under the Mozilla Public License 2.0. See [`LICENSE`](LICENSE).
+This project is licensed under the Mozilla Public License 2.0. See [`LICENSE`](https://github.com/GregRR/rtd-sensor/blob/main/LICENSE).

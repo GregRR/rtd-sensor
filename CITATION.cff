@@ -2,15 +2,15 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it using these metadata."
 title: "rtd-sensor"
 type: software
-version: "0.5.1"
-date-released: "2026-08-16"
+version: "0.6.0"
+date-released: "2026-08-17"
 authors:
   - family-names: "Roe"
     given-names: "Greg"
 abstract: >-
   Python RTD resistance/temperature conversion and modeling for IEC 60751
-  platinum RTDs and documented nickel RTD characteristics, with tolerance,
-  uncertainty, and simulation tools.
+  platinum and documented nickel RTDs, with calibration fitting, tolerance,
+  uncertainty, portable model definitions, and cross-language conformance.
 repository-code: "https://github.com/GregRR/rtd-sensor"
 url: "https://pypi.org/project/rtd-sensor/"
 license: MPL-2.0
@@ -27,3 +27,6 @@ keywords:
   - metrology
   - tolerance
   - uncertainty
+  - calibration
+  - interoperability
+  - conformance

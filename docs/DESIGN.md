@@ -524,7 +524,7 @@ The custom-CVD model follows these rules:
 
 A user-supplied coefficient set is not automatically described as IEC 60751 compliant merely because it uses the same algebraic form. The standard `IEC60751RTDModel` remains the explicit API for the package's verified IEC PT-385 curve.
 
-The released library currently consumes characterized or calibrated parameters; it does not yet fit `R0`, `A`, `B`, or `C` from raw calibration observations. Calibration fitting is planned for 0.6.0 as described below. Historical `R0`, alpha, delta, beta coefficient notation and ITS-90 interpolation functions remain outside the current public API.
+Version 0.6.0 adds polynomial calibration fitting from raw `(temperature, resistance)` observations. It does not fit `R0`, `A`, `B`, or `C` for characterized-standard or custom Callendar–Van Dusen models; those remain configurable inputs. Historical `R0`, alpha, delta, beta coefficient notation and ITS-90 interpolation functions remain outside the current public API.
 
 ### Calibration fitting and portable model definitions
 

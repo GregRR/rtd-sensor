@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Check out release tag
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.release.tag_name || inputs.tag }}
 
@@ -112,13 +112,27 @@ jobs:
               )
 
           import rtd_sensor
-          from rtd_sensor import catalog, pt100
+          from rtd_sensor import batch, catalog, fitting, portable, pt100
 
           if importlib.util.find_spec("rtd") is not None:
               raise SystemExit("legacy rtd import package is unexpectedly present")
 
           if abs(pt100.resistance_to_celsius(100.0)) > 1e-12:
               raise SystemExit("installed Pt100 smoke conversion failed")
+
+          if batch.celsius_to_resistance(pt100, [0.0]) != [100.0]:
+              raise SystemExit("installed batch conversion smoke check failed")
+
+          observations = (
+              fitting.CalibrationObservation(0.0, 100.0),
+              fitting.CalibrationObservation(50.0, 120.0),
+              fitting.CalibrationObservation(100.0, 140.0),
+          )
+          fit = fitting.fit_polynomial(observations, degree=1)
+          artifact = portable.model_to_portable_definition(fit.model)
+          loaded = portable.model_from_portable_definition(artifact)
+          if abs(loaded.model.celsius_to_resistance(50.0) - 120.0) > 1e-9:
+              raise SystemExit("installed fitting/portable smoke check failed")
 
           if "pt100" not in catalog.supported_models():
               raise SystemExit("installed catalog smoke check failed")
@@ -131,7 +145,7 @@ jobs:
           done
 
       - name: Upload distributions for publishing
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: python-package-distributions
           path: dist/
@@ -150,7 +164,7 @@ jobs:
 
     steps:
       - name: Download distributions
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: python-package-distributions
           path: dist/

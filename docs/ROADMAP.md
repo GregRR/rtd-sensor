@@ -48,12 +48,11 @@ Items 1 through 7 shipped in version 0.5.0 on 2026-08-16. Version 0.5.1 is a
 corrective documentation/release-process release and does not add roadmap feature
 scope. Feature development resumes with item 8 on the 0.6.0 line.
 
-The next planned feature release is **0.6.0**. Items 8 through 11 are its required
-roadmap milestone, with the release boundary immediately after item 11. Item 12
-is ongoing, provenance-dependent built-in expansion: support-ready
-characteristics may land during the 0.6.0 cycle, but item 12 is not a blocker for
-the 0.6.0 release. This explicit boundary is intentional so open-ended
-characteristic research cannot silently postpone a completed release milestone.
+Version **0.6.0** is in release preparation. Items 8 through 11 are complete,
+and the release boundary remains immediately after item 11. Item 12 is ongoing,
+provenance-dependent built-in expansion and is not a blocker for 0.6.0. This
+explicit boundary prevents open-ended characteristic research from silently
+postponing a completed release milestone.
 
 ### Release boundaries
 
@@ -538,9 +537,9 @@ Implemented `TabulatedRTDModel` and immutable `TabulatedRTDPoint` rows for autho
 Tables must contain at least two finite rows with strictly increasing temperature and strictly increasing positive resistance. Interior-knot sensitivity follows the interval on the right and the final knot follows the last interval, matching the deterministic one-sided convention already used for piecewise characteristics.
 
 Items 1 through 7 shipped in 0.5.0. The 0.5.1 corrective release was limited to
-documentation consistency and release-process hardening. Items 8 and 9 are now
-implemented on the 0.6.0 development line; items 10 and 11 remain before the
-0.6.0 release boundary.
+documentation consistency and release-process hardening. Items 8 through 11 are
+implemented for 0.6.0, so feature development has stopped at the documented
+release boundary and the project is in release preparation.
 
 ### 8. Calibration fitting — implemented for 0.6.0
 
@@ -758,14 +757,13 @@ The implemented table contract:
 
 ## Calibration and model fitting
 
-Version 0.6.0 plans to construct characteristics from measured calibration
-points, but fitting must remain separate from simply *using* a published
-equation. The fit evidence and the portable numerical model definition are also
-separate outputs: consumers should be able to reconstruct a fitted model without
-rerunning the fit while still retaining the observations and diagnostics that
-justify it.
+Version 0.6.0 implements initial polynomial calibration fitting from measured
+calibration points, while keeping fitting separate from simply *using* a
+published equation. Fit evidence and the portable numerical model definition are
+separate outputs: consumers can reconstruct a fitted model without rerunning the
+fit while retaining the observations and diagnostics that justify it.
 
-Planned fitting capabilities:
+Implemented fitting capabilities:
 
 - fit a user-selected polynomial degree from `(temperature, resistance)`
   observations;

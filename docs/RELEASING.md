@@ -43,7 +43,7 @@ After changing `project.version`, regenerate the version-bearing conformance
 artifacts:
 
 ```bash
-uv run python -m rtd_sensor._conformance_artifacts
+uv run --locked python -m rtd_sensor._conformance_artifacts
 ```
 
 Do not tag while `pyproject.toml`, `uv.lock`, `CHANGELOG.md`, `CITATION.cff`, or
@@ -139,8 +139,8 @@ uv run --locked pytest
 uv run --locked ruff check .
 uv run --locked ruff format --check .
 uv run --locked mypy
-uv run python -m rtd_sensor._conformance_artifacts --check
-uv run python -m rtd_sensor._conformance_release --check
+uv run --locked python -m rtd_sensor._conformance_artifacts --check
+uv run --locked python -m rtd_sensor._conformance_release --check
 git diff --check
 git status --short
 ```
@@ -158,7 +158,7 @@ git diff --check vPREVIOUS..HEAD
 ```
 
 Replace `vPREVIOUS` with the actual previous release tag (for example,
-`v0.5.0` while preparing 0.5.1).
+`v0.5.1` while preparing 0.6.0).
 
 ## 6. Build and inspect the actual release artifacts
 
@@ -169,7 +169,7 @@ overrides:
 ```bash
 rm -rf dist
 uv build --no-sources
-uv run python -m rtd_sensor._conformance_release --output-dir dist
+uv run --locked python -m rtd_sensor._conformance_release --output-dir dist
 ```
 
 Then verify:
@@ -192,7 +192,8 @@ installed distribution rather than the source checkout:
 - [ ] `import rtd_sensor` succeeds;
 - [ ] the legacy `rtd` package is absent;
 - [ ] representative built-in conversion succeeds; and
-- [ ] representative 0.5.x public APIs such as catalog/model composition are
+- [ ] representative public APIs, including catalog/model composition, batch
+      conversion, calibration fitting, and portable-model round trips, are
       importable and usable.
 
 ## 7. User-facing installation and quickstart test
