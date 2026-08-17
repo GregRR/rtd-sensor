@@ -2,7 +2,7 @@ cff-version: 1.2.0
 message: "If you use this software, please cite it using these metadata."
 title: "rtd-sensor"
 type: software
-version: "0.5.0"
+version: "0.5.1"
 date-released: "2026-08-16"
 authors:
   - family-names: "Roe"
