@@ -6,10 +6,14 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-* Expanded release readiness into explicit documentation-drift, repository-drift, source-validation, built-artifact, clean-install, release-candidate stop, publishing, and post-release gates.
-* Hardened CI and PyPI release validation so lockfile consistency, formatting, conformance-artifact drift, and conformance-release integrity are checked automatically before publication; release builds are also installed and smoke-tested from the produced artifacts.
-* Updated current documentation to reflect the shipped 0.5.0 public model-discovery, hardware-neutral composition, exception, tabulated-model, and conformance capabilities and to keep 0.6.0 feature work separate from the corrective 0.5.1 release.
-* Improved README and package/citation metadata clarity around project identity, supported RTD characteristics, the IEC-platinum versus nickel distinction, and conformance documentation.
+* Corrected documentation that had become inconsistent with capabilities already released in 0.5.0, including model discovery, hardware-neutral measurement composition, public exceptions, tabulated models, and conformance support.
+* Improved the README with a clearer project overview and a concise summary of supported RTD characteristics and temperature ranges.
+* Clarified package and citation metadata to distinguish IEC 60751 platinum RTDs from the documented nickel RTD characteristics supported by the package.
+* Added clearer links to the stable language-neutral conformance contract and published conformance artifacts.
+
+### Maintenance
+
+* Strengthened CI and release validation to check package metadata, documentation, conformance artifacts, and built distributions more consistently before publication.
 
 ## 0.5.0 — 2026-08-16
 
