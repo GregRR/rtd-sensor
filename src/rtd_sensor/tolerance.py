@@ -63,7 +63,7 @@ class _ToleranceSpec:
     maximum_temperature_c: float
 
 
-# IEC 60751:2022, Table 2 — tolerance classes of thermometers.
+# Source: IEC (2022), IEC 60751:2022, Table 2; see docs/REFERENCES.md.
 #
 # These ranges are part of the class definition, not merely recommended
 # operating ranges. Keeping them beside the equation coefficients prevents a
@@ -83,7 +83,7 @@ _THERMOMETER_SPECS: dict[
 }
 
 
-# IEC 60751:2022, Table 1 — tolerance classes of platinum resistors.
+# Source: IEC (2022), IEC 60751:2022, Table 1; see docs/REFERENCES.md.
 # The public ASCII designations combine the standard W/F construction
 # prefix with the decimal tolerance-class value. W and F are retained in the
 # public designation because construction is already part of the bare-resistor

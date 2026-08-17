@@ -5,7 +5,8 @@
 """Measurement-uncertainty helpers for RTD temperature conversion.
 
 The low-level helpers in this module follow the measurement-uncertainty
-conventions used by the GUM/JCGM framework and NIST Technical Note 1297.
+conventions in JCGM 100:2008 and NIST Technical Note 1297. Full citations are
+maintained in ``docs/REFERENCES.md``.
 They operate on already-evaluated uncertainty quantities; they do not decide
 which physical effects belong in a particular RTD uncertainty budget.
 
@@ -133,6 +134,8 @@ class TemperatureUncertaintyBudget:
         return self.resistance.temperature_c
 
 
+# Source: JCGM (2008), JCGM 100:2008, and Taylor & Kuyatt (1994);
+# see docs/REFERENCES.md.
 def standard_uncertainty_from_bound(
     half_width: float,
     *,
@@ -172,6 +175,7 @@ def standard_uncertainty_from_bound(
     return bound / divisor
 
 
+# Source: JCGM (2008), JCGM 100:2008; see docs/REFERENCES.md.
 def standard_uncertainty_from_expanded(
     expanded_uncertainty_value: float,
     *,
@@ -197,6 +201,8 @@ def standard_uncertainty_from_expanded(
     return standard
 
 
+# Source: JCGM (2008), JCGM 100:2008, law of propagation for
+# uncorrelated inputs; see docs/REFERENCES.md.
 def combine_independent_standard_uncertainties(
     *standard_uncertainties: float,
 ) -> float:
@@ -234,6 +240,7 @@ def combine_independent_standard_uncertainties(
     return combined
 
 
+# Source: JCGM (2008), JCGM 100:2008; see docs/REFERENCES.md.
 def expanded_uncertainty(
     combined_standard_uncertainty: float,
     *,
@@ -259,6 +266,8 @@ def expanded_uncertainty(
     return expanded
 
 
+# Source: JCGM (2008), JCGM 100:2008, first-order sensitivity
+# propagation; see docs/REFERENCES.md.
 def propagate_resistance_uncertainty(
     resistance_ohms: float,
     resistance_standard_uncertainty_ohms: float,

@@ -15,7 +15,7 @@ from rtd_sensor import ni1000, ni1000_tk5000
 # from that table rather than recomputed from IST's coefficient source, so the
 # test can detect a coefficient transcription or characteristic-selection bug.
 #
-# Source:
+# Validation source: E+E Elektronik; see docs/REFERENCES.md.
 # https://www.epluse.com/fileadmin/data/product/r-t_characteristics/R_T_Characteristics_Ni1000_TK5000.pdf
 _EE_REFERENCE_VALUES = [
     (-60.0, 751.79),

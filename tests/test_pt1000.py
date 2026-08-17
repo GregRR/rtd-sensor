@@ -11,7 +11,7 @@ from rtd_sensor import pt1000
 # Independent reference values
 # ----------------------------
 #
-# Primary source:
+# Primary validation source:
 #   Italcoppie Sensori, "Pt1000 Resistance Chart"
 #   Values according to DIN EN IEC 60751.
 #

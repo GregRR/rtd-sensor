@@ -10,6 +10,9 @@ from rtd_sensor import ni1000
 
 # Independent reference table
 # ---------------------------
+# Validation sources: TE Connectivity / HL-Planartechnik and Honeywell;
+# see docs/REFERENCES.md.
+#
 # TE Connectivity / HL-Planartechnik, "Ni1000SOT Temperature Sensor",
 # publishes a 1 °C resistance table for the former DIN 43760 6178 ppm/K
 # characteristic.  The table is rounded to 0.1 ohm, so tests use an absolute

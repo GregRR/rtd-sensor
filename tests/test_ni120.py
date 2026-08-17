@@ -16,7 +16,7 @@ from rtd_sensor import ni120
 # independent of Minco's polynomial coefficient source, so they can detect a
 # transcription, segment-routing, or stitching error in the implementation.
 #
-# Source:
+# Validation source: Pyromation; see docs/REFERENCES.md.
 # https://www.pyromation.com/downloads/data/672_c.pdf
 _PYROMATION_REFERENCE_VALUES = [
     (-80.0, 66.60),

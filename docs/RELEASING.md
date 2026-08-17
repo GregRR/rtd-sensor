@@ -78,6 +78,7 @@ the files expected to change:
 - [ ] `docs/DESIGN.md`
 - [ ] `docs/CONFORMANCE.md`
 - [ ] `docs/ROADMAP.md`
+- [ ] `docs/REFERENCES.md`
 - [ ] `docs/RELEASING.md`
 - [ ] `CHANGELOG.md`
 - [ ] `CITATION.cff`
@@ -97,8 +98,17 @@ For the documentation set as a whole, verify:
 - [ ] old version numbers occur only where historical or otherwise intentional;
 - [ ] terminology is consistent across documents;
 - [ ] documents do not contradict one another;
-- [ ] documentation does not claim unsupported behavior; and
-- [ ] important newly implemented user-facing behavior is not omitted.
+- [ ] documentation does not claim unsupported behavior;
+- [ ] important newly implemented user-facing behavior is not omitted;
+- [ ] every external source that materially supports a new or changed equation,
+      coefficient set, range, tolerance rule, uncertainty/calibration method,
+      validation dataset, numerical criterion, or scientific/engineering decision
+      is added to or verified in `docs/REFERENCES.md` in the same change;
+- [ ] implementation-level `Source:` comments or structured provenance identify
+      the specific basis of non-obvious scientific rules, while independent test
+      data are clearly distinguished as validation sources; and
+- [ ] research-only or conflicting sources are labeled as such rather than being
+      presented as support for released behavior.
 
 A document that is individually accurate can still conflict with another
 current document. Cross-document consistency is an explicit release check.

@@ -216,6 +216,7 @@ _MINCO_NA = SourceReference(
 )
 
 
+# Source: IEC (2022), IEC 60751:2022; see docs/REFERENCES.md.
 # IEC 60751 defines the PT-385 Callendar-Van Dusen coefficients used by the
 # built-in Pt100, Pt500, and Pt1000 models. Independent resistance-table tests
 # remain separate from this coefficient source so generated conformance data
@@ -233,6 +234,7 @@ IEC_60751_PT385_DEFINITION = CallendarVanDusenCharacteristicDefinition(
 )
 
 
+# Sources: ABB (2013) and IST AG, RTD Nickel Sensors; see docs/REFERENCES.md.
 # Former DIN 43760 nickel characteristic (6178/6180 ppm/K). Missing odd-power
 # terms are retained explicitly as zeros so the tuple maps directly to c1..c6
 # in PolynomialRTDCurve rather than hiding the published polynomial structure.
@@ -255,6 +257,7 @@ NI_6180_DIN_43760_DEFINITION = PolynomialCharacteristicDefinition(
 )
 
 
+# Source: IST AG, RTD Nickel Sensors; see docs/REFERENCES.md.
 # IST AG publishes the distinct Nickel NL / TK5000 cubic characteristic. The
 # E+E Elektronik resistance table remains an independent validation source in
 # the test suite rather than becoming another source of runtime coefficients.
@@ -274,6 +277,8 @@ NI_5000_TK5000_DEFINITION = PolynomialCharacteristicDefinition(
 )
 
 
+# Source: Minco, Resistance Thermometry, nickel section, p. 6; see
+# docs/REFERENCES.md.
 # Minco publishes the North American 6720 ppm/K characteristic as twelve cubic
 # source intervals. The coefficients below are source data and must not include
 # runtime continuity offsets. Their printed precision leaves small join

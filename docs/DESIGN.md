@@ -60,6 +60,8 @@ The core package must not depend on GPIO, SPI, I²C, ADC, or board-specific libr
 
 The implementation should identify the standard, equation, constants, assumptions, and supported range. Constants must not appear as unexplained magic numbers.
 
+`docs/REFERENCES.md` is the canonical bibliography for external scientific and engineering sources. When a source materially determines an implemented equation, coefficient set, range, tolerance rule, uncertainty method, calibration method, or numerical scientific decision, the implementation point should carry a concise `Source:` comment when that provenance is not already obvious from structured source metadata. Independent test data should use `Validation source:` so implementation provenance is not confused with external verification. The complete bibliographic citation remains in `docs/REFERENCES.md`.
+
 ### 3.3 Small public API
 
 The public interfaces for supported RTD models should remain parallel and simple:

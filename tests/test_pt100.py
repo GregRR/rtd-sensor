@@ -11,7 +11,7 @@ from rtd_sensor import pt100
 # Independent reference values
 # ----------------------------
 #
-# Source:
+# Validation source:
 #   Fluke Calibration, "PT100 Resistance Table Generator"
 #   https://www.fluke.com/en-us/learn/tools-calculators/
 #   pt100-table-generator
