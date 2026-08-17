@@ -717,9 +717,10 @@ for downstream C/C++/MCU implementation guidance, and
 portable-model format and schema.
 
 See [`docs/ROADMAP.md`](https://github.com/GregRR/rtd-sensor/blob/main/docs/ROADMAP.md) for planned RTD families and future
-characteristic/calibration work, [`docs/RELEASING.md`](https://github.com/GregRR/rtd-sensor/blob/main/docs/RELEASING.md) for the
-release checklist, and [`CITATION.cff`](https://github.com/GregRR/rtd-sensor/blob/main/CITATION.cff) for software citation
-metadata.
+characteristic/calibration work, [`docs/REFERENCES.md`](https://github.com/GregRR/rtd-sensor/blob/main/docs/REFERENCES.md) for the
+scientific standards, metrology guidance, and manufacturer/industrial technical sources used by the project,
+[`docs/RELEASING.md`](https://github.com/GregRR/rtd-sensor/blob/main/docs/RELEASING.md) for the release checklist, and
+[`CITATION.cff`](https://github.com/GregRR/rtd-sensor/blob/main/CITATION.cff) for software citation metadata.
 
 ## License
 
