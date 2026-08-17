@@ -10,6 +10,79 @@
     {
       "cases": [
         {
+          "case_id": "calibrated_pt385_r0_99p5.temperature_to_resistance_status.below_minimum",
+          "expected": {
+            "status": "out_of_range_low"
+          },
+          "input": {
+            "value": -200.001
+          },
+          "tags": [
+            "range_error",
+            "outside_boundary",
+            "below_minimum"
+          ]
+        },
+        {
+          "case_id": "calibrated_pt385_r0_99p5.temperature_to_resistance_status.above_maximum",
+          "expected": {
+            "status": "out_of_range_high"
+          },
+          "input": {
+            "value": 850.001
+          },
+          "tags": [
+            "range_error",
+            "outside_boundary",
+            "above_maximum"
+          ]
+        },
+        {
+          "case_id": "calibrated_pt385_r0_99p5.temperature_to_resistance_status.nan",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "nan"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        },
+        {
+          "case_id": "calibrated_pt385_r0_99p5.temperature_to_resistance_status.positive_infinity",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "positive_infinity"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        },
+        {
+          "case_id": "calibrated_pt385_r0_99p5.temperature_to_resistance_status.negative_infinity",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "negative_infinity"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        }
+      ],
+      "fixture_id": "calibrated_pt385_r0_99p5",
+      "group_id": "calibrated_pt385_r0_99p5.temperature_to_resistance_status"
+    },
+    {
+      "cases": [
+        {
           "case_id": "calibrated_pt385_nonnominal_r0.temperature_to_resistance_status.below_minimum",
           "expected": {
             "status": "out_of_range_low"
@@ -79,6 +152,152 @@
       ],
       "fixture_id": "calibrated_pt385_nonnominal_r0",
       "group_id": "calibrated_pt385_nonnominal_r0.temperature_to_resistance_status"
+    },
+    {
+      "cases": [
+        {
+          "case_id": "calibrated_pt385_r0_502p5.temperature_to_resistance_status.below_minimum",
+          "expected": {
+            "status": "out_of_range_low"
+          },
+          "input": {
+            "value": -100.001
+          },
+          "tags": [
+            "range_error",
+            "outside_boundary",
+            "below_minimum"
+          ]
+        },
+        {
+          "case_id": "calibrated_pt385_r0_502p5.temperature_to_resistance_status.above_maximum",
+          "expected": {
+            "status": "out_of_range_high"
+          },
+          "input": {
+            "value": 500.001
+          },
+          "tags": [
+            "range_error",
+            "outside_boundary",
+            "above_maximum"
+          ]
+        },
+        {
+          "case_id": "calibrated_pt385_r0_502p5.temperature_to_resistance_status.nan",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "nan"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        },
+        {
+          "case_id": "calibrated_pt385_r0_502p5.temperature_to_resistance_status.positive_infinity",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "positive_infinity"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        },
+        {
+          "case_id": "calibrated_pt385_r0_502p5.temperature_to_resistance_status.negative_infinity",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "negative_infinity"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        }
+      ],
+      "fixture_id": "calibrated_pt385_r0_502p5",
+      "group_id": "calibrated_pt385_r0_502p5.temperature_to_resistance_status"
+    },
+    {
+      "cases": [
+        {
+          "case_id": "calibrated_pt385_r0_995.temperature_to_resistance_status.below_minimum",
+          "expected": {
+            "status": "out_of_range_low"
+          },
+          "input": {
+            "value": -200.001
+          },
+          "tags": [
+            "range_error",
+            "outside_boundary",
+            "below_minimum"
+          ]
+        },
+        {
+          "case_id": "calibrated_pt385_r0_995.temperature_to_resistance_status.above_maximum",
+          "expected": {
+            "status": "out_of_range_high"
+          },
+          "input": {
+            "value": 850.001
+          },
+          "tags": [
+            "range_error",
+            "outside_boundary",
+            "above_maximum"
+          ]
+        },
+        {
+          "case_id": "calibrated_pt385_r0_995.temperature_to_resistance_status.nan",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "nan"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        },
+        {
+          "case_id": "calibrated_pt385_r0_995.temperature_to_resistance_status.positive_infinity",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "positive_infinity"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        },
+        {
+          "case_id": "calibrated_pt385_r0_995.temperature_to_resistance_status.negative_infinity",
+          "expected": {
+            "status": "invalid_input"
+          },
+          "input": {
+            "special": "negative_infinity"
+          },
+          "tags": [
+            "invalid_input",
+            "non_finite"
+          ]
+        }
+      ],
+      "fixture_id": "calibrated_pt385_r0_995",
+      "group_id": "calibrated_pt385_r0_995.temperature_to_resistance_status"
     },
     {
       "cases": [

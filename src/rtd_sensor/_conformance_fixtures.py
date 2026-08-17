@@ -122,6 +122,26 @@ type ConfigurableFixtureModel = (
 
 MODEL_FIXTURES: tuple[ModelFixture, ...] = (
     CharacteristicModelFixture(
+        fixture_id="calibrated_pt385_r0_99p5",
+        display_name="Characterized PT-385 model with R0 = 99.5 ohm",
+        fixture_purpose=(
+            "Verify characterized reference resistance below 100 ohm across the "
+            "full PT-385 characteristic range."
+        ),
+        expected_status="ok",
+        characteristic_id="iec60751_pt385",
+        reference_resistance_ohms=99.5,
+        minimum_temperature_c=-200.0,
+        maximum_temperature_c=850.0,
+        anchors=(
+            FixtureAnchor(-200.0, ("minimum_boundary", "negative_temperature")),
+            FixtureAnchor(-100.0, ("negative_temperature",)),
+            FixtureAnchor(0.0, ("reference_temperature", "branch_boundary")),
+            FixtureAnchor(100.0, ("positive_temperature",)),
+            FixtureAnchor(850.0, ("maximum_boundary", "positive_temperature")),
+        ),
+    ),
+    CharacteristicModelFixture(
         fixture_id="calibrated_pt385_nonnominal_r0",
         display_name="Calibrated PT-385 model with non-nominal R0",
         fixture_purpose=(
@@ -134,10 +154,50 @@ MODEL_FIXTURES: tuple[ModelFixture, ...] = (
         minimum_temperature_c=-50.0,
         maximum_temperature_c=200.0,
         anchors=(
-            FixtureAnchor(-50.0, ("minimum_boundary",)),
-            FixtureAnchor(0.0, ("reference_temperature",)),
-            FixtureAnchor(100.0, ("representative",)),
-            FixtureAnchor(200.0, ("maximum_boundary",)),
+            FixtureAnchor(-50.0, ("minimum_boundary", "negative_temperature")),
+            FixtureAnchor(0.0, ("reference_temperature", "branch_boundary")),
+            FixtureAnchor(100.0, ("positive_temperature",)),
+            FixtureAnchor(200.0, ("maximum_boundary", "positive_temperature")),
+        ),
+    ),
+    CharacteristicModelFixture(
+        fixture_id="calibrated_pt385_r0_502p5",
+        display_name="Characterized PT-385 model with R0 = 502.5 ohm",
+        fixture_purpose=(
+            "Verify characterized reference resistance near the Pt500 scale with "
+            "a deliberately narrowed validity range."
+        ),
+        expected_status="ok",
+        characteristic_id="iec60751_pt385",
+        reference_resistance_ohms=502.5,
+        minimum_temperature_c=-100.0,
+        maximum_temperature_c=500.0,
+        anchors=(
+            FixtureAnchor(-100.0, ("minimum_boundary", "negative_temperature")),
+            FixtureAnchor(-50.0, ("negative_temperature",)),
+            FixtureAnchor(0.0, ("reference_temperature", "branch_boundary")),
+            FixtureAnchor(100.0, ("positive_temperature",)),
+            FixtureAnchor(500.0, ("maximum_boundary", "positive_temperature")),
+        ),
+    ),
+    CharacteristicModelFixture(
+        fixture_id="calibrated_pt385_r0_995",
+        display_name="Characterized PT-385 model with R0 = 995 ohm",
+        fixture_purpose=(
+            "Verify characterized reference resistance near the Pt1000 scale across "
+            "the full PT-385 characteristic range."
+        ),
+        expected_status="ok",
+        characteristic_id="iec60751_pt385",
+        reference_resistance_ohms=995.0,
+        minimum_temperature_c=-200.0,
+        maximum_temperature_c=850.0,
+        anchors=(
+            FixtureAnchor(-200.0, ("minimum_boundary", "negative_temperature")),
+            FixtureAnchor(-100.0, ("negative_temperature",)),
+            FixtureAnchor(0.0, ("reference_temperature", "branch_boundary")),
+            FixtureAnchor(100.0, ("positive_temperature",)),
+            FixtureAnchor(850.0, ("maximum_boundary", "positive_temperature")),
         ),
     ),
     CallendarVanDusenFixture(
@@ -370,6 +430,14 @@ MODEL_FIXTURES: tuple[ModelFixture, ...] = (
         ),
         maximum_continuity_adjustment_ratio=1.0e-5,
     ),
+)
+
+
+CHARACTERIZED_R0_BINARY32_FIXTURE_IDS: tuple[str, ...] = (
+    "calibrated_pt385_r0_99p5",
+    "calibrated_pt385_nonnominal_r0",
+    "calibrated_pt385_r0_502p5",
+    "calibrated_pt385_r0_995",
 )
 
 

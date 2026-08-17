@@ -8,6 +8,13 @@
         "pt100",
         "pt1000"
       ]
+    },
+    {
+      "acceptance_profile": "binary32_compatible",
+      "capability_id": "conversion.resistance_to_temperature",
+      "fixture_ids": [
+        "calibrated_pt385_nonnominal_r0"
+      ]
     }
   ],
   "contract_version": 1,

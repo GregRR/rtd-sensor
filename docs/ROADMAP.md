@@ -184,11 +184,13 @@ conversion and status vector set using a different inverse strategy from
 Python. Generated custom/calibrated fixtures now cover characterized R0, custom
 CVD one- and two-sided ranges, the off-zero R/R0 crossing regression, polynomial
 and piecewise models, bounded continuity stitching, representative
-`invalid_model` definitions, and explicit custom range/status behavior. Their
-successful vectors currently claim only the `binary64_reference` profile. The
-independent C11 consumer now constructs every fixture definition, verifies its
-expected `ok` or `invalid_model` construction status, and reproduces all
-published custom binary64 conversion and status vectors.
+`invalid_model` definitions, and explicit custom range/status behavior.
+Characterized PT-385 R0 fixtures publish both `binary64_reference` and the
+empirically justified `binary32_compatible` profile; other custom families
+remain binary64-only. The independent C11 consumer constructs every fixture
+definition, verifies its expected `ok` or `invalid_model` construction status,
+reproduces all published custom binary64 vectors, and independently verifies the
+characterized-R0 binary32 subset.
 
 #### 2.2 Representative coverage, not exported test-suite duplication
 
@@ -567,14 +569,19 @@ IEC 60751 PT-385, custom CVD, polynomial, and piecewise-polynomial definitions.
 Fitted polynomial results can therefore be reconstructed without rerunning the
 fit. Tabulated portability remains future work and is not a 0.6.0 blocker.
 
-### 11. Characterized-reference-resistance binary32 conformance — planned for 0.6.0
+### 11. Characterized-reference-resistance binary32 conformance — implemented for 0.6.0
 
-Extend `binary32_compatible` conformance to the bounded characterized-reference-
-resistance case using a genuinely independent real single-precision numerical
-path and a checked-in derivation/error-envelope document comparable to the
-existing built-in `BINARY32.md`. This does not imply binary32 compatibility for
-arbitrary custom CVD, polynomial, piecewise-polynomial, or tabulated models.
-Consolidate downstream implementation guidance alongside this work.
+Extended `binary32_compatible` conformance to four explicit characterized
+IEC 60751 PT-385 reference-resistance fixtures using the independent real
+single-precision C11 path. A deterministic 1,320,843-case stress study across
+±5% R0 bands around 100 Ω, 500 Ω, and 1000 Ω measured worst-case differences
+well inside the existing 0.002 Ω forward and 0.001 °C inverse tolerances; the
+method, measured envelope, representation effects, and engineering margin are
+recorded in `conformance/consumers/c11/BINARY32_CHARACTERIZED_R0.md`. Claims
+remain fixture-scoped and do not imply binary32 compatibility for arbitrary
+custom CVD, polynomial, piecewise-polynomial, or tabulated models. Downstream
+implementation guidance is consolidated in
+`docs/CROSS_LANGUAGE_IMPLEMENTATIONS.md`.
 
 ### 12. Additional built-in RTD characteristics — ongoing, not a 0.6.0 blocker
 

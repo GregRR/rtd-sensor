@@ -852,17 +852,22 @@ Acquisition status must also remain separate from RTD conversion status. Hardwar
 
 The stable conformance contract is the authority for reproducing `rtd-sensor` behavior outside Python. A separate MCU-specific scientific definition system should not be created. A constrained implementation may claim only the model, operation, and numerical profiles that it actually supports, and a nominal Pt100 resistance-to-temperature implementation can already begin from the 0.5.1 conformance foundation.
 
-For 0.6.0, the next constrained-precision target is deliberately narrow: characterized reference resistance using an already supported characteristic. The goal is to establish an empirically justified `binary32_compatible` profile for this common calibrated deployment case using real single-precision arithmetic, representative reference-resistance deviations, negative and positive temperatures where applicable, boundary behavior, inverse conditioning, and measured worst-case error with justified engineering margin. Floating-point error should be distinguished from limits imposed by the precision of source parameters or coefficients.
+For 0.6.0, constrained-precision support has been extended deliberately only to
+characterized reference resistance using the already supported IEC 60751 PT-385
+characteristic. The published characterized-R0 fixtures use the same empirically
+justified `binary32_compatible` tolerances as the built-in profile: 0.002 Ω for
+temperature-to-resistance and 0.001 °C for resistance-to-temperature.
 
-The validation standard must match the rigor used for the existing built-in
-`binary32_compatible` profile. A genuinely independent C or C++ numerical path
-may reuse the conformance harness and artifact parser, but it must not call the
-Python implementation or a binary64 conversion routine and then cast the answer to
-`float`. The derivation, tested R0 population/range, measured worst-case errors,
-chosen engineering margin, and final acceptance tolerance must be recorded in a
-dedicated checked-in document analogous to `conformance/consumers/c11/BINARY32.md`.
-The conformance claim remains fixture-scoped for characterized-R0 test subjects;
-this work does not turn portable model definitions into conformance identities.
+The validation matches the rigor used for the built-in profile. The genuinely
+independent C11 float path does not call Python or a binary64 conversion routine
+and then cast the answer to `float`. A deterministic 1,320,843-case study spans
+representative R0 deviations around the 100 Ω, 500 Ω, and 1000 Ω scales, negative
+and positive temperatures, full-range boundaries, and inverse conditioning. Its
+measured worst-case errors, binary32 R0 representation effect, compiler matrix,
+and engineering margin are recorded in
+`conformance/consumers/c11/BINARY32_CHARACTERIZED_R0.md`. The conformance claim
+remains fixture-scoped for characterized-R0 test subjects; this work does not
+turn portable model definitions into conformance identities.
 
 That claim must not be generalized automatically to arbitrary custom model families. Each family should gain a constrained-precision profile only after its own numerical behavior is independently characterized:
 
@@ -877,7 +882,13 @@ A future production embedded implementation should be free to use static or stac
 
 If production embedded use becomes substantial, a separate C/C++ sibling project is preferable by default to placing MCU toolchains and firmware-oriented APIs in the Python package. That decision should be based on actual implementation experience. Generated C headers, C++ `constexpr` definitions, compact selected-model bundles, or lookup tables may later reduce duplicated scientific constants, but should be introduced only when downstream evidence or profiling shows a maintenance, code-size, speed, power, or deterministic-latency benefit. Generation should permit selected models, operations, and numerical profiles rather than forcing every target to carry the complete catalog. Any generated or lookup representation must still satisfy its claimed conformance profile.
 
-Cross-language documentation should consolidate how to consume released artifacts, claim supported subsets, interpret stable model and characteristic identities, map RTD statuses, use numerical acceptance profiles, and preserve the hardware boundary. Downstream host/MCU protocols should reference those stable identities and statuses rather than inventing parallel RTD vocabularies. Runtime JSON should be described as optional tooling rather than a firmware requirement.
+Cross-language implementation guidance is consolidated in
+`docs/CROSS_LANGUAGE_IMPLEMENTATIONS.md`: how to consume released artifacts,
+claim supported subsets, interpret stable model and characteristic identities,
+map RTD statuses, use numerical acceptance profiles, and preserve the hardware
+boundary. Downstream host/MCU protocols should reference those stable identities
+and statuses rather than inventing parallel RTD vocabularies. Runtime JSON is
+optional tooling rather than a firmware requirement.
 
 ### Planned characteristic expansion
 

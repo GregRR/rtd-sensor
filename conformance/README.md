@@ -11,15 +11,17 @@ definitions, explicit synthetic custom-model fixtures, and validated Python
 runtime behavior. They are not maintained independently.
 
 The successful built-in vector sets publish both `binary64_reference` and
-`binary32_compatible` acceptance profiles. Successful custom-fixture vectors
-publish `binary64_reference` only; built-in binary32 tolerances are not assumed
-to apply to arbitrary custom coefficients. Built-in and custom status vector
+`binary32_compatible` acceptance profiles. Successful characterized PT-385
+reference-resistance fixtures also publish both profiles; other custom-fixture
+families remain `binary64_reference` only and do not inherit the binary32
+tolerance without their own empirical study. Built-in and custom status vector
 sets exercise finite inputs outside declared model ranges, non-finite inputs,
 and zero/negative resistance handling. The one-sided custom CVD fixtures also
 verify that 0 °C remains outside their declared validity intervals. Invalid
 custom-model semantics are represented by `expected_status: "invalid_model"`
-in the fixture catalog. The binary32 profile derivation is documented under
-`consumers/c11/BINARY32.md`.
+in the fixture catalog. The built-in and characterized-R0 binary32 derivations
+are documented under `consumers/c11/BINARY32.md` and
+`consumers/c11/BINARY32_CHARACTERIZED_R0.md`.
 
 Regenerate all generated artifacts from the repository root with:
 
@@ -79,7 +81,9 @@ driver reads the committed JSON artifacts, supplies their model/characteristic
 and fixture data to the C11 consumer, compiles it with an available C compiler,
 and runs all published built-in and custom binary64 conversion/status cases. It
 also requires the C consumer to reproduce every fixture's expected `ok` or
-`invalid_model` construction status.
+`invalid_model` construction status. The float consumer separately executes the
+characterized-R0 binary32 fixture subset and a deterministic stress study over
+1,320,843 characterized-R0 cases.
 
 Run that verification directly with:
 

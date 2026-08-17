@@ -26,7 +26,9 @@ committed JSON artifacts when constructing the C test data. It compiles this
 consumer with an available C compiler and runs the complete published built-in
 conversion/status vector sets plus the custom binary64 fixture vectors. The
 custom runner also validates every fixture definition before attempting the
-conversion cases.
+conversion cases. A separate float runner executes only the characterized-R0
+fixture subset using `binary32_compatible` acceptance, and
+`characterized_r0_study.c` independently stress-tests the published tolerance.
 
 Run the consumer verification directly with:
 
@@ -34,10 +36,11 @@ Run the consumer verification directly with:
 uv run --locked pytest tests/test_c_conformance_consumer.py -v
 ```
 
-The custom-fixture claim is intentionally binary64-only. The separate float
-consumer continues to cover only the empirically studied built-in
-`binary32_compatible` profile; arbitrary custom coefficients are not implicitly
-granted that tolerance profile.
+The float consumer covers the empirically studied built-in profile and the
+explicit characterized PT-385 reference-resistance fixture subset. Arbitrary
+custom CVD, polynomial, and piecewise coefficients are not implicitly granted
+`binary32_compatible` acceptance. See `BINARY32.md` and
+`BINARY32_CHARACTERIZED_R0.md` for the measured error envelopes and scope.
 
 If no C compiler is available, the test is skipped. Project CI environments
 intended to verify cross-language conformance should provide a C compiler so

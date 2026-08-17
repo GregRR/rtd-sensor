@@ -80,6 +80,23 @@ def test_characteristic_model_fixtures_reference_known_characteristics() -> None
         assert characteristic_id in known_characteristics
 
 
+def test_characterized_r0_binary32_fixture_population_is_explicit() -> None:
+    fixtures = [
+        _conformance_fixtures.fixture_by_id(fixture_id)
+        for fixture_id in _conformance_fixtures.CHARACTERIZED_R0_BINARY32_FIXTURE_IDS
+    ]
+
+    assert [fixture.reference_resistance_ohms for fixture in fixtures] == [
+        99.5,
+        100.123,
+        502.5,
+        995.0,
+    ]
+    for fixture in fixtures:
+        assert isinstance(fixture, _conformance_fixtures.CharacteristicModelFixture)
+        assert fixture.characteristic_id == "iec60751_pt385"
+
+
 def test_fixture_catalog_preserves_declared_fixture_order_and_status() -> None:
     expected = [
         (fixture.fixture_id, fixture.expected_status)
@@ -172,12 +189,40 @@ def test_custom_vectors_match_reference_models_and_pair_round_trips() -> None:
             )
 
 
-def test_custom_vectors_publish_binary64_only_until_separately_characterized() -> None:
+@pytest.mark.parametrize(
+    ("filename", "binary32_tolerance"),
+    [
+        ("custom-temperature-to-resistance.json", 0.002),
+        ("custom-resistance-to-temperature.json", 0.001),
+    ],
+)
+def test_characterized_r0_vectors_publish_binary32_acceptance(
+    filename: str,
+    binary32_tolerance: float,
+) -> None:
+    characterized_ids = set(_conformance_fixtures.CHARACTERIZED_R0_BINARY32_FIXTURE_IDS)
+    groups = {group["fixture_id"]: group for group in _vector_groups(filename)}
+
+    assert characterized_ids <= groups.keys()
+    for fixture_id in characterized_ids:
+        for case in groups[fixture_id]["cases"]:
+            acceptance = case["expected"]["acceptance"]
+            assert acceptance == {
+                "binary32_compatible": {"absolute_tolerance": binary32_tolerance},
+                "binary64_reference": {"absolute_tolerance": 1.0e-9},
+            }
+            assert "characterized_reference_resistance" in case["tags"]
+
+
+def test_other_custom_vectors_remain_binary64_only() -> None:
+    characterized_ids = set(_conformance_fixtures.CHARACTERIZED_R0_BINARY32_FIXTURE_IDS)
     for filename in (
         "custom-temperature-to-resistance.json",
         "custom-resistance-to-temperature.json",
     ):
         for group in _vector_groups(filename):
+            if group["fixture_id"] in characterized_ids:
+                continue
             for case in group["cases"]:
                 acceptance = case["expected"]["acceptance"]
                 assert acceptance == {

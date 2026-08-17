@@ -10,13 +10,13 @@
     },
     {
       "path": "examples/example-conformance-claim.json",
-      "sha256": "9f4ffe28d708bda10fe4264b1ff674762fd71813a88562d9c487e0405ef347d1",
-      "size_bytes": 299
+      "sha256": "cd61d1162d8e791f1eecf7c6b6f04c37aecae4a01fe65c4a9115bdb09f75c78a",
+      "size_bytes": 498
     },
     {
       "path": "model-fixtures.json",
-      "sha256": "54f3541c4d4efd6c4d81db5a116a5804a2048e4139233aa28621809baf69fb10",
-      "size_bytes": 9686
+      "sha256": "76c6a748894617d5e25d729c87c824b1b36805c22f6bd13378b01cc3b22ff6ce",
+      "size_bytes": 11317
     },
     {
       "path": "models.json",
@@ -30,8 +30,8 @@
     },
     {
       "path": "schemas/conformance-claim.schema.json",
-      "sha256": "5e54b823d9fbb6fa7c63600beab2d533a5a25ee0ef0c6a1ac5eb7dce5701d4c5",
-      "size_bytes": 2049
+      "sha256": "146800a11406e1eeda583ab67517e2f58d9f673cdaac360be224a38bbc3dc65c",
+      "size_bytes": 2578
     },
     {
       "path": "schemas/conformance-manifest.schema.json",
@@ -75,23 +75,23 @@
     },
     {
       "path": "vectors/custom-resistance-to-temperature-status.json",
-      "sha256": "6f55781c324434a0efdd626677542fe46dc74355882629fd6339397cd361746b",
-      "size_bytes": 19374
+      "sha256": "1429aeed1cef4c14a09eae0574d78b44e28eb1104b591e9734dd72d4a90e8754",
+      "size_bytes": 27438
     },
     {
       "path": "vectors/custom-resistance-to-temperature.json",
-      "sha256": "e663c085886f9ad1ccfa5e42c96ccbb150850cf2708547be14b36cbb88bccff6",
-      "size_bytes": 19290
+      "sha256": "973acc0a6e8c6e6c12f1cb61f593299785a396259cebcfa02d787b70821a3dfd",
+      "size_bytes": 30985
     },
     {
       "path": "vectors/custom-temperature-to-resistance-status.json",
-      "sha256": "c909cb5da5a075b9367c89234cb9094befc9db3ba49b26516fa6ab1b5d7f8b84",
-      "size_bytes": 15097
+      "sha256": "9a51e2624329fad9a626110eccff8919d57cb8562ef3828cf363ec51097a7bd7",
+      "size_bytes": 21004
     },
     {
       "path": "vectors/custom-temperature-to-resistance.json",
-      "sha256": "c7623c8d61138b495a8073621677cb78783e399ff23faff1969cfe0eb2f734d3",
-      "size_bytes": 19290
+      "sha256": "f731a595c954df18dfffb5c6d1f70e552f0cc570bea6b501bd2f1f48d546aadd",
+      "size_bytes": 30985
     }
   ],
   "format_version": 1,

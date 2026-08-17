@@ -707,8 +707,10 @@ See [`docs/DESIGN.md`](docs/DESIGN.md) for detailed architecture and mathematica
 assumptions, [`docs/CONFORMANCE.md`](docs/CONFORMANCE.md) for the stable
 language-neutral RTD conformance contract,
 [`conformance/README.md`](conformance/README.md) for the published conformance
-artifacts, and [`portable/README.md`](portable/README.md) for the versioned
-language-neutral portable-model format and schema.
+artifacts, [`docs/CROSS_LANGUAGE_IMPLEMENTATIONS.md`](docs/CROSS_LANGUAGE_IMPLEMENTATIONS.md)
+for downstream C/C++/MCU implementation guidance, and
+[`portable/README.md`](portable/README.md) for the versioned language-neutral
+portable-model format and schema.
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for planned RTD families and future
 characteristic/calibration work, [`docs/RELEASING.md`](docs/RELEASING.md) for the

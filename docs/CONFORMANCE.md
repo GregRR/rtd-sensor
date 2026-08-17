@@ -495,6 +495,10 @@ published reference value. It does not require the implementation to use that
 floating-point representation internally.
 
 Each successful built-in conversion vector publishes both acceptance profiles.
+The successful characterized-reference-resistance fixture vectors described
+below also publish both profiles. Other custom fixture families remain
+`binary64_reference` only until their numerical behavior is separately studied.
+
 The `binary64_reference` tolerance is `1e-9` in the vector set's output unit.
 The `binary32_compatible` tolerances are `0.002 Ω` for
 temperature-to-resistance conversion and `0.001 °C` for
@@ -557,12 +561,15 @@ bounded global bisection for every characteristic rather than reproducing the
 Python implementation's curve-specific inversion strategies.
 
 The C11 consumer is a verification implementation, not a required runtime
-architecture for downstream systems. A separate single-precision build of the
-consumer verifies the published `binary32_compatible` profile. Its derivation
-and measured error envelope are documented in
-`conformance/consumers/c11/BINARY32.md`. Successful execution demonstrates that the published built-in and custom-fixture
-contract contains sufficient information for an independent implementation to
-reproduce the specified behavior.
+architecture for downstream systems. A separate single-precision build verifies
+the published built-in `binary32_compatible` profile, and the same genuinely
+single-precision path verifies the characterized-reference-resistance fixture
+subset. Their derivations and measured error envelopes are documented in
+`conformance/consumers/c11/BINARY32.md` and
+`conformance/consumers/c11/BINARY32_CHARACTERIZED_R0.md`. Successful execution
+demonstrates that the published built-in and custom-fixture contract contains
+sufficient information for an independent implementation to reproduce the
+specified behavior.
 
 ## Coverage represented by conversion vectors
 
@@ -604,7 +611,8 @@ The fixture catalog uses four definition kinds: `characteristic_model`,
 
 The initial custom-model layer covers:
 
-- characterized non-nominal reference resistance on the PT-385 characteristic;
+- characterized reference resistance on the PT-385 characteristic at multiple
+  resistance scales and both full and narrowed validity ranges;
 - custom Callendar-Van Dusen coefficients;
 - positive-only and negative-only declared ranges;
 - a valid positive-only model whose resistance ratio crosses 1 at 60 °C rather
@@ -620,10 +628,12 @@ Successful custom fixture conversions are published in
 `custom-resistance-to-temperature.json`. Matching custom status sets exercise
 declared range boundaries, invalid numerical inputs, and the explicit exclusion
 of 0 °C from the positive-only and negative-only CVD validity intervals. Their
-vector groups reference `fixture_id` rather than `model_id`. The initial custom
-success vectors publish only the `binary64_reference` acceptance profile. The
-built-in `binary32_compatible` tolerances are not generalized to arbitrary
-custom coefficients or conditioning without a separate empirical study.
+vector groups reference `fixture_id` rather than `model_id`. Successful
+`characteristic_model` fixtures using `iec60751_pt385` publish both
+`binary64_reference` and `binary32_compatible`; all other custom model families
+remain `binary64_reference` only. The built-in binary32 tolerances are reused for
+the characterized-R0 subset only after the independent empirical study recorded
+in `conformance/consumers/c11/BINARY32_CHARACTERIZED_R0.md`.
 
 For valid piecewise fixtures, source segment coefficients remain in the fixture
 definition while implementation-derived continuity offsets are serialized
@@ -632,24 +642,23 @@ separately as derived metadata.
 Custom fixture definitions remain local to the conformance fixture catalog and
 do not acquire built-in `model_id` values.
 
-The characterized-reference-resistance `binary32_compatible` work planned for
-0.6.0 remains fixture-scoped for conformance purposes. When that profile is
-published, an implementation may claim `binary32_compatible` only for the
-explicit characterized-R0 fixture subjects for which a binary32 acceptance
-envelope and vectors have been published. That additive claim does not create a
-new canonical `model_id` and does not imply binary32 support for the other custom
-fixture kinds. The claim schema and cross-file semantic validator must be updated
-together so a syntactically valid claim cannot silently generalize the new
-acceptance profile to arbitrary custom fixtures.
+The characterized-reference-resistance `binary32_compatible` profile remains
+fixture-scoped for conformance purposes. An implementation may claim it only for
+the explicit characterized-R0 fixture subjects allowed by the claim schema and
+for which a binary32 acceptance envelope and vectors have been published. That
+additive claim does not create a new canonical `model_id` and does not imply
+binary32 support for the other custom fixture kinds.
 
 The repository's independent C11 consumer verifies this layer without importing
-Python model constructors. The generated C runner constructs all fixture
-definitions from `model-fixtures.json`, requires the seven valid definitions to
-validate, requires the six intentionally invalid definitions to return
-`invalid_model`, and then runs the complete custom binary64 conversion and
-status vector sets. The consumer's polynomial-shape validation is deliberately
-limited to the published fixture claim rather than presented as a general
-replacement for the Python package's analytical arbitrary-polynomial validator.
+Python model constructors. The generated binary64 C runner constructs all
+fixture definitions from `model-fixtures.json`, requires the ten valid
+definitions to validate, requires the six intentionally invalid definitions to
+return `invalid_model`, and runs the complete custom binary64 conversion and
+status vector sets. A separate float runner executes only the characterized-R0
+fixture subset against `binary32_compatible` acceptance and status vectors. The
+consumer's polynomial-shape validation is deliberately limited to the published
+fixture claim rather than presented as a general replacement for the Python
+package's analytical arbitrary-polynomial validator.
 
 ## Conformance claims
 
@@ -678,11 +687,12 @@ For example:
 
 Claims are intentionally separated by capability and subject set. A
 `binary32_compatible` built-in claim therefore does not imply binary32 support
-for arbitrary custom coefficients. Custom-fixture claims are currently limited
-to `binary64_reference`, matching the published custom vector sets. Claim
-validators must also check model and fixture identifiers against the catalogs in
-the same conformance release; identifier existence is a cross-file semantic
-check rather than a JSON Schema concern.
+for arbitrary custom coefficients. Fixture claims may use
+`binary32_compatible` only for the explicit characterized PT-385 fixture IDs
+listed by the claim schema; other fixture IDs remain `binary64_reference` only.
+Claim validators must also check model and fixture identifiers against the
+catalogs in the same conformance release; identifier existence is a cross-file
+semantic check rather than a JSON Schema concern.
 
 This claim does not imply support for other conversion directions, nickel
 models, custom coefficients, tolerance calculations, uncertainty analysis,

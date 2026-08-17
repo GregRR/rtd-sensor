@@ -5,6 +5,19 @@
     {
       "definition": {
         "characteristic_id": "iec60751_pt385",
+        "maximum_temperature_c": 850.0,
+        "minimum_temperature_c": -200.0,
+        "reference_resistance_ohms": 99.5
+      },
+      "display_name": "Characterized PT-385 model with R0 = 99.5 ohm",
+      "expected_status": "ok",
+      "fixture_id": "calibrated_pt385_r0_99p5",
+      "fixture_kind": "characteristic_model",
+      "fixture_purpose": "Verify characterized reference resistance below 100 ohm across the full PT-385 characteristic range."
+    },
+    {
+      "definition": {
+        "characteristic_id": "iec60751_pt385",
         "maximum_temperature_c": 200.0,
         "minimum_temperature_c": -50.0,
         "reference_resistance_ohms": 100.123
@@ -14,6 +27,32 @@
       "fixture_id": "calibrated_pt385_nonnominal_r0",
       "fixture_kind": "characteristic_model",
       "fixture_purpose": "Verify composition of the published PT-385 characteristic with a characterized reference resistance and narrowed model range."
+    },
+    {
+      "definition": {
+        "characteristic_id": "iec60751_pt385",
+        "maximum_temperature_c": 500.0,
+        "minimum_temperature_c": -100.0,
+        "reference_resistance_ohms": 502.5
+      },
+      "display_name": "Characterized PT-385 model with R0 = 502.5 ohm",
+      "expected_status": "ok",
+      "fixture_id": "calibrated_pt385_r0_502p5",
+      "fixture_kind": "characteristic_model",
+      "fixture_purpose": "Verify characterized reference resistance near the Pt500 scale with a deliberately narrowed validity range."
+    },
+    {
+      "definition": {
+        "characteristic_id": "iec60751_pt385",
+        "maximum_temperature_c": 850.0,
+        "minimum_temperature_c": -200.0,
+        "reference_resistance_ohms": 995.0
+      },
+      "display_name": "Characterized PT-385 model with R0 = 995 ohm",
+      "expected_status": "ok",
+      "fixture_id": "calibrated_pt385_r0_995",
+      "fixture_kind": "characteristic_model",
+      "fixture_purpose": "Verify characterized reference resistance near the Pt1000 scale across the full PT-385 characteristic range."
     },
     {
       "definition": {

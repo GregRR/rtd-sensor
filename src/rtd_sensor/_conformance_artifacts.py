@@ -335,16 +335,25 @@ def build_model_fixture_catalog(
     }
 
 
-def _fixture_successful_expected(value: float) -> dict[str, object]:
-    """Return one successful custom-fixture result for binary64 conformance."""
+def _fixture_successful_expected(
+    value: float,
+    *,
+    binary32_absolute_tolerance: float | None = None,
+) -> dict[str, object]:
+    """Return one successful custom-fixture result with justified profiles."""
+    acceptance: dict[str, object] = {
+        "binary64_reference": {
+            "absolute_tolerance": _BINARY64_ABSOLUTE_TOLERANCE,
+        }
+    }
+    if binary32_absolute_tolerance is not None:
+        acceptance["binary32_compatible"] = {
+            "absolute_tolerance": binary32_absolute_tolerance,
+        }
     return {
         "status": "ok",
         "value": _json_number(value),
-        "acceptance": {
-            "binary64_reference": {
-                "absolute_tolerance": _BINARY64_ABSOLUTE_TOLERANCE,
-            }
-        },
+        "acceptance": acceptance,
     }
 
 
@@ -370,18 +379,39 @@ def _build_custom_conversion_vector_set(
         if fixture.expected_status != "ok":
             continue
         model = _conformance_fixtures.build_fixture_model(fixture)
+        binary32_tolerance: float | None = None
+        if (
+            fixture.fixture_id
+            in _conformance_fixtures.CHARACTERIZED_R0_BINARY32_FIXTURE_IDS
+        ):
+            binary32_tolerance = (
+                _BINARY32_FORWARD_ABSOLUTE_TOLERANCE
+                if capability_id == "conversion.temperature_to_resistance"
+                else _BINARY32_INVERSE_ABSOLUTE_TOLERANCE
+            )
         cases: list[dict[str, object]] = []
         for anchor in fixture.anchors:
             resistance_ohms = model.celsius_to_resistance(anchor.temperature_c)
             token = _temperature_token(anchor.temperature_c)
             if capability_id == "conversion.temperature_to_resistance":
                 input_document = {"value": _json_number(anchor.temperature_c)}
-                expected = _fixture_successful_expected(resistance_ohms)
+                expected = _fixture_successful_expected(
+                    resistance_ohms,
+                    binary32_absolute_tolerance=binary32_tolerance,
+                )
             else:
                 input_document = {"value": _json_number(resistance_ohms)}
-                expected = _fixture_successful_expected(anchor.temperature_c)
+                expected = _fixture_successful_expected(
+                    anchor.temperature_c,
+                    binary32_absolute_tolerance=binary32_tolerance,
+                )
 
             tags = ["custom_fixture", "round_trip_anchor", *anchor.tags]
+            if (
+                fixture.fixture_id
+                in _conformance_fixtures.CHARACTERIZED_R0_BINARY32_FIXTURE_IDS
+            ):
+                tags.append("characterized_reference_resistance")
             cases.append(
                 {
                     "case_id": f"{fixture.fixture_id}.{operation_id}.{token}",

@@ -270,6 +270,7 @@ def _case_source(
     vector_filenames: tuple[str, ...],
     group_identity_field: str,
     acceptance_profile: str,
+    included_identities: frozenset[str] | None = None,
 ) -> tuple[str, int]:
     cases: list[str] = []
 
@@ -284,6 +285,11 @@ def _case_source(
         for group in groups:
             model_identity = group[group_identity_field]
             assert isinstance(model_identity, str)
+            if (
+                included_identities is not None
+                and model_identity not in included_identities
+            ):
+                continue
             model_index = model_indexes[model_identity]
             group_cases = group["cases"]
             assert isinstance(group_cases, list)
@@ -437,6 +443,69 @@ def _custom_characteristics_and_models() -> tuple[
         expectations.append((fixture_id, expected_status))
 
     return characteristics, models, expectations
+
+
+def _binary32_custom_fixture_ids() -> frozenset[str]:
+    fixture_ids: set[str] = set()
+    for filename in (
+        "custom-temperature-to-resistance.json",
+        "custom-resistance-to-temperature.json",
+    ):
+        document = _load_json(_CONFORMANCE_DIR / "vectors" / filename)
+        groups = document["test_groups"]
+        assert isinstance(groups, list)
+        for group in groups:
+            assert isinstance(group, dict)
+            group_cases = group["cases"]
+            assert isinstance(group_cases, list)
+            if not any(
+                isinstance(case, dict)
+                and isinstance(case.get("expected"), dict)
+                and isinstance(case["expected"].get("acceptance"), dict)
+                and "binary32_compatible" in case["expected"]["acceptance"]
+                for case in group_cases
+            ):
+                continue
+            fixture_id = group["fixture_id"]
+            assert isinstance(fixture_id, str)
+            fixture_ids.add(fixture_id)
+
+    return frozenset(fixture_ids)
+
+
+def _characterized_r0_models() -> tuple[list[dict[str, Any]], frozenset[str]]:
+    binary32_fixture_ids = _binary32_custom_fixture_ids()
+    fixture_catalog = _load_json(_CONFORMANCE_DIR / "model-fixtures.json")
+    fixtures = fixture_catalog["fixtures"]
+    assert isinstance(fixtures, list)
+
+    models: list[dict[str, Any]] = []
+    found_fixture_ids: set[str] = set()
+    for fixture in fixtures:
+        assert isinstance(fixture, dict)
+        fixture_id = fixture["fixture_id"]
+        assert isinstance(fixture_id, str)
+        if fixture_id not in binary32_fixture_ids:
+            continue
+        assert fixture["fixture_kind"] == "characteristic_model"
+        assert fixture["expected_status"] == "ok"
+        definition = fixture["definition"]
+        assert isinstance(definition, dict)
+        characteristic_id = definition["characteristic_id"]
+        assert isinstance(characteristic_id, str)
+        found_fixture_ids.add(fixture_id)
+        models.append(
+            {
+                "model_id": fixture_id,
+                "characteristic_id": characteristic_id,
+                "reference_resistance_ohms": definition["reference_resistance_ohms"],
+                "minimum_temperature_c": definition["minimum_temperature_c"],
+                "maximum_temperature_c": definition["maximum_temperature_c"],
+            }
+        )
+
+    assert found_fixture_ids == set(binary32_fixture_ids)
+    return models, binary32_fixture_ids
 
 
 def _fixture_expectation_source(
@@ -794,6 +863,122 @@ def test_independent_c11_consumer_passes_published_custom_fixture_layer(
     )
 
 
+def _characterized_r0_binary32_runner_source() -> tuple[str, int]:
+    characteristic_catalog = _load_json(_CONFORMANCE_DIR / "characteristics.json")
+    characteristics = characteristic_catalog["characteristics"]
+    assert isinstance(characteristics, list)
+
+    models, fixture_ids = _characterized_r0_models()
+    characteristic_source, characteristic_indexes = _characteristic_source(
+        characteristics
+    )
+    model_source, model_indexes = _model_source(models, characteristic_indexes)
+    case_source, case_count = _case_source(
+        model_indexes,
+        vector_filenames=_CUSTOM_VECTOR_FILENAMES,
+        group_identity_field="fixture_id",
+        acceptance_profile="binary32_compatible",
+        included_identities=fixture_ids,
+    )
+
+    source = f"""#include "rtd_conformance_f32.h"
+
+#include <math.h>
+#include <stddef.h>
+#include <stdio.h>
+
+typedef enum {{
+    OP_TEMPERATURE_TO_RESISTANCE = 0,
+    OP_RESISTANCE_TO_TEMPERATURE
+}} conformance_operation;
+
+typedef struct {{
+    const char *case_id;
+    conformance_operation operation;
+    size_t model_index;
+    float input;
+    rtd_conformance_status expected_status;
+    double expected_value;
+    double tolerance;
+    int expects_value;
+}} conformance_case;
+
+{characteristic_source}
+
+{model_source}
+
+{case_source}
+
+int main(void) {{
+    size_t index;
+    size_t passed = 0;
+    double maximum_forward_error = 0.0;
+    double maximum_inverse_error = 0.0;
+
+    for (index = 0; index < sizeof(cases) / sizeof(cases[0]); index += 1) {{
+        const conformance_case *test_case = &cases[index];
+        const rtd_model *model = &models[test_case->model_index];
+        rtd_conformance_result actual;
+
+        if (test_case->operation == OP_TEMPERATURE_TO_RESISTANCE) {{
+            actual = rtd_temperature_to_resistance(model, test_case->input);
+        }} else {{
+            actual = rtd_resistance_to_temperature(model, test_case->input);
+        }}
+
+        if (actual.status != test_case->expected_status) {{
+            fprintf(
+                stderr,
+                "%s: expected status %s, got %s\\n",
+                test_case->case_id,
+                rtd_conformance_status_name(test_case->expected_status),
+                rtd_conformance_status_name(actual.status)
+            );
+            return 1;
+        }}
+
+        if (test_case->expects_value) {{
+            const double error = fabs((double)actual.value - test_case->expected_value);
+            if (!isfinite(actual.value) || error > test_case->tolerance) {{
+                fprintf(
+                    stderr,
+                    "%s: expected %.17g +/- %.17g, got %.17g (error %.17g)\\n",
+                    test_case->case_id,
+                    test_case->expected_value,
+                    test_case->tolerance,
+                    (double)actual.value,
+                    error
+                );
+                return 1;
+            }}
+            if (test_case->operation == OP_TEMPERATURE_TO_RESISTANCE) {{
+                if (error > maximum_forward_error) {{
+                    maximum_forward_error = error;
+                }}
+            }} else if (error > maximum_inverse_error) {{
+                maximum_inverse_error = error;
+            }}
+        }}
+        passed += 1;
+    }}
+
+    printf(
+        "passed %zu characterized-R0 cases; max forward error %.17g ohm; "
+        "max inverse error %.17g C\\n",
+        passed,
+        maximum_forward_error,
+        maximum_inverse_error
+    );
+    return 0;
+}}
+"""
+    source = source.replace(
+        "static const double characteristic_",
+        "static const float characteristic_",
+    )
+    return source, case_count
+
+
 def _binary32_runner_source() -> tuple[str, int]:
     source, case_count = _runner_source(acceptance_profile="binary32_compatible")
     source = source.replace(
@@ -852,3 +1037,98 @@ def test_independent_c11_binary32_consumer_passes_published_builtin_vectors(
     )
     assert run_result.returncode == 0, run_result.stderr
     assert run_result.stdout.startswith(f"passed {case_count} cases;")
+
+
+def test_independent_c11_binary32_consumer_passes_characterized_r0_vectors(
+    tmp_path: Path,
+) -> None:
+    compiler = _available_c_compiler()
+    if compiler is None:
+        pytest.skip("No C compiler is available for characterized-R0 testing")
+
+    runner_source, case_count = _characterized_r0_binary32_runner_source()
+    runner_path = tmp_path / "generated_characterized_r0_binary32_runner.c"
+    executable_path = tmp_path / "rtd_characterized_r0_binary32_consumer"
+    runner_path.write_text(runner_source, encoding="utf-8")
+
+    compile_result = subprocess.run(
+        [
+            *compiler,
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-pedantic",
+            "-O2",
+            "-I",
+            str(_CONSUMER_DIR),
+            str(_CONSUMER_DIR / "rtd_conformance_f32.c"),
+            str(runner_path),
+            "-lm",
+            "-o",
+            str(executable_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert compile_result.returncode == 0, compile_result.stderr
+
+    run_result = subprocess.run(
+        [str(executable_path)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert run_result.returncode == 0, run_result.stderr
+    assert run_result.stdout.startswith(f"passed {case_count} characterized-R0 cases;")
+
+
+def test_characterized_r0_binary32_stress_study_stays_within_profile(
+    tmp_path: Path,
+) -> None:
+    compiler = _available_c_compiler()
+    if compiler is None:
+        pytest.skip("No C compiler is available for characterized-R0 study")
+
+    executable_path = tmp_path / "characterized_r0_binary32_study"
+    compile_result = subprocess.run(
+        [
+            *compiler,
+            "-std=c11",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-pedantic",
+            "-O2",
+            "-I",
+            str(_CONSUMER_DIR),
+            str(_CONSUMER_DIR / "rtd_conformance_f32.c"),
+            str(_CONSUMER_DIR / "characterized_r0_study.c"),
+            "-lm",
+            "-o",
+            str(executable_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert compile_result.returncode == 0, compile_result.stderr
+
+    run_result = subprocess.run(
+        [str(executable_path)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert run_result.returncode == 0, run_result.stderr
+
+    metrics = dict(
+        line.split("=", 1) for line in run_result.stdout.splitlines() if "=" in line
+    )
+    assert int(metrics["sample_count"]) == 1_320_843
+    # Keep CI substantially inside the public profile so the documented
+    # engineering margin cannot silently collapse while the broad tolerance
+    # still passes.
+    assert float(metrics["maximum_forward_error_ohm"]) < 0.001
+    assert float(metrics["maximum_inverse_error_c"]) < 0.0004

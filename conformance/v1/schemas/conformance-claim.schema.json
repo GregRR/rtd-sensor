@@ -87,9 +87,28 @@
               "model_ids"
             ]
           },
-          "properties": {
-            "acceptance_profile": {
-              "const": "binary64_reference"
+          "if": {
+            "properties": {
+              "acceptance_profile": {
+                "const": "binary32_compatible"
+              }
+            },
+            "required": [
+              "acceptance_profile"
+            ]
+          },
+          "then": {
+            "properties": {
+              "fixture_ids": {
+                "items": {
+                  "enum": [
+                    "calibrated_pt385_r0_99p5",
+                    "calibrated_pt385_nonnominal_r0",
+                    "calibrated_pt385_r0_502p5",
+                    "calibrated_pt385_r0_995"
+                  ]
+                }
+              }
             }
           }
         }

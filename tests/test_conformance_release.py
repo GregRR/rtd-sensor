@@ -14,7 +14,11 @@ import pytest
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 
-from rtd_sensor import _conformance_artifacts, _conformance_release
+from rtd_sensor import (
+    _conformance_artifacts,
+    _conformance_fixtures,
+    _conformance_release,
+)
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _CONFORMANCE_DIR = _REPO_ROOT / "conformance" / "v1"
@@ -136,7 +140,27 @@ def test_example_conformance_claim_validates() -> None:
     Draft202012Validator(schema).validate(example)
 
 
-def test_custom_fixture_claim_cannot_use_builtin_binary32_profile() -> None:
+def test_characterized_r0_fixture_claim_can_use_binary32_profile() -> None:
+    schema = _load_json(_SCHEMA_DIR / "conformance-claim.schema.json")
+    claim = {
+        "artifact_type": "conformance_claim",
+        "format_version": 1,
+        "contract_version": 1,
+        "claims": [
+            {
+                "capability_id": "conversion.resistance_to_temperature",
+                "fixture_ids": list(
+                    _conformance_fixtures.CHARACTERIZED_R0_BINARY32_FIXTURE_IDS
+                ),
+                "acceptance_profile": "binary32_compatible",
+            }
+        ],
+    }
+
+    Draft202012Validator(schema).validate(claim)
+
+
+def test_noncharacterized_fixture_claim_cannot_use_binary32_profile() -> None:
     schema = _load_json(_SCHEMA_DIR / "conformance-claim.schema.json")
     claim = {
         "artifact_type": "conformance_claim",
@@ -153,3 +177,23 @@ def test_custom_fixture_claim_cannot_use_builtin_binary32_profile() -> None:
 
     with pytest.raises(ValidationError):
         Draft202012Validator(schema).validate(claim)
+
+
+def test_binary32_fixture_claim_schema_matches_characterized_fixture_ids() -> None:
+    schema = _load_json(_SCHEMA_DIR / "conformance-claim.schema.json")
+    fixture_branch = schema["$defs"]["claim"]["oneOf"][1]
+    assert isinstance(fixture_branch, dict)
+    then = fixture_branch["then"]
+    assert isinstance(then, dict)
+    properties = then["properties"]
+    assert isinstance(properties, dict)
+    fixture_ids = properties["fixture_ids"]
+    assert isinstance(fixture_ids, dict)
+    items = fixture_ids["items"]
+    assert isinstance(items, dict)
+    allowed = items["enum"]
+    assert isinstance(allowed, list)
+
+    assert tuple(allowed) == (
+        _conformance_fixtures.CHARACTERIZED_R0_BINARY32_FIXTURE_IDS
+    )
