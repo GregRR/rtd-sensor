@@ -112,6 +112,15 @@ The stable v1 schemas are self-contained and use local `$defs`; cross-file
 referential integrity and scientific consistency are validated separately from
 JSON Schema structure validation.
 
+A portable deployable-model format is a different artifact class from this
+conformance tree. The portable model-definition work planned for 0.6.0 uses its
+own `format_version` and does not inherit conformance `contract_version` as its
+serialization-compatibility version. It may reuse the same characteristic IDs,
+model-kind vocabulary, and parameter meanings, but conformance-only concepts such
+as local `fixture_id`, `expected_status`, and intentionally invalid definitions do
+not become part of the deployment format. This separation also means that adding
+a portable model format does not by itself change stable conformance-v1 behavior.
+
 ## Versioning
 
 Conformance artifacts carry four distinct version and maturity concepts.
@@ -620,6 +629,16 @@ separately as derived metadata.
 
 Custom fixture definitions remain local to the conformance fixture catalog and
 do not acquire built-in `model_id` values.
+
+The characterized-reference-resistance `binary32_compatible` work planned for
+0.6.0 remains fixture-scoped for conformance purposes. When that profile is
+published, an implementation may claim `binary32_compatible` only for the
+explicit characterized-R0 fixture subjects for which a binary32 acceptance
+envelope and vectors have been published. That additive claim does not create a
+new canonical `model_id` and does not imply binary32 support for the other custom
+fixture kinds. The claim schema and cross-file semantic validator must be updated
+together so a syntactically valid claim cannot silently generalize the new
+acceptance profile to arbitrary custom fixtures.
 
 The repository's independent C11 consumer verifies this layer without importing
 Python model constructors. The generated C runner constructs all fixture

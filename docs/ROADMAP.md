@@ -542,30 +542,38 @@ remains the first planned feature milestone on the 0.6.0 line.
 ### 8. Calibration fitting — planned for 0.6.0
 
 Implement the fitting work described under **Calibration and model fitting**.
-Retain the observations and enough fit evidence to make the result auditable and
-reproducible. Portable reconstruction of the resulting model is handled
-separately by item 10.
+Retain observations and enough numerical evidence to make a successful fit
+auditable and reproducible, and reject rank-deficient, severely ill-conditioned,
+or scientifically invalid fitted models rather than returning a deployable curve.
+Portable reconstruction of a successful result is handled separately by item 10.
 
 ### 9. Batch and vector conversion conveniences — planned for 0.6.0
 
-Add a small dependency-free batch conversion interface while keeping scalar
-conversion authoritative. Do not make NumPy a mandatory runtime dependency.
+Add the dependency-free `rtd_sensor.batch` convenience layer specified in
+`DESIGN.md`: eager ordered list results, fail-fast scalar-equivalent exceptions,
+and one-pass iterable inputs without extending the public `RTDModel` protocol.
+NumPy remains optional and is not a runtime dependency.
 
 ### 10. Portable configurable and fitted model definitions — planned for 0.6.0
 
-Define a stable, versioned, language-neutral representation from which supported
-configurable or fitted numerical models can be reconstructed without rerunning a
-fit. Keep deployable model definitions distinct from fit evidence and from
-conformance-only test fixtures while reusing existing model semantics where
-appropriate.
+Define a stable, versioned, language-neutral portable-model artifact with its own
+format version, separate from conformance `model-fixtures.json`. Reuse the same
+scientific model-kind vocabulary and parameter meanings while preventing
+conformance-only invalid-fixture semantics from becoming a deployment contract.
+Keep fit evidence, non-behavioral provenance metadata, and physical probe/channel
+identity separate from the numerical definition. The initial format covers
+characterized standard-characteristic, custom CVD, polynomial, and piecewise-
+polynomial definitions; tabulated portability may follow later and is not a 0.6.0
+release blocker.
 
 ### 11. Characterized-reference-resistance binary32 conformance — planned for 0.6.0
 
 Extend `binary32_compatible` conformance to the bounded characterized-reference-
-resistance case using independent real single-precision validation. This does
-not imply binary32 compatibility for arbitrary custom CVD, polynomial,
-piecewise-polynomial, or tabulated models. Consolidate downstream implementation
-guidance alongside this work.
+resistance case using a genuinely independent real single-precision numerical
+path and a checked-in derivation/error-envelope document comparable to the
+existing built-in `BINARY32.md`. This does not imply binary32 compatibility for
+arbitrary custom CVD, polynomial, piecewise-polynomial, or tabulated models.
+Consolidate downstream implementation guidance alongside this work.
 
 ### 12. Additional built-in RTD characteristics — ongoing, not a 0.6.0 blocker
 
@@ -753,16 +761,22 @@ Planned fitting capabilities:
 
 - fit a user-selected polynomial degree from `(temperature, resistance)`
   observations;
-- retain the original calibration observations;
-- report residuals for every point;
-- report RMS and maximum residual error;
-- retain weighting and calibration-point uncertainty when supplied;
-- declare the range over which the fit is considered valid;
-- validate positivity and monotonicity of the fitted characteristic;
-- warn against or prohibit unvalidated extrapolation;
+- retain the original observations, including repeated-temperature measurements
+  rather than silently averaging them;
+- report per-point residuals plus unweighted RMS and maximum absolute residual
+  error, retaining separate weighted diagnostics when weights or point
+  uncertainties affect the fit;
+- retain the declared fitting range and numerical conditioning diagnostics;
+- reject insufficient/rank-deficient observations, severe ill-conditioning, and
+  candidate curves that fail positivity, monotonicity, or unique-inverse
+  validation over the complete fitted range;
+- prohibit silent extrapolation beyond the observed calibration span in the
+  initial fitting API; and
 - support covariance of fitted coefficients in a later uncertainty layer.
 
-A fitted curve must never be presented as a manufacturer or standards-defined
+The detailed failure semantics, batch API contract, and portable-format decision
+are normative design material in `DESIGN.md` rather than duplicated here. A fitted
+curve must never be presented as a manufacturer or standards-defined
 characteristic unless that provenance is actually established.
 
 ## Tolerance and uncertainty

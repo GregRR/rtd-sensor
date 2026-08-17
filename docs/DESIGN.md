@@ -232,6 +232,52 @@ def fahrenheit_to_resistance(temperature_f: float) -> float: ...
 
 Those convenience functions are not currently part of the public API. Celsius is the native temperature representation used by the supported characteristic definitions.
 
+### 5.1 Planned 0.6.0 batch conversion API
+
+Batch conversion is a Python convenience layer, not an expansion of the public
+`RTDModel` structural protocol. Adding required batch methods to `RTDModel` would
+unnecessarily break third-party structural implementations that already satisfy
+the scalar protocol. The initial 0.6.0 design therefore uses a separate
+`rtd_sensor.batch` module with two generic operations conceptually equivalent to:
+
+```python
+def celsius_to_resistance(
+    model: RTDModel,
+    temperatures_c: Iterable[float],
+) -> list[float]: ...
+
+
+def resistance_to_celsius(
+    model: RTDModel,
+    resistances_ohms: Iterable[float],
+) -> list[float]: ...
+```
+
+The batch contract is deliberately small:
+
+* the input may be any one-pass iterable of scalar values, including a generator;
+* inputs are consumed once, in order, and the result is an eagerly evaluated
+  `list[float]` in the same order;
+* an empty iterable returns an empty list;
+* each element is processed by the same scalar conversion behavior used by the
+  supplied model;
+* conversion is fail-fast: the first scalar exception propagates unchanged and
+  no partial result collection is returned;
+* the initial API does not introduce per-element status objects or a partial-failure
+  result type;
+* NumPy is neither imported nor required, but a NumPy array or other iterable may
+  be supplied when its elements satisfy the scalar API; the return type remains a
+  normal Python list rather than attempting to preserve an input container type;
+  and
+* the initial batch surface covers conversion only, not sensitivity, tolerance,
+  uncertainty, simulation, or fitting.
+
+Scalar conversion remains authoritative. Tests for the batch layer should compare
+its outputs and failures directly with ordered scalar calls so optimized or future
+implementations cannot acquire different numerical, range, or exception semantics.
+This Python convenience API does not create a new conformance capability and does
+not imply that an embedded implementation needs a batch API.
+
 ## 6. Validation and errors
 
 The conversion functions should reject:
@@ -482,20 +528,146 @@ The released library currently consumes characterized or calibrated parameters; 
 
 ### Calibration fitting and portable model definitions
 
-Calibration fitting must remain scientifically distinct from using a published or otherwise supplied model. A fitting operation should produce two related but separate results:
+Calibration fitting must remain scientifically distinct from using a published or
+otherwise supplied model. A fitting operation should produce two related but
+separate results:
 
-1. **fit evidence**, retaining the observations, residuals, RMS and maximum error, fitting range, weighting or calibration-point uncertainty when supplied, and the assumptions needed to reproduce the fit; and
-2. a **numerical model definition** that can be reconstructed and used without rerunning the fit.
+1. **fit evidence**, retaining the observations, residuals, fitting diagnostics,
+   RMS and maximum error, fitting range, weighting or calibration-point uncertainty
+   when supplied, and the assumptions needed to reproduce the fit; and
+2. a **numerical model definition** that can be reconstructed and used without
+   rerunning the fit.
 
-The deployable model definition is not a replacement for the fit evidence. Conversely, a downstream process, laboratory instrument, data logger, C/C++ program, or embedded controller should not need the original observations or fitting implementation merely to reproduce the already accepted fitted curve.
+The deployable model definition is not a replacement for the fit evidence.
+Conversely, a downstream process, laboratory instrument, data logger, C/C++
+program, or embedded controller should not need the original observations or
+fitting implementation merely to reproduce the already accepted fitted curve.
 
-The portable representation should be versioned, language-neutral, independent of Python class names, lossless for the numerical parameters required by the model, explicit about model kind and valid range, and capable of retaining optional scientific provenance. Round-trip reconstruction must preserve model behavior within a defined numerical tolerance. Hardware configuration, equipment-channel names, installation locations, probe asset identifiers, and application-specific semantics do not belong in the portable model definition.
+#### 0.6.0 fitting scope and failure semantics
 
-Richer calibration provenance may later include a certificate identifier, calibration date and laboratory, reference standard, fitting method, calibrated range, uncertainty information, source precision, and notes. Those fields improve traceability but should remain optional metadata around the numerical model unless they are required to reproduce its behavior.
+The initial fitting scope is polynomial fitting from `(temperature, resistance)`
+observations using a caller-selected polynomial degree. Characterized-reference-
+resistance models remain configurable inputs in 0.6.0; fitting an `R0`-only model
+is not required by the initial fitting milestone. If an `R0`-only fitter is added
+later, its deployable result must use the same characterized-standard-
+characteristic representation as `IEC60751RTDModel`, not a parallel model kind.
 
-The existing conformance `model-fixtures.json` structure provides useful model-definition concepts for characterized reference resistance, custom CVD, polynomial, and piecewise-polynomial cases, but it is an interoperability test-fixture catalog rather than an automatically public persistence format. Its local fixture identities and test-oriented semantics must not become a deployment contract by accident. A public portable representation should reuse existing characteristic/model identifiers and field meanings where appropriate, while explicitly defining any differences needed for long-lived interchange.
+A fitting call is successful only when both the numerical fit and the resulting
+RTD model are scientifically usable over the declared fitted range. The initial
+contract therefore follows these rules:
 
-Physical sensor identity remains separate from mathematical model identity. A canonical model identity such as `pt100` describes RTD behavior; it does not identify a particular probe serial number, installed location, equipment channel, replacement history, or calibration-certificate association. Downstream inventory and control systems may retain those identities alongside a portable model definition without moving them into the core scientific model.
+* temperatures and resistances must be finite and resistances must be positive;
+* the requested polynomial degree must be valid and the observations must contain
+  at least `degree + 1` **distinct** temperature values;
+* repeated observations at the same temperature are allowed as independent
+  measurements, are retained in the fit evidence, and are never silently averaged
+  or discarded;
+* rank-deficient systems and non-finite numerical solutions are fitting failures;
+* the solver must use a numerically stable least-squares formulation and must not
+  rely on forming normal equations merely for convenience;
+* a conditioning diagnostic for the actual scaled fitting system must be retained
+  in the fit evidence; severe ill-conditioning is a fitting failure rather than a
+  condition that may be silently accepted, with the documented rejection threshold
+  established and regression-tested as part of the implementation's numerical
+  validation before the public API is frozen;
+* the fitted candidate must satisfy the same finite, positive-resistance, strictly
+  increasing, unique-inverse requirements as a directly constructed polynomial
+  model over the complete declared range; if it does not, the fitting operation
+  fails and no deployable model is returned; and
+* the initial fitted validity interval may not silently extend beyond the observed
+  temperature span. A caller may narrow the range, but unvalidated extrapolation is
+  not part of the initial fitting API.
+
+Package-owned fitting failures such as insufficient independent observations,
+rank deficiency, rejected ill-conditioning, or a scientifically invalid fitted
+curve should use a dedicated fit-domain exception rather than overloading
+`InvalidRTDModelError` with failures that occur before a valid model exists. The
+implementation should add a small `RTDFitError` under the existing `RTDError` /
+`ValueError` compatibility pattern. Ordinary type-category mistakes remain
+`TypeError`, and ordinary malformed scalar inputs retain the package's established
+`ValueError` behavior. Fitting is not currently a conformance-v1 conversion
+capability, so these Python fitting failures do not redefine the language-neutral
+conversion status `calculation_failure`.
+
+Residuals are always retained in physical resistance units. RMS residual error and
+maximum absolute residual error are reported unweighted so they remain directly
+interpretable even when weighting is used. When caller-supplied weights or
+calibration-point standard uncertainties influence the fit, the corresponding
+weighted objective/statistic is retained **in addition to**, not instead of, the
+unweighted diagnostics. The fit evidence must record how supplied uncertainties
+were converted into weights so another implementation can reproduce the objective.
+
+#### Portable model-definition format decision
+
+The 0.6.0 portable model definition is a **separate artifact type and schema**
+from conformance `model-fixtures.json`. This is a deliberate compatibility
+decision, not an implementation detail. Conformance fixtures are allowed to encode
+intentionally invalid definitions and local `fixture_id` values for testing; a
+deployable model format must represent only valid reconstructable models and must
+not inherit fixture-catalog lifecycle or `expected_status` semantics.
+
+The portable format should nevertheless reuse the same scientific vocabulary and
+parameter meanings so the project does not create two semantic definitions of a
+model. Version 1 should use a structure conceptually like:
+
+```json
+{
+  "artifact_type": "portable_model_definition",
+  "format_version": 1,
+  "model_kind": "polynomial",
+  "definition": {},
+  "metadata": {}
+}
+```
+
+The exact kind-specific fields are schema-defined, but the compatibility rules are
+fixed:
+
+* `format_version` belongs to the portable-definition format and is independent of
+  conformance `contract_version`;
+* a loader must reject an unsupported `format_version` rather than guessing at
+  newer serialization semantics;
+* core and kind-specific fields are closed/validated rather than accepting unknown
+  behavior-changing fields silently, and an unsupported `model_kind` must be
+  reported explicitly rather than misinterpreted as a known kind;
+* model-kind identifiers and parameter names reuse established project meanings
+  wherever the same scientific concept already exists;
+* version 1 covers the four model-definition families already exercised by the
+  custom conformance vocabulary: characterized standard-characteristic models,
+  custom Callendar-Van Dusen models, polynomial models, and piecewise-polynomial
+  models; portable tabulated definitions remain a compatible future extension and
+  are not required to release 0.6.0;
+* the definition contains every numerical value needed to reconstruct the model,
+  including its valid range and any authorized piecewise continuity adjustments;
+* a portable artifact cannot encode the conformance-only concept of an intentionally
+  invalid model definition;
+* an optional `metadata` object is reserved for application-neutral, non-behavioral
+  provenance and future traceability fields; metadata cannot alter conversion
+  behavior, and portable-definition round trips should preserve it even when a
+  consumer does not interpret every metadata entry; and
+* hardware configuration, equipment-channel names, installation locations, probe
+  asset identifiers, and application-specific semantics remain outside the portable
+  model definition.
+
+Richer calibration provenance may later standardize fields such as certificate
+identifier, calibration date and laboratory, reference standard, fitting method,
+calibrated range, uncertainty information, source precision, and notes. Version 1
+reserves the metadata extension point now without making that richer certificate
+schema a 0.6.0 requirement.
+
+Round-trip reconstruction through the portable-definition API must preserve the
+model's numerical parameters exactly where the representation permits exact JSON
+number round trips and must preserve conversion behavior within explicitly tested
+tolerances. Serialization/deserialization tests should reconstruct the public model
+and compare both conversion directions and declared boundaries rather than merely
+comparing serialized text.
+
+Physical sensor identity remains separate from mathematical model identity. A
+canonical model identity such as `pt100` describes RTD behavior; it does not
+identify a particular probe serial number, installed location, equipment channel,
+replacement history, or calibration-certificate association. Downstream inventory
+and control systems may retain those identities alongside a portable model
+definition without moving them into the core scientific model.
 
 ### Generic polynomial characteristics
 
@@ -627,7 +799,17 @@ Acquisition status must also remain separate from RTD conversion status. Hardwar
 
 The stable conformance contract is the authority for reproducing `rtd-sensor` behavior outside Python. A separate MCU-specific scientific definition system should not be created. A constrained implementation may claim only the model, operation, and numerical profiles that it actually supports, and a nominal Pt100 resistance-to-temperature implementation can already begin from the 0.5.1 conformance foundation.
 
-For 0.6.0, the next constrained-precision target is deliberately narrow: characterized reference resistance using an already supported characteristic. The goal is to establish an empirically justified `binary32_compatible` profile for this common calibrated deployment case using real single-precision arithmetic, an independent C or C++ path, representative reference-resistance deviations, negative and positive temperatures where applicable, boundary behavior, inverse conditioning, and measured worst-case error with justified engineering margin. Floating-point error should be distinguished from limits imposed by the precision of source parameters or coefficients.
+For 0.6.0, the next constrained-precision target is deliberately narrow: characterized reference resistance using an already supported characteristic. The goal is to establish an empirically justified `binary32_compatible` profile for this common calibrated deployment case using real single-precision arithmetic, representative reference-resistance deviations, negative and positive temperatures where applicable, boundary behavior, inverse conditioning, and measured worst-case error with justified engineering margin. Floating-point error should be distinguished from limits imposed by the precision of source parameters or coefficients.
+
+The validation standard must match the rigor used for the existing built-in
+`binary32_compatible` profile. A genuinely independent C or C++ numerical path
+may reuse the conformance harness and artifact parser, but it must not call the
+Python implementation or a binary64 conversion routine and then cast the answer to
+`float`. The derivation, tested R0 population/range, measured worst-case errors,
+chosen engineering margin, and final acceptance tolerance must be recorded in a
+dedicated checked-in document analogous to `conformance/consumers/c11/BINARY32.md`.
+The conformance claim remains fixture-scoped for characterized-R0 test subjects;
+this work does not turn portable model definitions into conformance identities.
 
 That claim must not be generalized automatically to arbitrary custom model families. Each family should gain a constrained-precision profile only after its own numerical behavior is independently characterized:
 
