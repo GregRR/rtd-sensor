@@ -556,17 +556,16 @@ Implemented the dependency-free `rtd_sensor.batch` convenience layer specified i
 and one-pass iterable inputs without extending the public `RTDModel` protocol.
 NumPy remains optional and is not a runtime dependency.
 
-### 10. Portable configurable and fitted model definitions — planned for 0.6.0
+### 10. Portable configurable and fitted model definitions — implemented for 0.6.0
 
-Define a stable, versioned, language-neutral portable-model artifact with its own
-format version, separate from conformance `model-fixtures.json`. Reuse the same
-scientific model-kind vocabulary and parameter meanings while preventing
-conformance-only invalid-fixture semantics from becoming a deployment contract.
-Keep fit evidence, non-behavioral provenance metadata, and physical probe/channel
-identity separate from the numerical definition. The initial format covers
-characterized standard-characteristic, custom CVD, polynomial, and piecewise-
-polynomial definitions; tabulated portability may follow later and is not a 0.6.0
-release blocker.
+Implemented the version-1 `portable_model_definition` artifact and Draft 2020-12
+schema with an independent `format_version`, plus dependency-free Python
+serialization/reconstruction in `rtd_sensor.portable`. The format reuses the
+established scientific vocabulary while excluding conformance-only fixture
+semantics, keeps non-behavioral metadata separate, and supports characterized
+IEC 60751 PT-385, custom CVD, polynomial, and piecewise-polynomial definitions.
+Fitted polynomial results can therefore be reconstructed without rerunning the
+fit. Tabulated portability remains future work and is not a 0.6.0 blocker.
 
 ### 11. Characterized-reference-resistance binary32 conformance — planned for 0.6.0
 

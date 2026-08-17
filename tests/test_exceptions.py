@@ -15,6 +15,7 @@ from rtd_sensor import catalog, exceptions, measurement, models, pt100, simulati
 def test_public_exception_inheritance_preserves_legacy_catch_types() -> None:
     assert issubclass(exceptions.UnknownRTDModelError, KeyError)
     assert issubclass(exceptions.RTDOutOfRangeError, ValueError)
+    assert issubclass(exceptions.InvalidPortableModelDefinitionError, ValueError)
     assert issubclass(exceptions.InvalidRTDModelError, ValueError)
     assert issubclass(exceptions.RTDFitError, ValueError)
     assert issubclass(exceptions.RTDModelSelectionError, ValueError)
@@ -22,6 +23,7 @@ def test_public_exception_inheritance_preserves_legacy_catch_types() -> None:
     for exception_type in (
         exceptions.UnknownRTDModelError,
         exceptions.RTDOutOfRangeError,
+        exceptions.InvalidPortableModelDefinitionError,
         exceptions.InvalidRTDModelError,
         exceptions.RTDFitError,
         exceptions.RTDModelSelectionError,

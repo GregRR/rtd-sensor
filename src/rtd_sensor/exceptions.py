@@ -13,6 +13,7 @@ continue to propagate unchanged.
 from __future__ import annotations
 
 __all__ = [
+    "InvalidPortableModelDefinitionError",
     "InvalidRTDModelError",
     "RTDError",
     "RTDFitError",
@@ -36,6 +37,10 @@ class UnknownRTDModelError(RTDError, KeyError):
 
 class RTDOutOfRangeError(RTDError, ValueError):
     """Raised when a temperature or resistance lies outside a model range."""
+
+
+class InvalidPortableModelDefinitionError(RTDError, ValueError):
+    """Raised when a portable RTD model artifact is invalid or unsupported."""
 
 
 class InvalidRTDModelError(RTDError, ValueError):

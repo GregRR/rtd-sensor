@@ -678,6 +678,30 @@ fixed:
   asset identifiers, and application-specific semantics remain outside the portable
   model definition.
 
+The implemented Python API lives in `rtd_sensor.portable` and deliberately
+mirrors this boundary:
+
+* `model_to_portable_definition(model, metadata=...)` emits a JSON-compatible
+  dictionary for one supported public model;
+* `model_from_portable_definition(artifact)` validates the artifact, reconstructs
+  the public model, and returns preserved non-behavioral metadata separately;
+* malformed artifacts use `InvalidPortableModelDefinitionError`, while an
+  unsupported Python model passed to the serializer is a type-category error; and
+* the checked-in Draft 2020-12 schema is
+  `portable/v1/model-definition.schema.json`. Runtime loading remains dependency-free
+  and does not require the development-only `jsonschema` package.
+
+Human-readable model names and Python-specific `coefficient_source` fields are not
+implicitly serialized because they may contain physical-probe identity or local
+application context. Callers may copy appropriate application-neutral provenance
+into the portable `metadata` object explicitly.
+
+For piecewise models, version 1 serializes the source segments and the authorized
+`maximum_continuity_adjustment_ratio`. The applied normalized-ratio offsets remain
+deterministic derived values of the existing piecewise model semantics rather than
+a second serialized source of numerical truth. Reconstruction must rederive the
+same offsets and conversion behavior from the preserved source definition.
+
 Richer calibration provenance may later standardize fields such as certificate
 identifier, calibration date and laboratory, reference standard, fitting method,
 calibrated range, uncertainty information, source precision, and notes. Version 1

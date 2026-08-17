@@ -300,6 +300,43 @@ The fit result deliberately keeps the validated numerical model separate from th
 
 Weighted least squares may use either a positive relative `weight` on every observation or a positive `standard_uncertainty_ohms` on every observation. Resistance standard uncertainties are converted to normalized inverse-variance weights; temperature is treated as the independent variable, so this initial fitter does not model temperature uncertainty. A caller may narrow the fitted model's validity range inside the observed calibration span, but the API does not silently extrapolate beyond that span. Rank-deficient, severely ill-conditioned, non-positive, or non-monotonic fitted curves raise `RTDFitError` instead of returning a deployable model.
 
+## Portable model definitions
+
+`rtd_sensor.portable` serializes validated configurable or fitted RTD models to a
+versioned language-neutral definition that can be reconstructed without rerunning a
+fit. Version 1 supports characterized IEC 60751 PT-385 models, custom
+Callendar–Van Dusen models, global polynomial models, and piecewise-polynomial
+models. Tabulated-model portability remains future work.
+
+```python
+from rtd_sensor import portable
+from rtd_sensor.models import IEC60751RTDModel
+
+model = IEC60751RTDModel(
+    r0_ohms=100.017,
+    minimum_temperature_c=-50.0,
+    maximum_temperature_c=250.0,
+)
+
+artifact = portable.model_to_portable_definition(
+    model,
+    metadata={"source": "calibration record 2026-08"},
+)
+loaded = portable.model_from_portable_definition(artifact)
+
+assert loaded.model.r0_ohms == 100.017
+assert loaded.metadata["source"] == "calibration record 2026-08"
+```
+
+The portable format is separate from conformance fixtures and has its own
+`format_version`. Unknown behavior-changing fields, unsupported format versions,
+unsupported model kinds, and invalid numerical definitions are rejected rather
+than guessed. Optional metadata is non-behavioral and preserved separately from
+the reconstructed model; physical probe identity, hardware configuration, and
+application-specific channel semantics remain outside the artifact. The versioned
+JSON Schema and language-neutral format notes are in
+[`portable/README.md`](portable/README.md).
+
 ## Piecewise polynomial RTD models
 
 `PiecewisePolynomialRTDModel` preserves documented characteristics that publish a different polynomial over each temperature interval. Each `PiecewisePolynomialSegment` stores the complete normalized polynomial for one interval, including its constant term:
@@ -668,9 +705,10 @@ uv run --locked mypy
 
 See [`docs/DESIGN.md`](docs/DESIGN.md) for detailed architecture and mathematical
 assumptions, [`docs/CONFORMANCE.md`](docs/CONFORMANCE.md) for the stable
-language-neutral RTD conformance contract, and
-[`conformance/README.md`](conformance/README.md) for the published catalogs,
-schemas, vectors, fixtures, and independent-consumer artifacts.
+language-neutral RTD conformance contract,
+[`conformance/README.md`](conformance/README.md) for the published conformance
+artifacts, and [`portable/README.md`](portable/README.md) for the versioned
+language-neutral portable-model format and schema.
 
 See [`docs/ROADMAP.md`](docs/ROADMAP.md) for planned RTD families and future
 characteristic/calibration work, [`docs/RELEASING.md`](docs/RELEASING.md) for the

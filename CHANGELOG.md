@@ -8,6 +8,7 @@ All notable changes to this project will be documented in this file.
 
 * Added dependency-free polynomial calibration fitting with immutable calibration observations, auditable fit evidence, optional weighting from relative weights or resistance standard uncertainties, conditioning diagnostics, and validated `PolynomialRTDModel` results.
 * Added dependency-free batch temperature/resistance conversion helpers with eager ordered list results, one-pass iterable support, and fail-fast scalar-equivalent exception behavior.
+* Added versioned language-neutral portable model definitions for characterized IEC 60751 PT-385, custom CVD, polynomial, and piecewise-polynomial models, with dependency-free Python serialization/reconstruction and a Draft 2020-12 schema.
 
 ## 0.5.1 — 2026-08-16
 

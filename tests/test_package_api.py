@@ -12,6 +12,7 @@ from rtd_sensor import (
     ni120,
     ni1000,
     ni1000_tk5000,
+    portable,
     pt100,
     pt500,
     pt1000,
@@ -106,6 +107,21 @@ def test_package_exports_models_module() -> None:
     assert imported_models is models
 
 
+def test_package_exports_portable_module() -> None:
+    from rtd_sensor import portable as imported_portable
+
+    assert imported_portable is portable
+
+
+def test_portable_public_api() -> None:
+    assert set(portable.__all__) == {
+        "PortableModelDefinition",
+        "PortableRTDModel",
+        "model_from_portable_definition",
+        "model_to_portable_definition",
+    }
+
+
 def test_package_exports_simulation_module() -> None:
     from rtd_sensor import simulation as imported_simulation
 
@@ -128,6 +144,7 @@ def test_package_public_api() -> None:
         "pt100",
         "pt500",
         "pt1000",
+        "portable",
         "simulation",
         "tolerance",
         "uncertainty",
@@ -146,6 +163,7 @@ def test_catalog_public_api() -> None:
 
 def test_exceptions_public_api() -> None:
     assert set(exceptions.__all__) == {
+        "InvalidPortableModelDefinitionError",
         "InvalidRTDModelError",
         "RTDFitError",
         "RTDError",

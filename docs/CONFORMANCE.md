@@ -113,13 +113,15 @@ referential integrity and scientific consistency are validated separately from
 JSON Schema structure validation.
 
 A portable deployable-model format is a different artifact class from this
-conformance tree. The portable model-definition work planned for 0.6.0 uses its
+conformance tree. The portable model-definition format implemented for 0.6.0 uses its
 own `format_version` and does not inherit conformance `contract_version` as its
 serialization-compatibility version. It may reuse the same characteristic IDs,
 model-kind vocabulary, and parameter meanings, but conformance-only concepts such
 as local `fixture_id`, `expected_status`, and intentionally invalid definitions do
 not become part of the deployment format. This separation also means that adding
-a portable model format does not by itself change stable conformance-v1 behavior.
+a portable model format does not by itself change stable conformance-v1 behavior. The portable schema is
+`portable/v1/model-definition.schema.json`; it is versioned independently from this
+conformance contract.
 
 ## Versioning
 
