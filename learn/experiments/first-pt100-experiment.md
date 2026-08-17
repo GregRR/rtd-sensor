@@ -1,8 +1,9 @@
 ---
 title: Your first Pt100 experiment
-description: Use Python and rtd-sensor to explore how Pt100 resistance changes with temperature and convert resistance back to temperature, with no hardware required.
+description: Explore how Pt100 resistance changes with temperature using Python and rtd-sensor. No sensor, electronics, or other hardware required.
 tags:
   - Pt100
+  - RTD
   - Python
   - beginner
   - no hardware
@@ -10,34 +11,77 @@ tags:
 
 # Your first Pt100 experiment
 
-**Question:** What happens to the resistance of a Pt100 when its temperature
-changes?
+**Make a Pt100 do something before you even own one.**
 
-You can answer that without owning a sensor. In this experiment, `rtd-sensor`
-will give us the ideal Pt100 behavior so we can explore it with a few lines of
-Python.
+In this experiment, Python will be our virtual temperature lab. We will change
+the temperature of an ideal Pt100, watch its resistance change, and then run
+the calculation backward as if we had measured a real sensor.
 
 - **Hardware:** none
-- **Time:** about 10 minutes
+- **Time:** about 10–15 minutes
 - **You need:** Python 3.14+ and `rtd-sensor`
 
 If you have not installed the package yet, start with [Start here](../start-here.md).
 
-## A tiny bit of background
+## The question
 
-RTD stands for **resistance temperature detector**. An RTD is a temperature
-sensor whose electrical resistance changes with temperature.
+A Pt100 is a temperature sensor, but what does it actually measure?
+
+More specifically:
+
+> **What happens to the electrical resistance of a Pt100 when its temperature
+> changes?**
+
+We can answer that with just a few lines of Python.
+
+## Two facts before we begin
+
+RTD stands for **resistance temperature detector**. Its electrical resistance
+changes in a predictable way as its temperature changes.
 
 The name **Pt100** gives us two useful clues:
 
 - **Pt** means the sensing element is platinum.
-- **100** means the ideal sensor has a resistance of **100 ohms at 0 °C**.
+- **100** means an ideal Pt100 has a resistance of **100 ohms at 0 °C**.
 
-For now, that is enough theory. Let's make it do something.
+That is enough theory for now.
 
-## Try this: ask for the resistance at 20 °C
+!!! note "A model, not imaginary hardware"
+    `rtd-sensor` is not pretending that your computer has a temperature probe
+    attached. It calculates the standardized relationship between Pt100
+    temperature and resistance. Later, we will feed it measurements from real
+    hardware.
 
-Run this code:
+## Experiment 1: discover the "100" in Pt100
+
+Start at 0 °C:
+
+```python
+from rtd_sensor import pt100
+
+resistance = pt100.celsius_to_resistance(0.0)
+print(f"At 0 °C: {resistance:.4f} ohms")
+```
+
+You should see:
+
+```text
+At 0 °C: 100.0000 ohms
+```
+
+So the **100** in Pt100 is not just a model number. At 0 °C, the ideal
+standardized sensor really is 100 ohms.
+
+## Experiment 2: warm up the virtual sensor
+
+Before running the next example, make a prediction.
+
+!!! question "Predict first"
+    If the Pt100 warms from **0 °C to 20 °C**, do you expect its resistance to
+    be **higher than 100 ohms**, **lower than 100 ohms**, or **still exactly
+    100 ohms**?
+
+Now change the temperature:
 
 ```python
 from rtd_sensor import pt100
@@ -46,34 +90,33 @@ resistance = pt100.celsius_to_resistance(20.0)
 print(f"At 20 °C: {resistance:.4f} ohms")
 ```
 
-You should get:
+The result is:
 
 ```text
 At 20 °C: 107.7935 ohms
 ```
 
-!!! question "Can you predict the result first?"
-    Before changing the code, decide what you expect at **25 °C**. Will the
-    resistance be higher, lower, or unchanged?
+The temperature went up, and so did the resistance.
 
-Change `20.0` to `25.0` and run it again:
+Try 25 °C:
 
 ```python
 resistance = pt100.celsius_to_resistance(25.0)
 print(f"At 25 °C: {resistance:.4f} ohms")
 ```
 
-The result is:
-
 ```text
 At 25 °C: 109.7347 ohms
 ```
 
-The temperature went up, and so did the resistance.
+That gives us our first useful rule of thumb:
 
-## Experiment: make a small resistance table
+> **For a Pt100, resistance increases as temperature increases.**
 
-Instead of trying one temperature at a time, ask for several:
+## Experiment 3: make a resistance table
+
+One value at a time does not show us much of a pattern. Let's ask for several
+values:
 
 ```python
 from rtd_sensor import pt100
@@ -83,7 +126,7 @@ for temperature_c in [0, 10, 20, 30, 40, 50, 100]:
     print(f"{temperature_c:>3} °C  ->  {resistance:.4f} ohms")
 ```
 
-You should see:
+You should get:
 
 ```text
   0 °C  ->  100.0000 ohms
@@ -97,82 +140,124 @@ You should see:
 
 ### What happened?
 
-Three things are already visible:
+Three things should stand out:
 
-1. At 0 °C, the ideal Pt100 is exactly 100 ohms.
-2. Resistance increases as temperature increases.
-3. The resistance changes by only a few ohms for each 10 °C change.
+1. At 0 °C, the ideal Pt100 is 100 ohms.
+2. Resistance rises as temperature rises.
+3. A 10 °C temperature change changes the resistance by only a few ohms.
 
-Do the 10-degree steps change the resistance by **exactly** the same amount each
-time? Keep that question in mind. A later experiment will test whether a Pt100
-is really linear.
+Now look more closely at the 10-degree steps. Does the resistance increase by
+**exactly** the same amount every time?
 
-## Now run the calculation backward
+It is close, but not quite.
 
-A real measurement system usually starts with a measured resistance and needs
-the corresponding temperature.
+That small clue will matter in a later experiment when we ask whether a Pt100 is
+really linear.
 
-Let's take the resistance for 25 °C and convert it back:
+## Experiment 4: pretend we measured a real Pt100
+
+So far we have started with temperature and asked for resistance:
+
+```text
+temperature  ->  resistance
+```
+
+A real thermometer usually needs to do the opposite. Hardware measures the
+sensor's resistance, and we need to determine the temperature:
+
+```text
+measured resistance  ->  temperature
+```
+
+Imagine that some measurement hardware reports a Pt100 resistance of
+**119.3971 ohms**.
+
+Ask `rtd-sensor` what temperature that represents:
 
 ```python
 from rtd_sensor import pt100
 
-resistance = pt100.celsius_to_resistance(25.0)
-temperature_c = pt100.resistance_to_celsius(resistance)
+measured_resistance = 119.3971
+temperature_c = pt100.resistance_to_celsius(measured_resistance)
 
-print(f"Resistance: {resistance:.4f} ohms")
+print(f"Measured resistance: {measured_resistance:.4f} ohms")
 print(f"Temperature: {temperature_c:.2f} °C")
 ```
 
-The result is:
+You should see:
 
 ```text
-Resistance: 109.7347 ohms
-Temperature: 25.00 °C
+Measured resistance: 119.3971 ohms
+Temperature: 50.00 °C
 ```
 
-You have now used the Pt100 model in both directions:
+That is the basic job `rtd-sensor` will eventually perform with a physical
+sensor: take the best available estimate of the Pt100's resistance and convert
+it to temperature.
 
-```text
-temperature  ->  resistance
-resistance   ->  temperature
-```
+!!! info "Where the resistance comes from"
+    `rtd-sensor` does not read a multimeter, ADC, or MAX31865 itself. Those
+    devices obtain the resistance measurement. `rtd-sensor` handles the RTD
+    model that turns that resistance into temperature.
 
-That second direction is the one you will eventually use with a physical Pt100:
-a multimeter or an RTD interface measures resistance, and software turns that
-resistance into temperature.
+## Try your own experiments
 
-## Change something
+Do not stop with the values above. Change something and see what happens.
 
-Try a few experiments before moving on:
+- What resistance does a Pt100 have at **37 °C**?
+- What about **-20 °C**?
+- Change the temperature from **20 °C to 21 °C**. How much does the resistance
+  change?
+- Pick a temperature of your own, calculate its resistance, then feed that
+  resistance into `pt100.resistance_to_celsius()`. Do you get back where you
+  started?
+- Try this mystery resistance: **114.3817 ohms**. What temperature is it close
+  to?
 
-- What resistance does the model predict at **room temperature** where you are?
-- What does it predict at **0 °C**? Did the name Pt100 give that one away?
-- What about **100 °C**?
-- Change the temperature by only **1 °C**. How much does the resistance change?
-- Pick a resistance from your table and feed it to
-  `pt100.resistance_to_celsius()`. Do you recover the original temperature?
+!!! tip "Build intuition, not just output"
+    For at least one experiment, write down your prediction before running the
+    code. Being wrong is useful: the interesting part is figuring out why the
+    result differed from what you expected.
 
-!!! tip "Predict before you run"
-    For at least one change, write down whether you expect the resistance to go
-    up or down before Python gives you the answer. The point of these lessons is
-    to build intuition, not just produce numbers.
+!!! note "Stay inside the model range"
+    The built-in Pt100 model supports **-200 °C through 850 °C**. We will talk
+    later about why software should reject values outside a model's valid
+    range instead of blindly extrapolating.
+
+## What changes when the Pt100 is real?
+
+Our values so far came from the ideal standardized Pt100 curve. A physical
+measurement introduces more questions:
+
+- Is the real probe exactly on the ideal curve?
+- How accurately did we measure its resistance?
+- Did the wires add resistance of their own?
+- Is the probe actually at the same temperature as the thing we are trying to
+  measure?
+
+We do **not** need to solve those problems yet. For now, the important thing is
+that the resistance-to-temperature relationship itself makes sense.
+
+Later experiments will add those real-world effects one at a time.
 
 ## What you learned
 
-You now know the basic idea behind a Pt100:
+You have now made your first virtual Pt100 measurement and discovered that:
 
-- temperature and resistance are related;
-- a Pt100 is 100 ohms at 0 °C on its ideal standardized curve;
-- warmer temperatures produce higher resistance over the Pt100's supported
-  range;
-- `rtd-sensor` can calculate the relationship in either direction.
+- a Pt100 is a platinum resistance temperature detector;
+- an ideal Pt100 is 100 ohms at 0 °C;
+- its resistance increases as temperature increases;
+- the relationship is close to linear over ordinary ranges, but not exactly;
+- `rtd-sensor` can calculate temperature → resistance;
+- `rtd-sensor` can also calculate resistance → temperature;
+- real measurement hardware and the RTD model have different jobs.
 
-You did all of that without any electronics.
+And you did all of it without owning a sensor.
 
 ## Next experiment
 
-A table is useful, but a graph makes the shape of the RTD relationship much
+A table hints at the shape of the Pt100 relationship. A graph makes it much
 easier to see.
 
-**Next:** Plot an RTD curve and look at the whole Pt100 temperature range.
+**Next:** Plot an RTD curve and see what the Pt100 looks like from -200 °C to
+850 °C.

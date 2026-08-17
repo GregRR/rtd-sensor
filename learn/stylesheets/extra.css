@@ -20,8 +20,16 @@
   border-color: var(--rtd-primary);
 }
 
+.md-typeset .md-button--primary a {
+  color: #fff;
+}
+
 .md-typeset .md-button--primary:is(:hover, :focus) {
   color: #fff;
   background-color: var(--rtd-primary-hover);
   border-color: var(--rtd-primary-hover);
+}
+
+.md-typeset .md-button--primary:is(:hover, :focus) a {
+  color: #fff;
 }
