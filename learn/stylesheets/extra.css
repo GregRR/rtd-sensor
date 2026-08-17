@@ -1,0 +1,27 @@
+/* Learn rtd-sensor site customizations.
+ *
+ * Keep project-specific visual changes here rather than editing generated
+ * files under site/.
+ */
+
+:root > * {
+  --rtd-primary: #0b7285;
+  --rtd-primary-hover: #075766;
+}
+
+/*
+ * Zensical 0.0.55 can render the primary call-to-action with insufficient
+ * text contrast under the default palette. Keep the button explicit and
+ * accessible in both light and dark modes.
+ */
+.md-typeset .md-button--primary {
+  color: #fff;
+  background-color: var(--rtd-primary);
+  border-color: var(--rtd-primary);
+}
+
+.md-typeset .md-button--primary:is(:hover, :focus) {
+  color: #fff;
+  background-color: var(--rtd-primary-hover);
+  border-color: var(--rtd-primary-hover);
+}

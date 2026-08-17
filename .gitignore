@@ -87,3 +87,6 @@ Temporary Items
 # Project Specific
 notes/
 .rtdsensor-local/
+
+# Generated documentation site
+site/
