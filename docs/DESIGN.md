@@ -478,7 +478,24 @@ The custom-CVD model follows these rules:
 
 A user-supplied coefficient set is not automatically described as IEC 60751 compliant merely because it uses the same algebraic form. The standard `IEC60751RTDModel` remains the explicit API for the package's verified IEC PT-385 curve.
 
-The library consumes characterized or calibrated parameters; it does not currently fit `R0`, `A`, `B`, or `C` from raw calibration observations. Historical `R0`, alpha, delta, beta coefficient notation and ITS-90 interpolation functions are also outside the current public API.
+The released library currently consumes characterized or calibrated parameters; it does not yet fit `R0`, `A`, `B`, or `C` from raw calibration observations. Calibration fitting is planned for 0.6.0 as described below. Historical `R0`, alpha, delta, beta coefficient notation and ITS-90 interpolation functions remain outside the current public API.
+
+### Calibration fitting and portable model definitions
+
+Calibration fitting must remain scientifically distinct from using a published or otherwise supplied model. A fitting operation should produce two related but separate results:
+
+1. **fit evidence**, retaining the observations, residuals, RMS and maximum error, fitting range, weighting or calibration-point uncertainty when supplied, and the assumptions needed to reproduce the fit; and
+2. a **numerical model definition** that can be reconstructed and used without rerunning the fit.
+
+The deployable model definition is not a replacement for the fit evidence. Conversely, a downstream process, laboratory instrument, data logger, C/C++ program, or embedded controller should not need the original observations or fitting implementation merely to reproduce the already accepted fitted curve.
+
+The portable representation should be versioned, language-neutral, independent of Python class names, lossless for the numerical parameters required by the model, explicit about model kind and valid range, and capable of retaining optional scientific provenance. Round-trip reconstruction must preserve model behavior within a defined numerical tolerance. Hardware configuration, equipment-channel names, installation locations, probe asset identifiers, and application-specific semantics do not belong in the portable model definition.
+
+Richer calibration provenance may later include a certificate identifier, calibration date and laboratory, reference standard, fitting method, calibrated range, uncertainty information, source precision, and notes. Those fields improve traceability but should remain optional metadata around the numerical model unless they are required to reproduce its behavior.
+
+The existing conformance `model-fixtures.json` structure provides useful model-definition concepts for characterized reference resistance, custom CVD, polynomial, and piecewise-polynomial cases, but it is an interoperability test-fixture catalog rather than an automatically public persistence format. Its local fixture identities and test-oriented semantics must not become a deployment contract by accident. A public portable representation should reuse existing characteristic/model identifiers and field meanings where appropriate, while explicitly defining any differences needed for long-lived interchange.
+
+Physical sensor identity remains separate from mathematical model identity. A canonical model identity such as `pt100` describes RTD behavior; it does not identify a particular probe serial number, installed location, equipment channel, replacement history, or calibration-certificate association. Downstream inventory and control systems may retain those identities alongside a portable model definition without moving them into the core scientific model.
 
 ### Generic polynomial characteristics
 
@@ -604,6 +621,29 @@ Two-wire, three-wire, and four-wire topology affects acquisition and compensatio
 
 The scientific conversion layer must not require a wire-count parameter.
 
+Acquisition status must also remain separate from RTD conversion status. Hardware-facing layers may need outcomes such as `open_circuit`, `short_circuit`, `adc_fault`, `reference_resistor_fault`, `converter_fault`, `spi_failure`, or `stale_sample`; these are not `rtd-sensor` model outcomes. The language-neutral RTD contract instead owns statuses such as `ok`, `out_of_range_low`, `out_of_range_high`, `invalid_input`, `invalid_model`, and `calculation_failure`. A higher-level protocol may report both domains, or mark the RTD conversion as not evaluated when acquisition fails, without merging their vocabularies.
+
+### Cross-language and constrained-runtime interoperability
+
+The stable conformance contract is the authority for reproducing `rtd-sensor` behavior outside Python. A separate MCU-specific scientific definition system should not be created. A constrained implementation may claim only the model, operation, and numerical profiles that it actually supports, and a nominal Pt100 resistance-to-temperature implementation can already begin from the 0.5.1 conformance foundation.
+
+For 0.6.0, the next constrained-precision target is deliberately narrow: characterized reference resistance using an already supported characteristic. The goal is to establish an empirically justified `binary32_compatible` profile for this common calibrated deployment case using real single-precision arithmetic, an independent C or C++ path, representative reference-resistance deviations, negative and positive temperatures where applicable, boundary behavior, inverse conditioning, and measured worst-case error with justified engineering margin. Floating-point error should be distinguished from limits imposed by the precision of source parameters or coefficients.
+
+That claim must not be generalized automatically to arbitrary custom model families. Each family should gain a constrained-precision profile only after its own numerical behavior is independently characterized:
+
+- **custom CVD:** include two-sided, positive-only, and negative-only ranges, unusual but valid ratio-crossing cases, boundaries, inverse conditioning, representative coefficient ranges, and invalid or non-monotonic definitions;
+- **single polynomial:** study coefficient scaling, conditioning, representative supported models, and defensible limits rather than making a blanket claim over arbitrary polynomials;
+- **piecewise polynomial:** additionally exercise exact join routing, continuity adjustments, segment-local origins, endpoint rounding, and the distinction between source and derived coefficients; and
+- **tabulated models:** define conformance for exact source points, interpolation and inverse interpolation, first and last intervals, local sensitivity, source precision, endpoints, just-outside range rejection, and monotonicity validation.
+
+The existing C11 consumer remains an independent conformance implementation. It proves that the public contract is sufficient for a non-Python implementation, but it is not automatically the production runtime API for firmware or other constrained systems.
+
+A future production embedded implementation should be free to use static or stack allocation, compile only selected models, implement only required operations such as resistance-to-temperature conversion, and return an explicit status plus result rather than emulate Python exceptions. A constrained implementation need not include batch conversion, simulation, fitting, tolerance calculations, uncertainty analysis, or model families it does not claim. Runtime JSON parsing must not be required: JSON artifacts are suitable for generation, CI, validation, and build tooling, while firmware may compile equivalent validated constants or structures. Range enforcement must follow the claimed RTD model contract, and a target should claim a published numerical profile such as `binary32_compatible` rather than merely stating that it uses `float`.
+
+If production embedded use becomes substantial, a separate C/C++ sibling project is preferable by default to placing MCU toolchains and firmware-oriented APIs in the Python package. That decision should be based on actual implementation experience. Generated C headers, C++ `constexpr` definitions, compact selected-model bundles, or lookup tables may later reduce duplicated scientific constants, but should be introduced only when downstream evidence or profiling shows a maintenance, code-size, speed, power, or deterministic-latency benefit. Generation should permit selected models, operations, and numerical profiles rather than forcing every target to carry the complete catalog. Any generated or lookup representation must still satisfy its claimed conformance profile.
+
+Cross-language documentation should consolidate how to consume released artifacts, claim supported subsets, interpret stable model and characteristic identities, map RTD statuses, use numerical acceptance profiles, and preserve the hardware boundary. Downstream host/MCU protocols should reference those stable identities and statuses rather than inventing parallel RTD vocabularies. Runtime JSON should be described as optional tooling rather than a firmware requirement.
+
 ### Planned characteristic expansion
 
 The current development roadmap is maintained in [`ROADMAP.md`](ROADMAP.md).
@@ -685,6 +725,8 @@ rtd-examples
 
 These names are provisional. Hardware packages should be split by actual abstraction boundary rather than created in advance.
 
+A production C/C++ RTD implementation may eventually justify a sibling project such as `rtd-sensor-embedded`, with `rtd-sensor` remaining the Python reference implementation and conformance authority. Do not create that repository merely to satisfy an architectural diagram; decide after real embedded work establishes the required runtime API, compiler/toolchain support, selected-model build strategy, and release cadence.
+
 ## 14. Explicit non-goals for the first stable major release
 
 The first stable major release will not include:
@@ -707,10 +749,10 @@ The following decisions remain intentionally deferred:
 
 1. Alternate standardized platinum curves and historical `R0`, alpha, delta, beta coefficient notation.
 2. ITS-90 interpolation support for reference-grade calibrated PRTs.
-3. Covariance-aware uncertainty propagation, effective degrees of freedom, and Monte Carlo methods.
-4. Optional vectorized conversion support.
-5. Calibration-point fitting APIs and how fitted-coefficient covariance should
-   integrate with later uncertainty propagation.
+3. Covariance-aware uncertainty propagation, effective degrees of freedom, fitted-coefficient covariance, and Monte Carlo methods.
+4. The exact production embedded repository/API boundary after real MCU implementation experience exists.
+5. Whether generated C/C++ deployment artifacts or lookup tables provide enough demonstrated benefit to become maintained public outputs.
+6. A richer public calibration-certificate metadata schema beyond the provenance needed to reconstruct and audit a model.
 
 
 

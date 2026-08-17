@@ -48,19 +48,19 @@ Items 1 through 7 shipped in version 0.5.0 on 2026-08-16. Version 0.5.1 is a
 corrective documentation/release-process release and does not add roadmap feature
 scope. Feature development resumes with item 8 on the 0.6.0 line.
 
-The next planned feature release is **0.6.0**. Items 8 and 9 are its required roadmap
-milestone, with the release boundary immediately after item 9. Item 10 is
-ongoing, provenance-dependent built-in expansion: support-ready characteristics
-may land during the 0.6.0 cycle, but item 10 is not a blocker for the 0.6.0
-release. This explicit boundary is intentional so open-ended characteristic
-research cannot silently postpone a completed release milestone.
+The next planned feature release is **0.6.0**. Items 8 through 11 are its required
+roadmap milestone, with the release boundary immediately after item 11. Item 12
+is ongoing, provenance-dependent built-in expansion: support-ready
+characteristics may land during the 0.6.0 cycle, but item 12 is not a blocker for
+the 0.6.0 release. This explicit boundary is intentional so open-ended
+characteristic research cannot silently postpone a completed release milestone.
 
 ### Release boundaries
 
 - **0.5.0:** items 1–7; published 2026-08-16.
 - **0.5.1:** corrective documentation/release-process release; no new roadmap items.
-- **0.6.0:** items 8–9; stop after item 9 for release preparation and publication.
-- **Item 10:** may land when scientifically support-ready, but does not move the
+- **0.6.0:** items 8–11; stop after item 11 for release preparation and publication.
+- **Item 12:** may land when scientifically support-ready, but does not move the
   0.6.0 release boundary.
 
 When the final required item for a named release is complete, the next project
@@ -541,21 +541,33 @@ remains the first planned feature milestone on the 0.6.0 line.
 
 ### 8. Calibration fitting — planned for 0.6.0
 
-Implement the fitting work described under **Calibration and model fitting**
-after the public model interface is stable. A fit should produce a normal model
-object plus auditable fit results, retaining observations, residuals, RMS and
-maximum error, fitting range, weighting/uncertainty inputs, and reproducibility
-assumptions.
+Implement the fitting work described under **Calibration and model fitting**.
+Retain the observations and enough fit evidence to make the result auditable and
+reproducible. Portable reconstruction of the resulting model is handled
+separately by item 10.
 
-### 9. Batch and vector conversion conveniences — planned 0.6.0 release boundary
+### 9. Batch and vector conversion conveniences — planned for 0.6.0
 
-Add batch conversion only after the scalar model interface is stable. Prefer a
-small dependency-free iterable API first if it can be specified clearly. Do not
-make NumPy a mandatory runtime dependency for convenience; if acceleration later
-matters, consider an optional adapter/extra and verify scalar/batch numerical
-equivalence at boundaries.
+Add a small dependency-free batch conversion interface while keeping scalar
+conversion authoritative. Do not make NumPy a mandatory runtime dependency.
 
-### 10. Additional built-in RTD characteristics — ongoing, not a 0.6.0 blocker
+### 10. Portable configurable and fitted model definitions — planned for 0.6.0
+
+Define a stable, versioned, language-neutral representation from which supported
+configurable or fitted numerical models can be reconstructed without rerunning a
+fit. Keep deployable model definitions distinct from fit evidence and from
+conformance-only test fixtures while reusing existing model semantics where
+appropriate.
+
+### 11. Characterized-reference-resistance binary32 conformance — planned for 0.6.0
+
+Extend `binary32_compatible` conformance to the bounded characterized-reference-
+resistance case using independent real single-precision validation. This does
+not imply binary32 compatibility for arbitrary custom CVD, polynomial,
+piecewise-polynomial, or tabulated models. Consolidate downstream implementation
+guidance alongside this work.
+
+### 12. Additional built-in RTD characteristics — ongoing, not a 0.6.0 blocker
 
 Continue adding platinum, nickel, copper, or manufacturer-specific built-ins
 only when authoritative characteristic definitions and independent validation
@@ -730,10 +742,14 @@ The implemented table contract:
 
 ## Calibration and model fitting
 
-Later work may construct a characteristic from measured calibration points,
-but fitting must remain separate from simply *using* a published equation.
+Version 0.6.0 plans to construct characteristics from measured calibration
+points, but fitting must remain separate from simply *using* a published
+equation. The fit evidence and the portable numerical model definition are also
+separate outputs: consumers should be able to reconstruct a fitted model without
+rerunning the fit while still retaining the observations and diagnostics that
+justify it.
 
-Potential fitting capabilities:
+Planned fitting capabilities:
 
 - fit a user-selected polynomial degree from `(temperature, resistance)`
   observations;
@@ -792,13 +808,21 @@ language-neutral conformance contract above exists so an embedded implementation
 can reproduce the same conversion behavior without moving hardware concerns into
 this package.
 
-## Longer-term performance and convenience work
+## Longer-term performance, conformance, and convenience work
 
 Potential later additions include:
 
-- generated lookup tables for constrained systems;
+- empirically validated `binary32_compatible` profiles for custom CVD,
+  polynomial, and piecewise-polynomial model families, evaluated separately;
+- complete tabulated-model conformance representation and numerical acceptance;
+- generated lookup tables for constrained systems when profiling justifies them;
+- generated C/C++ deployment artifacts when real downstream use demonstrates
+  that they reduce duplication without coupling embedded build systems to this
+  repository;
+- a production embedded sibling implementation if actual MCU work shows that a
+  maintained C/C++ runtime library is useful;
 - alternative standardized platinum characteristics;
-- richer calibration-certificate metadata;
+- richer calibration-certificate metadata; and
 - diagnostic helpers for sensor/open/short plausibility when enough hardware
   context is available at the appropriate layer.
 
