@@ -44,27 +44,163 @@ should remain responsible for interpreting that resistance through an RTD model.
 Application code composes the two layers; neither package should duplicate the
 other layer's responsibilities.
 
-Items 1 through 7 shipped in version 0.5.0 on 2026-08-16. Version 0.5.1 is a
-corrective documentation/release-process release and does not add roadmap feature
-scope. Feature development resumes with item 8 on the 0.6.0 line.
+Items 1 through 7 shipped in version 0.5.0 on 2026-08-16. Version 0.5.1 was a
+corrective documentation/release-process release and did not add roadmap feature
+scope. Items 8 through 11 shipped in version 0.6.0 on 2026-08-17.
 
-Version **0.6.0** is in release preparation. Items 8 through 11 are complete,
-and the release boundary remains immediately after item 11. Item 12 is ongoing,
-provenance-dependent built-in expansion and is not a blocker for 0.6.0. This
-explicit boundary prevents open-ended characteristic research from silently
-postponing a completed release milestone.
+Item 12 remains an ongoing, provenance-dependent built-in expansion track rather
+than a release gate. New characteristics may land whenever their equations, source
+provenance, independent validation, range, and tests are support-ready.
 
 ### Release boundaries
 
 - **0.5.0:** items 1–7; published 2026-08-16.
-- **0.5.1:** corrective documentation/release-process release; no new roadmap items.
-- **0.6.0:** items 8–11; stop after item 11 for release preparation and publication.
-- **Item 12:** may land when scientifically support-ready, but does not move the
-  0.6.0 release boundary.
+- **0.5.1:** corrective documentation/release-process release; published 2026-08-16.
+- **0.6.0:** items 8–11; published 2026-08-17.
+- **0.7.0:** calibration and statistical foundation.
+- **0.8.0:** industrial measurement effects, including self-heating characterization
+  and zero-power correction.
+- **0.9.0:** calibration experiment design, tabulated interoperability completion,
+  and pre-1.0 API review.
+- **1.0.0:** stability release for the mature scientific, calibration, uncertainty,
+  portability, and interoperability interfaces.
+- **Item 12:** version-independent characteristic expansion; it does not move a
+  named release boundary.
 
 When the final required item for a named release is complete, the next project
 action is the release-readiness process in `docs/RELEASING.md`, not the next
 roadmap feature.
+
+## Road to 1.0
+
+Version 1.0 is not defined as "every plausible RTD feature is implemented." It is
+the point at which the project's core scientific interfaces and semantics are
+mature enough for an explicit long-term compatibility commitment. The planned
+sequence deliberately lets new calibration and metrology APIs mature before that
+commitment is made.
+
+Scientific and industrial claims introduced by these releases must remain
+traceable to primary standards, metrology guidance, calibration literature, or
+manufacturer documentation as appropriate. Relevant source material should be
+retained in the repository and cited in implementation/design documentation so a
+reader can reproduce the reasoning rather than relying on undocumented package
+convention.
+
+### 0.7.0 — calibration and statistical foundation
+
+Build on the 0.6.0 polynomial-fitting foundation so later metrology features can
+reason about fitted-model uncertainty rather than only fitted coefficients. Planned
+scope includes:
+
+- fit a characterized standard-model reference resistance from calibration
+  observations;
+- research and implement custom Callendar–Van Dusen parameter fitting where the
+  available observations make the requested parameters identifiable and the
+  assumptions are scientifically defensible;
+- retain coefficient covariance for supported fitted models and expose it as
+  auditable fit evidence;
+- propagate fitted-coefficient covariance into predicted resistance/temperature
+  uncertainty where the model and assumptions support it;
+- strengthen fit-quality and conditioning diagnostics needed by later calibration
+  planning;
+- define explicit handling and limitations for reference-temperature uncertainty
+  rather than silently treating uncertainty in the independent variable as
+  resistance uncertainty; and
+- extend application-neutral calibration provenance without merging fit evidence
+  into the portable deployable model definition.
+
+The 0.7.0 work must preserve the existing separation among calibration
+observations, fit evidence, the accepted numerical model, and any downstream
+deployment representation. A fitted curve must not acquire standards/manufacturer
+provenance that its source data do not justify.
+
+### 0.8.0 — self-heating characterization and zero-power correction
+
+Self-heating characterization is a required pre-1.0 feature. Resistance
+thermometry requires measurement current, and the resulting Joule heating can make
+the sensing element warmer than the environment being measured. The effect depends
+on both thermometer construction and the thermal environment, so it must not be
+modeled as an immutable property of an RTD characteristic alone.
+
+Planned scope includes:
+
+- observations containing measurement current and measured resistance under a
+  stable thermal condition;
+- two-current zero-power extrapolation, with support for additional observations
+  where a statistically justified fit versus dissipated power is useful;
+- explicit `zero_power_resistance_ohms` and corresponding zero-power temperature
+  through a supplied RTD model;
+- self-heating temperature rise at an observed/current operating point;
+- self-heating coefficient or dissipation constant when the observations and
+  environmental context justify reporting one;
+- auditable evidence, residuals/consistency checks, and uncertainty propagation;
+- optional non-behavioral context such as medium, flow condition, mounting, or
+  calibration setup without making those hardware/application details part of the
+  core RTD model identity; and
+- clear warnings when observations do not support a stable zero-power
+  extrapolation.
+
+The package will analyze supplied current/resistance observations. It will not
+control excitation current, ADCs, bridges, MAX31865 devices, or other acquisition
+hardware. Manufacturer self-heating coefficients may be represented as provenance
+or supporting information, but a generic correction must not assume that a value
+measured in one medium or mounting condition transfers unchanged to another.
+
+### 0.9.0 — calibration intelligence and pre-1.0 API freeze
+
+Use the fitting, covariance, and uncertainty foundation prospectively to help users
+design calibration experiments rather than only analyze completed calibrations. A
+first public calibration experiment designer should make its optimization objective
+explicit rather than claiming that one point set is universally "optimal."
+
+Planned capabilities include:
+
+- recommend calibration-point locations for a selected model family, operating
+  range, number of available points, and stated optimization criterion;
+- account for already measured calibration points and recommend a next-best point;
+- consider whether an additional distinct temperature or a repeated measurement at
+  an existing point better reduces the selected uncertainty criterion;
+- support user-prioritized operating intervals rather than assuming every
+  temperature in the range matters equally;
+- report expected conditioning and predicted fitted-curve uncertainty so the reason
+  for a recommendation is inspectable;
+- identify diminishing returns when additional calibration effort is unlikely to
+  improve the selected criterion materially; and
+- keep the output as a scientific experiment plan, not a controller for baths,
+  fixed-point cells, bridges, or other laboratory hardware.
+
+The initial experiment-design scope may be limited to polynomial models until the
+uncertainty and identifiability behavior of other fitting families is sufficiently
+well characterized. Published optimization criteria and their assumptions must be
+documented alongside the implementation.
+
+0.9.0 should also complete the currently deferred tabulated-model portable
+representation and conformance coverage, then perform a deliberate pre-1.0 review
+of the public model, fitting, uncertainty, portable-format, self-heating, and
+calibration-design interfaces. Interfaces found to be provisional should be revised
+or explicitly deferred before the 1.0 compatibility commitment.
+
+### 1.0.0 — stable scientific platform
+
+Version 1.0 should primarily be a stability release rather than another large
+feature drop. Its release gate should include:
+
+- explicit compatibility/deprecation policy for the public Python APIs;
+- stable semantics for supported model, fitting, uncertainty, self-heating, and
+  calibration-design results;
+- stable commitments for the portable model format and the language-neutral
+  conformance surfaces that are advertised as public contracts;
+- complete user/developer documentation for the supported pre-1.0 feature set,
+  including retained scientific/industrial sources and reproducible derivations;
+- examples that exercise the major public workflows from calibration observations
+  through validated/deployable models;
+- resolution, redesign, or explicit post-1.0 deferral of provisional APIs; and
+- the full project release-readiness process against the exact 1.0 release
+  candidate.
+
+Additional built-in RTD characteristics may continue to land before or after 1.0
+when they satisfy the package's provenance and validation policy; they are not part
+of the architectural definition of 1.0 readiness.
 
 ### 1. Public RTD model protocol — implemented foundation
 
@@ -582,7 +718,7 @@ custom CVD, polynomial, piecewise-polynomial, or tabulated models. Downstream
 implementation guidance is consolidated in
 `docs/CROSS_LANGUAGE_IMPLEMENTATIONS.md`.
 
-### 12. Additional built-in RTD characteristics — ongoing, not a 0.6.0 blocker
+### 12. Additional built-in RTD characteristics — ongoing, version-independent
 
 Continue adding platinum, nickel, copper, or manufacturer-specific built-ins
 only when authoritative characteristic definitions and independent validation
@@ -778,7 +914,8 @@ Implemented fitting capabilities:
   validation over the complete fitted range;
 - prohibit silent extrapolation beyond the observed calibration span in the
   initial fitting API; and
-- support covariance of fitted coefficients in a later uncertainty layer.
+- support covariance of fitted coefficients in the planned 0.7.0 calibration and
+  statistical foundation.
 
 The detailed failure semantics, batch API contract, and portable-format decision
 are normative design material in `DESIGN.md` rather than duplicated here. A fitted
@@ -828,23 +965,139 @@ language-neutral conformance contract above exists so an embedded implementation
 can reproduce the same conversion behavior without moving hardware concerns into
 this package.
 
-## Longer-term performance, conformance, and convenience work
+## Post-1.0 feature ideas
 
-Potential later additions include:
+These ideas are deliberately outside the 1.0 release gate unless a later roadmap
+revision explicitly moves one forward. Recording them now preserves the design
+intent without allowing them to expand the pre-1.0 scope.
 
-- empirically validated `binary32_compatible` profiles for custom CVD,
-  polynomial, and piecewise-polynomial model families, evaluated separately;
-- complete tabulated-model conformance representation and numerical acceptance;
-- generated lookup tables for constrained systems when profiling justifies them;
-- generated C/C++ deployment artifacts when real downstream use demonstrates
-  that they reduce duplication without coupling embedded build systems to this
-  repository;
-- a production embedded sibling implementation if actual MCU work shows that a
-  maintained C/C++ runtime library is useful;
-- alternative standardized platinum characteristics;
-- richer calibration-certificate metadata; and
-- diagnostic helpers for sensor/open/short plausibility when enough hardware
-  context is available at the appropriate layer.
+### Calibration drift and stability analysis
+
+Compare successive calibration results for the same physical thermometer and
+distinguish changes that are meaningful relative to the retained calibration and
+measurement uncertainty. Potential outputs include:
+
+- change in characterized reference resistance versus change in curve shape;
+- maximum temperature-equivalent drift over a declared operating range;
+- localized versus systematic drift;
+- uncertainty-aware significance of observed changes;
+- hysteresis/thermal-cycle comparisons when the observation protocol supports
+  them; and
+- retained calibration history without making physical asset identity part of an
+  RTD mathematical model.
+
+### RTD replacement and interchangeability analysis
+
+Compare an existing and candidate replacement model across an operating range and
+answer application-neutral questions such as where they disagree most and whether
+they remain within a caller-defined temperature-equivalent limit. Future work may
+include uncertainty-aware equivalence when both models have calibration evidence.
+This feature should compare scientific models; inventory, maintenance scheduling,
+and process-control decisions remain downstream concerns.
+
+### Advanced uncertainty methods
+
+Potential additions include effective degrees of freedom, expanded-uncertainty
+helpers, Monte Carlo propagation, nonlinear-distribution propagation, and richer
+covariance handling. These should follow the applicable JCGM/GUM guidance rather
+than introducing package-specific statistical terminology.
+
+### Broader binary32 custom-model profiles
+
+Investigate empirically validated `binary32_compatible` profiles for custom CVD,
+polynomial, piecewise-polynomial, and eventually tabulated model families. Each
+family requires its own conditioning/range study and independently exercised
+single-precision path; the characterized-R0 result from 0.6.0 must not be
+generalized without evidence.
+
+### Embedded and generated deployment ecosystem
+
+Potential additions include generated C headers/C++ `constexpr` definitions,
+compact selected-model data, and lookup tables for constrained systems when real
+profiling justifies them. A maintained production C/C++ embedded sibling project
+may be created if downstream MCU work shows that a dedicated runtime API is useful.
+The Python package should remain free of hardware-driver and embedded-build-system
+concerns.
+
+### Rich calibration-certificate and provenance metadata
+
+A later metadata layer may retain certificate identifiers, laboratories, dates,
+reference standards, calibration methods, ranges, uncertainty statements, source
+precision, and related traceability information. It should remain separable from
+the numerical model so deployment formats do not require full certificate records.
+
+### Public model registration and plugin mechanisms
+
+A public registration mechanism remains deferred. Verified package built-ins and
+arbitrary user-defined models have different provenance/support guarantees, and a
+future plugin design must preserve that distinction rather than making registration
+look equivalent to package verification.
+
+### Diagnostics with sufficient acquisition context
+
+Sensor/open/short plausibility helpers may be useful when the caller can supply
+enough acquisition context to make the inference scientifically defensible. Raw
+ADC faults, wiring topology, converter-register interpretation, and hardware safety
+logic remain outside this package.
+
+### Reference-grade interpolation research
+
+ITS-90/reference-thermometry interpolation or related high-accuracy features may be
+investigated after 1.0. They should enter this package only if their scientific
+scope fits a general RTD modeling library and can be supported without confusing
+industrial RTD conversion with the realization of a temperature scale.
+
+## Scientific and industrial source set for 0.7.0–1.0 planning
+
+These sources are retained as research anchors for the planned calibration,
+self-heating, uncertainty, drift, and calibration-design work. They do not by
+themselves define an API or prove that a proposed algorithm is correct. Each
+implementation should cite the specific sections, equations, assumptions, and
+independent validation used when the feature is designed and tested.
+
+- BIPM/CCT, *Guide on Secondary Thermometry: Industrial Platinum Resistance
+  Thermometers*. Sections on self-heating, hysteresis, reproducibility, long-term
+  stability, calibration, and uncertainty are especially relevant:
+  https://www.bipm.org/en/committees/cc/cct/guides-to-thermometry
+  https://www.nist.gov/publications/guide-secondary-thermometry-industrial-platinum-resistance-thermometers
+- BIPM/CCT, *Guide to the Realization of the ITS-90: Platinum Resistance
+  Thermometry*. Retain for resistance-thermometry measurement-current and
+  self-heating methodology, including two-current zero-power extrapolation:
+  https://www.bipm.org/en/committees/cc/cct/guides-to-thermometry
+- JCGM 100:2008, *Evaluation of measurement data — Guide to the expression of
+  uncertainty in measurement*, and the JCGM uncertainty supplements. Use these as
+  the primary vocabulary/methodology source for covariance and later advanced
+  uncertainty work:
+  https://www.bipm.org/en/committees/jc/jcgm/publications
+- NIST, *Industrial Thermometer Calibrations*, for current industrial calibration
+  ranges, comparison methods, and published calibration uncertainties:
+  https://www.nist.gov/pml/sensor-science/thermodynamic-metrology/industrial-thermometer-calibrations
+- Strouse, Mangum, Vaughn, and Xu, *A New NIST Automated Calibration System for
+  Industrial-Grade Platinum Resistance Thermometers*, NISTIR 6225, for industrial
+  comparison-calibration practice and uncertainty considerations:
+  https://www.nist.gov/publications/new-nist-automated-calibration-system-industrial-grade-platinum-resistance-thermometers
+- ASTM E1137/E1137M, *Standard Specification for Industrial Platinum Resistance
+  Thermometers*. Retain as an industrial source for PRT performance/qualification
+  concepts including self-heating and stability; implementation must use the
+  edition actually consulted:
+  https://store.astm.org/e1137_e1137m-08r20.html
+- Betta and Dell'Isola, *Optimum choice of measurement points for sensor
+  calibration*, Measurement 17(2), 1996, 115–125. Retain for calibration
+  experiment-design research concerning point location, number of points, and
+  repetitions versus fitted-curve uncertainty:
+  https://doi.org/10.1016/0263-2241(96)00019-X
+- Minor and Strouse, *Stabilization of SPRTs for ITS-90 Calibrations*, for
+  calibration stability/measurement-assurance concepts relevant to later drift
+  analysis:
+  https://www.nist.gov/publications/stabilization-sprts-its-90-calibrations
+- Mangum, *Platinum Resistance Thermometer Calibrations*, NBS Special Publication
+  250-22, retained as historical NIST calibration-method documentation:
+  https://www.nist.gov/publications/platinum-resistance-thermometer-calibrations
+
+When sources disagree or use different measurement contexts, preserve the
+difference and determine whether they describe different measurands, thermometer
+classes, calibration methods, or operating environments rather than averaging or
+silently reconciling them.
 
 ## Nickel research source set to retain
 
