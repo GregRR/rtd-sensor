@@ -72,7 +72,24 @@ https://doi.org/10.59161/JCGM100-2008E
 
 **Project use:** Implementation basis for measurement-uncertainty terminology,
 standard uncertainty, first-order propagation, combination of independent
-components, and expanded uncertainty.
+components, and expanded uncertainty. Appendix H.3 is the implementation basis
+for the least-squares thermometer-calibration treatment used in v0.7.0,
+including fitted-parameter variance/covariance, residual degrees of freedom, and
+the distinction between residual-derived variance and independently established
+measurement variance.
+
+Heckert, N. A., Filliben, J. J., Croarkin, C. M., Hembree, B., Guthrie, W. F.,
+Tobias, P., & Prinz, J. (2002). *Handbook 151: NIST/SEMATECH e-Handbook of
+Statistical Methods*. National Institute of Standards and Technology.
+https://www.nist.gov/publications/handbook-151-nistsematech-e-handbook-statistical-methods
+
+Relevant section: 4.1.4.3, *Weighted least squares regression*.
+https://www.itl.nist.gov/div898/handbook/pmd/section1/pmd143.htm
+
+**Project use:** Corroborating/design source for weighted least squares and
+inverse-variance weighting when observation variances differ. Section 4.1.4.3
+explicitly describes weighting observations inversely to their variances when
+random-error variance is not constant.
 
 Taylor, B. N., & Kuyatt, C. E. (1994). *Guidelines for evaluating and
 expressing the uncertainty of NIST measurement results* (NIST Technical Note

@@ -92,6 +92,7 @@ print(fit.evidence.max_absolute_residual_ohms)
 - unweighted RMS and maximum absolute residual;
 - weighting method and normalized effective weights when used;
 - weighted residual diagnostics when applicable;
+- fitted-parameter covariance when the statistical basis supports it;
 - scaled-system conditioning diagnostic;
 - solver and scaling information.
 
@@ -136,6 +137,36 @@ observations = (
 These values are converted to normalized inverse-variance weights. Temperature
 is treated as the independent variable; this fitter does not model uncertainty
 in the temperature coordinate.
+
+## Fitted-parameter covariance
+
+In 0.7.0, both IEC `R0` and polynomial fitting retain parameter covariance when
+the regression assumptions provide enough information to estimate it:
+
+```python
+covariance = fit.evidence.parameter_covariance
+if covariance is not None:
+    print(covariance.parameter_names)
+    print(covariance.covariance_matrix)
+```
+
+For an unweighted fit, or one using only relative weights, the overall residual
+variance is not supplied externally. The fitter estimates that scale from residual
+scatter and residual degrees of freedom. A saturated fit therefore cannot report
+parameter covariance from those data alone; the evidence records the reason instead
+of returning a zero matrix just because the fitted curve passes through every point.
+
+When every observation supplies `standard_uncertainty_ohms`, those values have an
+absolute physical scale. Under the fit assumptions they define the parameter
+covariance directly, so covariance can remain available even when residual degrees
+of freedom are zero. The observed residuals remain a separate diagnostic and do not
+silently rescale the supplied uncertainties.
+
+Polynomial covariance is reported for the resistance-space power series at the
+returned model's reference temperature: `R(T) = a0 + a1*x + a2*x² + ...`. This is
+fit evidence, not additional state embedded into the portable model. Covariance
+propagation into predicted resistance/temperature uncertainty is a later 0.7.0
+step.
 
 ## Fit range
 

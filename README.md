@@ -8,7 +8,7 @@ characteristics.
 
 Beyond basic conversion, the library supports configurable Callendar–Van Dusen
 models for traceable coefficient sets; generic polynomial, piecewise-polynomial, and
-table-backed custom characteristics; dependency-free polynomial calibration fitting
+table-backed custom characteristics; dependency-free calibration fitting with auditable parameter covariance
 and batch conversion; versioned portable model definitions; IEC 60751 platinum
 tolerance calculations; measurement uncertainty; simulation; built-in model
 discovery; hardware-neutral measurement composition; and stable language-neutral
@@ -302,9 +302,9 @@ model = fit.model
 print(fit.evidence.rms_residual_ohms)
 ```
 
-The fit result deliberately keeps the validated numerical model separate from the evidence supporting it. Evidence retains the original observations, per-point resistance residuals, RMS and maximum absolute residual error, fitting range, solver/scaling information, a conditioning diagnostic, and observation/parameter/residual-degree-of-freedom counts. Repeated temperatures are retained as independent observations rather than silently averaged. The reported RMS is a descriptive root mean square over the observations, not a degrees-of-freedom-adjusted uncertainty estimate; a nearly saturated fit can therefore have very small residuals without demonstrating predictive quality.
+The fit result deliberately keeps the validated numerical model separate from the evidence supporting it. Evidence retains the original observations, per-point resistance residuals, RMS and maximum absolute residual error, fitting range, solver/scaling information, a conditioning diagnostic, observation/parameter/residual-degree-of-freedom counts, and fitted-parameter covariance when the statistical basis supports it. Repeated temperatures are retained as independent observations rather than silently averaged. The reported RMS is a descriptive root mean square over the observations, not a degrees-of-freedom-adjusted uncertainty estimate; a nearly saturated fit can therefore have very small residuals without demonstrating predictive quality.
 
-Weighted least squares may use either a positive relative `weight` on every observation or a positive `standard_uncertainty_ohms` on every observation. Resistance standard uncertainties are converted to normalized inverse-variance weights; temperature is treated as the independent variable, so this initial fitter does not model temperature uncertainty. A caller may narrow the fitted model's validity range inside the observed calibration span, but the API does not silently extrapolate beyond that span. Rank-deficient, severely ill-conditioned, non-positive, or non-monotonic fitted curves raise `RTDFitError` instead of returning a deployable model.
+Weighted least squares may use either a positive relative `weight` on every observation or a positive `standard_uncertainty_ohms` on every observation. Resistance standard uncertainties are converted to normalized inverse-variance weights; temperature is treated as the independent variable, so this initial fitter does not model temperature uncertainty. Absolute resistance standard uncertainties define parameter covariance directly under the fit assumptions, including for saturated fits. Unweighted and relative-weighted fits instead estimate the unknown common residual scale from residual scatter, so covariance is unavailable when residual degrees of freedom are zero. A caller may narrow the fitted model's validity range inside the observed calibration span, but the API does not silently extrapolate beyond that span. Rank-deficient, severely ill-conditioned, non-positive, or non-monotonic fitted curves raise `RTDFitError` instead of returning a deployable model.
 
 ## Portable model definitions
 

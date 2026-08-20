@@ -25,6 +25,7 @@ __all__ = [
     "CalibrationObservation",
     "IEC60751R0FitEvidence",
     "IEC60751R0FitResult",
+    "FitParameterCovariance",
     "PolynomialFitEvidence",
     "PolynomialFitResult",
     "fit_iec60751_r0",
@@ -38,6 +39,18 @@ _WeightingMethod = Literal[
     "unweighted",
     "normalized_explicit_weights",
     "normalized_inverse_variance_from_standard_uncertainty",
+]
+_CovarianceEstimationMethod = Literal[
+    "residual_variance_scaled_least_squares",
+    "resistance_standard_uncertainties",
+]
+_CovarianceParameterization = Literal[
+    "r0_ohms",
+    "resistance_power_series_at_model_reference_temperature",
+]
+_CovarianceUnavailableReason = Literal[
+    "residual_variance_requires_positive_degrees_of_freedom",
+    "covariance_not_finitely_representable",
 ]
 
 
@@ -104,6 +117,29 @@ class CalibrationObservation:
 
 
 @dataclass(frozen=True, slots=True)
+class FitParameterCovariance:
+    """Covariance matrix for parameters estimated by one fitting operation.
+
+    ``covariance_matrix`` follows ``parameter_names`` in both dimensions. For
+    polynomial fits the parameterization is the unnormalized resistance power
+    series at the returned model's reference temperature,
+    ``R(T) = a0 + a1*x + ...``. This is intentionally fit evidence rather than
+    part of the deployable model definition.
+
+    ``residual_variance_scaled_least_squares`` means the unknown common residual
+    variance scale was estimated from the fit residuals and residual degrees of
+    freedom. ``resistance_standard_uncertainties`` means absolute, independent
+    resistance standard uncertainties supplied on every observation defined the
+    covariance directly; residual scatter does not rescale that covariance.
+    """
+
+    parameter_names: tuple[str, ...]
+    covariance_matrix: tuple[tuple[float, ...], ...]
+    estimation_method: _CovarianceEstimationMethod
+    parameterization: _CovarianceParameterization
+
+
+@dataclass(frozen=True, slots=True)
 class IEC60751R0FitEvidence:
     """Immutable observations and diagnostics supporting an IEC R0 fit.
 
@@ -118,7 +154,10 @@ class IEC60751R0FitEvidence:
     The observation span is retained separately from the model's declared
     validity range because a caller may have independent justification for an
     applicability interval that is broader, narrower, or disjoint from the
-    temperatures used to characterize ``R0``.
+    temperatures used to characterize ``R0``. Parameter covariance is retained
+    when its statistical scale is defined. Unweighted and relative-weighted
+    zero-DOF fits record why covariance is unavailable; absolute resistance
+    standard uncertainties can define covariance even at zero residual DOF.
     """
 
     observations: tuple[CalibrationObservation, ...]
@@ -136,6 +175,8 @@ class IEC60751R0FitEvidence:
     effective_weights: tuple[float, ...] | None
     weighted_sum_squared_residual: float | None
     weighted_rms_residual_ohms: float | None
+    parameter_covariance: FitParameterCovariance | None
+    parameter_covariance_unavailable_reason: _CovarianceUnavailableReason | None
     solver: str
 
 
@@ -160,6 +201,11 @@ class PolynomialFitEvidence:
     are populated only when the observations use an explicit weighting convention.
     Effective weights are normalized so the largest weight is 1.0; this preserves
     the least-squares objective while avoiding arbitrary overall weight scale.
+    Parameter covariance is retained in the unnormalized resistance power-series
+    basis at the returned model's reference temperature. Unweighted and relative-
+    weighted fits estimate the common variance scale from residuals and therefore
+    require positive residual degrees of freedom; absolute resistance standard
+    uncertainties define covariance directly.
     """
 
     observations: tuple[CalibrationObservation, ...]
@@ -176,6 +222,8 @@ class PolynomialFitEvidence:
     effective_weights: tuple[float, ...] | None
     weighted_sum_squared_residual: float | None
     weighted_rms_residual_ohms: float | None
+    parameter_covariance: FitParameterCovariance | None
+    parameter_covariance_unavailable_reason: _CovarianceUnavailableReason | None
     scaled_system_condition_number: float
     scaled_system_condition_limit: float
     conditioning_method: str
@@ -265,7 +313,7 @@ def _effective_weights(
 def _householder_least_squares(
     matrix: list[list[float]],
     vector: list[float],
-) -> tuple[tuple[float, ...], float]:
+) -> tuple[tuple[float, ...], float, tuple[tuple[float, ...], ...]]:
     row_count = len(matrix)
     column_count = len(matrix[0])
     transformed = [row[:] for row in matrix]
@@ -319,7 +367,11 @@ def _householder_least_squares(
     coefficients = _back_substitute(upper, rhs[:column_count])
     if not all(math.isfinite(value) for value in coefficients):
         raise RTDFitError("Polynomial fit produced non-finite coefficients")
-    return tuple(coefficients), condition_number
+    return (
+        tuple(coefficients),
+        condition_number,
+        tuple(tuple(value for value in row) for row in upper),
+    )
 
 
 def _back_substitute(
@@ -337,6 +389,137 @@ def _back_substitute(
         )
         solution[row] = (rhs[row] - remainder) / diagonal
     return solution
+
+
+def _upper_triangular_information_inverse(
+    upper: tuple[tuple[float, ...], ...],
+) -> tuple[tuple[float, ...], ...]:
+    """Return ``(R.T @ R)^-1`` for a nonsingular upper-triangular ``R``."""
+
+    upper_lists = [list(row) for row in upper]
+    size = len(upper_lists)
+    inverse_columns: list[list[float]] = []
+    for column in range(size):
+        rhs = [0.0] * size
+        rhs[column] = 1.0
+        inverse_columns.append(_back_substitute(upper_lists, rhs))
+
+    # (R.T R)^-1 = R^-1 R^-T. ``inverse_columns`` stores columns of R^-1.
+    return tuple(
+        tuple(
+            math.fsum(
+                inverse_columns[column][row] * inverse_columns[column][other_row]
+                for column in range(size)
+            )
+            for other_row in range(size)
+        )
+        for row in range(size)
+    )
+
+
+def _scale_covariance_matrix(
+    matrix: tuple[tuple[float, ...], ...],
+    scale: float,
+) -> tuple[tuple[float, ...], ...]:
+    return tuple(tuple(scale * value for value in row) for row in matrix)
+
+
+def _transform_covariance_matrix(
+    covariance: tuple[tuple[float, ...], ...],
+    transform: tuple[tuple[float, ...], ...],
+) -> tuple[tuple[float, ...], ...]:
+    """Return ``transform @ covariance @ transform.T``."""
+
+    size = len(covariance)
+    return tuple(
+        tuple(
+            math.fsum(
+                transform[row][left]
+                * covariance[left][right]
+                * transform[other_row][right]
+                for left in range(size)
+                for right in range(size)
+            )
+            for other_row in range(size)
+        )
+        for row in range(size)
+    )
+
+
+def _covariance_scale_and_method(
+    observations: tuple[CalibrationObservation, ...],
+    *,
+    weighting_method: _WeightingMethod,
+    residuals_ohms: tuple[float, ...],
+    effective_weights: tuple[float, ...] | None,
+    residual_degrees_of_freedom: int,
+) -> tuple[
+    float | None,
+    _CovarianceEstimationMethod | None,
+    _CovarianceUnavailableReason | None,
+]:
+    if weighting_method == "normalized_inverse_variance_from_standard_uncertainty":
+        uncertainties = tuple(
+            observation.standard_uncertainty_ohms for observation in observations
+        )
+        assert all(uncertainty is not None for uncertainty in uncertainties)
+        minimum_uncertainty = min(
+            uncertainty for uncertainty in uncertainties if uncertainty is not None
+        )
+        covariance_scale = minimum_uncertainty * minimum_uncertainty
+        if not math.isfinite(covariance_scale) or covariance_scale <= 0.0:
+            return (None, None, "covariance_not_finitely_representable")
+        return (
+            covariance_scale,
+            "resistance_standard_uncertainties",
+            None,
+        )
+
+    if residual_degrees_of_freedom <= 0:
+        return (
+            None,
+            None,
+            "residual_variance_requires_positive_degrees_of_freedom",
+        )
+
+    if effective_weights is None:
+        sum_squared_residual = math.fsum(
+            residual * residual for residual in residuals_ohms
+        )
+    else:
+        sum_squared_residual = math.fsum(
+            weight * residual * residual
+            for weight, residual in zip(effective_weights, residuals_ohms, strict=True)
+        )
+    return (
+        sum_squared_residual / residual_degrees_of_freedom,
+        "residual_variance_scaled_least_squares",
+        None,
+    )
+
+
+def _shift_scaled_polynomial_transform(
+    coefficient_count: int,
+    *,
+    scaled_center_c: float,
+    scaled_half_range_c: float,
+    reference_temperature_c: float,
+) -> tuple[tuple[float, ...], ...]:
+    alpha = (reference_temperature_c - scaled_center_c) / scaled_half_range_c
+    beta = 1.0 / scaled_half_range_c
+    return tuple(
+        tuple(
+            (
+                math.comb(scaled_power, shifted_power)
+                * alpha ** (scaled_power - shifted_power)
+                * beta**shifted_power
+                if scaled_power >= shifted_power
+                else 0.0
+            )
+            for scaled_power in range(coefficient_count)
+        )
+        for shifted_power in range(coefficient_count)
+    )
 
 
 def _upper_triangular_condition_inf(upper: list[list[float]]) -> float:
@@ -536,12 +719,36 @@ def fit_iec60751_r0(
             weighted_sum_squared_residual / total_weight
         )
 
+    residual_degrees_of_freedom = len(observation_tuple) - 1
+    covariance_scale, covariance_method, covariance_unavailable_reason = (
+        _covariance_scale_and_method(
+            observation_tuple,
+            weighting_method=weighting_method,
+            residuals_ohms=residuals,
+            effective_weights=effective_weights,
+            residual_degrees_of_freedom=residual_degrees_of_freedom,
+        )
+    )
+    parameter_covariance: FitParameterCovariance | None = None
+    if covariance_scale is not None:
+        assert covariance_method is not None
+        variance_r0 = covariance_scale / denominator
+        if not math.isfinite(variance_r0) or variance_r0 < 0.0:
+            covariance_unavailable_reason = "covariance_not_finitely_representable"
+        else:
+            parameter_covariance = FitParameterCovariance(
+                parameter_names=("r0_ohms",),
+                covariance_matrix=((variance_r0,),),
+                estimation_method=covariance_method,
+                parameterization="r0_ohms",
+            )
+
     evidence = IEC60751R0FitEvidence(
         observations=observation_tuple,
         residuals_ohms=residuals,
         observation_count=len(observation_tuple),
         fitted_parameter_count=1,
-        residual_degrees_of_freedom=len(observation_tuple) - 1,
+        residual_degrees_of_freedom=residual_degrees_of_freedom,
         observation_minimum_temperature_c=observed_minimum_c,
         observation_maximum_temperature_c=observed_maximum_c,
         minimum_temperature_c=minimum_c,
@@ -552,6 +759,8 @@ def fit_iec60751_r0(
         effective_weights=effective_weights,
         weighted_sum_squared_residual=weighted_sum_squared_residual,
         weighted_rms_residual_ohms=weighted_rms_residual_ohms,
+        parameter_covariance=parameter_covariance,
+        parameter_covariance_unavailable_reason=covariance_unavailable_reason,
         solver="closed_form_single_parameter_least_squares",
     )
     return IEC60751R0FitResult(model=model, evidence=evidence)
@@ -657,7 +866,7 @@ def fit_polynomial(
         matrix.append([value * row_scale for value in row])
         vector.append(observation.resistance_ohms * row_scale)
 
-    scaled_coefficients, condition_number = _householder_least_squares(
+    scaled_coefficients, condition_number, upper = _householder_least_squares(
         matrix,
         vector,
     )
@@ -722,13 +931,73 @@ def fit_polynomial(
             weighted_sum_squared_residual / total_weight
         )
 
+    residual_degrees_of_freedom = len(observation_tuple) - (degree + 1)
+    covariance_scale, covariance_method, covariance_unavailable_reason = (
+        _covariance_scale_and_method(
+            observation_tuple,
+            weighting_method=weighting_method,
+            residuals_ohms=residuals,
+            effective_weights=effective_weights,
+            residual_degrees_of_freedom=residual_degrees_of_freedom,
+        )
+    )
+    parameter_covariance: FitParameterCovariance | None = None
+    if covariance_scale is not None:
+        assert covariance_method is not None
+        try:
+            scaled_information_inverse = _upper_triangular_information_inverse(upper)
+            scaled_covariance = _scale_covariance_matrix(
+                scaled_information_inverse, covariance_scale
+            )
+            transform = _shift_scaled_polynomial_transform(
+                len(scaled_coefficients),
+                scaled_center_c=scaled_center_c,
+                scaled_half_range_c=scaled_half_range_c,
+                reference_temperature_c=reference_temperature_c,
+            )
+            transformed_covariance = _transform_covariance_matrix(
+                scaled_covariance, transform
+            )
+            model_basis_covariance = tuple(
+                tuple(
+                    0.5 * transformed_covariance[row][column]
+                    + 0.5 * transformed_covariance[column][row]
+                    for column in range(len(transformed_covariance))
+                )
+                for row in range(len(transformed_covariance))
+            )
+        except (OverflowError, ValueError):
+            model_basis_covariance = ()
+        if (
+            not model_basis_covariance
+            or not all(
+                math.isfinite(value) for row in model_basis_covariance for value in row
+            )
+            or not all(
+                model_basis_covariance[index][index] >= 0.0
+                for index in range(len(model_basis_covariance))
+            )
+        ):
+            covariance_unavailable_reason = "covariance_not_finitely_representable"
+        else:
+            parameter_covariance = FitParameterCovariance(
+                parameter_names=tuple(
+                    f"a{power}" for power in range(len(scaled_coefficients))
+                ),
+                covariance_matrix=model_basis_covariance,
+                estimation_method=covariance_method,
+                parameterization=(
+                    "resistance_power_series_at_model_reference_temperature"
+                ),
+            )
+
     evidence = PolynomialFitEvidence(
         observations=observation_tuple,
         residuals_ohms=residuals,
         degree=degree,
         observation_count=len(observation_tuple),
         fitted_parameter_count=degree + 1,
-        residual_degrees_of_freedom=len(observation_tuple) - (degree + 1),
+        residual_degrees_of_freedom=residual_degrees_of_freedom,
         minimum_temperature_c=minimum_c,
         maximum_temperature_c=maximum_c,
         rms_residual_ohms=rms_residual_ohms,
@@ -737,6 +1006,8 @@ def fit_polynomial(
         effective_weights=effective_weights,
         weighted_sum_squared_residual=weighted_sum_squared_residual,
         weighted_rms_residual_ohms=weighted_rms_residual_ohms,
+        parameter_covariance=parameter_covariance,
+        parameter_covariance_unavailable_reason=covariance_unavailable_reason,
         scaled_system_condition_number=condition_number,
         scaled_system_condition_limit=_MAX_SCALED_SYSTEM_CONDITION_NUMBER,
         conditioning_method=_CONDITIONING_METHOD,

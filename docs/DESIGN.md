@@ -634,7 +634,7 @@ claim that a calibration observation exists at that exact temperature.
 
 #### 0.7.0 characterized-reference-resistance fitting
 
-The first 0.7.0 fitting tranche estimates only `R0` while holding the verified
+The first 0.7.0 fitting milestone estimates only `R0` while holding the verified
 IEC 60751 PT-385 normalized characteristic fixed. The public entry point is
 `rtd_sensor.fitting.fit_iec60751_r0()`. For observations `(T_i, R_i)`, the
 model is linear in the single fitted parameter:
@@ -648,7 +648,7 @@ The fitter therefore uses the closed-form one-parameter least-squares solution
 rather than introducing a second numerical optimizer. Explicit relative weights
 and resistance standard uncertainties use the same normalized weighting
 conventions as `fit_polynomial()`. Temperature remains the independent variable;
-this tranche does not reinterpret reference-temperature uncertainty as resistance
+this milestone does not reinterpret reference-temperature uncertainty as resistance
 uncertainty or implement an errors-in-variables fit.
 
 The result must reuse `IEC60751RTDModel`; fitting `R0` does not create a parallel
@@ -677,10 +677,61 @@ IEC characteristic and resistance-residual model. It does not establish IEC
 tolerance-class conformance, physical sensor accuracy, or calibration validity
 outside what the retained evidence and caller-declared range justify.
 
-Coefficient/parameter covariance is intentionally not folded into this first
-implementation slice. Retaining and propagating fitted-parameter covariance
-remains a required 0.7.0 follow-up and should build on this evidence/result
-separation rather than changing the deployable model definition.
+#### 0.7.0 fitted-parameter covariance
+
+Fitted-parameter covariance is retained as **fit evidence**, never as part of the
+portable deployable model definition. The covariance contract follows the
+least-squares assumptions already made by the fitting API: resistance is the
+error coordinate being minimized, calibration temperatures are treated as exact
+independent-variable values for this milestone, and observation errors are treated
+as independent unless a later API explicitly represents correlation.
+
+The covariance scale depends on what the observations actually provide:
+
+* for unweighted fits and fits using caller-supplied **relative** weights, the
+  common residual-variance scale is unknown and is estimated from the weighted or
+  unweighted residual sum of squares divided by the residual degrees of freedom;
+  covariance is therefore unavailable when residual degrees of freedom are zero;
+* when every observation supplies an absolute resistance
+  `standard_uncertainty_ohms`, those values define inverse-variance weights with
+  physical scale. Parameter covariance is then obtained from the inverse weighted
+  information matrix without rescaling it by the observed residual scatter, and it
+  remains available for a saturated fit. A poor weighted residual diagnostic is
+  still evidence of model/data inconsistency; it does not silently inflate or
+  redefine the supplied measurement uncertainties.
+
+For the one-parameter IEC fit, the covariance parameterization is simply `R0` in
+ohms. Polynomial fitting solves in its numerically scaled power basis, but the
+retained covariance is linearly transformed to an unnormalized resistance power
+series at the **returned model's reference temperature**:
+
+```text
+R(T) = a0 + a1*x + a2*x^2 + ...
+x = T - reference_temperature_c
+```
+
+Here `a0` is the returned model's `reference_resistance_ohms`, and for `k >= 1`,
+`a_k = reference_resistance_ohms * model.coefficients[k - 1]`. Retaining covariance
+in this linear resistance-space parameterization avoids implying that the
+normalized deployable coefficients were independently fitted and gives later
+prediction-uncertainty propagation a direct sensitivity vector `(1, x, x^2, ...)`.
+
+The covariance object records its parameter names, matrix, parameterization, and
+estimation method. The enclosing fit evidence records an explicit reason when
+covariance is unavailable, including zero residual degrees of freedom when a
+residual scale must be estimated or a covariance result that is numerically invalid
+(for example, non-finite entries or a negative diagonal variance from floating-point
+arithmetic). Parameter covariance is not itself a complete sensor or
+measurement uncertainty budget: it represents uncertainty associated with the
+fitted parameters under the stated regression assumptions and does not include
+reference-temperature uncertainty, systematic calibration effects, sensor drift,
+or other components unless they are represented separately by a later model.
+
+This implementation follows the least-squares calibration variance/covariance
+treatment in JCGM 100:2008 Appendix H.3, with the NIST/SEMATECH Engineering
+Statistics Handbook section 4.1.4.3 retained as corroboration for weighted least
+squares and inverse-variance weighting. Propagating this covariance into predicted
+resistance and temperature uncertainty remains the next 0.7.0 milestone.
 
 #### Portable model-definition format decision
 

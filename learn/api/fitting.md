@@ -65,7 +65,35 @@ evidence: IEC60751R0FitEvidence
 
 Key fields include observations, resistance residuals, counts/degrees of freedom,
 observation span, declared model range, RMS/max residuals, weighting diagnostics,
-and the fitting method.
+fitted-parameter covariance when available, and the fitting method.
+
+## `FitParameterCovariance`
+
+**Planned for:** rtd-sensor 0.7.0
+
+Immutable fit evidence describing a fitted-parameter covariance matrix. Key fields:
+
+```text
+parameter_names: tuple[str, ...]
+covariance_matrix: tuple[tuple[float, ...], ...]
+estimation_method: str
+parameterization: str
+```
+
+For an IEC `R0` fit the single parameter is `r0_ohms`. For polynomial fits the
+parameterization is the unnormalized resistance power series at the returned
+model's reference temperature, with parameter names `a0`, `a1`, and so on. `a0`
+equals the model reference resistance; higher `a` values are the corresponding
+resistance-space coefficients rather than the model's normalized coefficients.
+
+Unweighted and relative-weighted fits require positive residual degrees of freedom
+to estimate the common residual-variance scale. When covariance cannot be estimated
+for that reason, `parameter_covariance` is `None` and the fit evidence records
+`parameter_covariance_unavailable_reason`. The same field reports the rare case
+where covariance arithmetic is numerically invalid, including non-finite values or
+a negative diagonal variance produced by floating-point error. When every
+observation supplies an absolute resistance standard uncertainty, covariance comes
+directly from those uncertainties and can be available even for a saturated fit.
 
 ## `fit_polynomial`
 
@@ -102,7 +130,7 @@ evidence: PolynomialFitEvidence
 **Introduced in:** rtd-sensor 0.6.0
 
 Key fields include observations, residuals, degree, counts/degrees of freedom,
-fit range, RMS/max residuals, weighting diagnostics, condition number, solver,
-and scaling information.
+fit range, RMS/max residuals, weighting diagnostics, fitted-parameter covariance
+when available, condition number, solver, and scaling information.
 
 See [Calibration fitting](../documentation/custom-models/calibration-fitting.md).

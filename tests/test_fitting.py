@@ -10,6 +10,7 @@ import pytest
 from rtd_sensor.exceptions import RTDFitError
 from rtd_sensor.fitting import (
     CalibrationObservation,
+    FitParameterCovariance,
     IEC60751R0FitEvidence,
     IEC60751R0FitResult,
     PolynomialFitEvidence,
@@ -124,6 +125,137 @@ def test_fit_iec60751_r0_supports_resistance_standard_uncertainty() -> None:
     )
     assert result.evidence.effective_weights == pytest.approx((1.0, 0.25))
     assert result.model.r0_ohms == pytest.approx(100.0, abs=1e-13)
+
+
+def test_fit_iec60751_r0_estimates_covariance_from_residual_variance() -> None:
+    observations = (
+        CalibrationObservation(0.0, 100.0),
+        CalibrationObservation(100.0, 138.6),
+        CalibrationObservation(200.0, 175.7),
+    )
+
+    result = fit_iec60751_r0(observations)
+    covariance = result.evidence.parameter_covariance
+
+    assert isinstance(covariance, FitParameterCovariance)
+    assert covariance.parameter_names == ("r0_ohms",)
+    assert covariance.parameterization == "r0_ohms"
+    assert covariance.estimation_method == "residual_variance_scaled_least_squares"
+    ratios = tuple(
+        IEC60751RTDModel(r0_ohms=1.0).celsius_to_resistance(observation.temperature_c)
+        for observation in observations
+    )
+    residual_variance = (
+        math.fsum(residual * residual for residual in result.evidence.residuals_ohms)
+        / result.evidence.residual_degrees_of_freedom
+    )
+    expected_variance = residual_variance / math.fsum(ratio * ratio for ratio in ratios)
+    assert covariance.covariance_matrix[0][0] == pytest.approx(expected_variance)
+    assert result.evidence.parameter_covariance_unavailable_reason is None
+
+
+def test_fit_iec60751_r0_covariance_from_residual_variance_uses_relative_weights() -> (
+    None
+):
+    raw_weights = (1.0, 4.0, 1.0)
+    observations = (
+        CalibrationObservation(0.0, 100.0, weight=raw_weights[0]),
+        CalibrationObservation(100.0, 138.4, weight=raw_weights[1]),
+        CalibrationObservation(200.0, 175.9, weight=raw_weights[2]),
+    )
+
+    result = fit_iec60751_r0(observations)
+    covariance = result.evidence.parameter_covariance
+
+    assert isinstance(covariance, FitParameterCovariance)
+    assert result.evidence.weighting_method == "normalized_explicit_weights"
+    assert covariance.estimation_method == "residual_variance_scaled_least_squares"
+    ratios = tuple(
+        IEC60751RTDModel(r0_ohms=1.0).celsius_to_resistance(observation.temperature_c)
+        for observation in observations
+    )
+    weighted_residual_variance = (
+        math.fsum(
+            weight * residual * residual
+            for weight, residual in zip(
+                raw_weights, result.evidence.residuals_ohms, strict=True
+            )
+        )
+        / result.evidence.residual_degrees_of_freedom
+    )
+    expected_variance = weighted_residual_variance / math.fsum(
+        weight * ratio * ratio
+        for weight, ratio in zip(raw_weights, ratios, strict=True)
+    )
+    assert covariance.covariance_matrix[0][0] == pytest.approx(expected_variance)
+
+
+def test_fit_iec60751_r0_covariance_uses_absolute_standard_uncertainties() -> None:
+    observations = (
+        CalibrationObservation(0.0, 100.0, standard_uncertainty_ohms=0.01),
+        CalibrationObservation(100.0, 138.5055, standard_uncertainty_ohms=0.02),
+    )
+
+    result = fit_iec60751_r0(observations)
+    covariance = result.evidence.parameter_covariance
+
+    assert isinstance(covariance, FitParameterCovariance)
+    assert covariance.estimation_method == "resistance_standard_uncertainties"
+    ratios = tuple(
+        IEC60751RTDModel(r0_ohms=1.0).celsius_to_resistance(observation.temperature_c)
+        for observation in observations
+    )
+    expected_variance = 1.0 / ((ratios[0] / 0.01) ** 2 + (ratios[1] / 0.02) ** 2)
+    assert covariance.covariance_matrix[0][0] == pytest.approx(expected_variance)
+
+
+def test_fit_iec60751_r0_zero_dof_covariance_depends_on_uncertainty_basis() -> None:
+    unweighted = fit_iec60751_r0(
+        (CalibrationObservation(0.0, 100.0),),
+        minimum_temperature_c=-50.0,
+        maximum_temperature_c=250.0,
+    )
+    uncertainty_weighted = fit_iec60751_r0(
+        (
+            CalibrationObservation(
+                0.0,
+                100.0,
+                standard_uncertainty_ohms=0.02,
+            ),
+        ),
+        minimum_temperature_c=-50.0,
+        maximum_temperature_c=250.0,
+    )
+
+    assert unweighted.evidence.parameter_covariance is None
+    assert unweighted.evidence.parameter_covariance_unavailable_reason == (
+        "residual_variance_requires_positive_degrees_of_freedom"
+    )
+    covariance = uncertainty_weighted.evidence.parameter_covariance
+    assert isinstance(covariance, FitParameterCovariance)
+    assert covariance.estimation_method == "resistance_standard_uncertainties"
+    assert covariance.covariance_matrix[0][0] == pytest.approx(0.02**2)
+    assert uncertainty_weighted.evidence.parameter_covariance_unavailable_reason is None
+
+
+def test_fit_iec60751_r0_records_unrepresentable_covariance() -> None:
+    result = fit_iec60751_r0(
+        (
+            CalibrationObservation(
+                0.0,
+                100.0,
+                standard_uncertainty_ohms=1.0e-200,
+            ),
+        ),
+        minimum_temperature_c=-50.0,
+        maximum_temperature_c=250.0,
+    )
+
+    assert result.model.r0_ohms == 100.0
+    assert result.evidence.parameter_covariance is None
+    assert result.evidence.parameter_covariance_unavailable_reason == (
+        "covariance_not_finitely_representable"
+    )
 
 
 def test_fit_iec60751_r0_single_temperature_requires_explicit_range() -> None:
@@ -387,6 +519,176 @@ def test_fit_polynomial_converts_standard_uncertainty_to_inverse_variance() -> N
     assert result.evidence.effective_weights == pytest.approx((1.0, 0.25))
     assert result.evidence.weighted_sum_squared_residual is not None
     assert result.evidence.weighted_rms_residual_ohms is not None
+
+
+def test_fit_polynomial_estimates_covariance_in_model_reference_basis() -> None:
+    observations = (
+        CalibrationObservation(-1.0, 98.4),
+        CalibrationObservation(0.0, 100.1),
+        CalibrationObservation(1.0, 101.5),
+    )
+
+    result = fit_polynomial(observations, degree=1)
+    covariance = result.evidence.parameter_covariance
+
+    assert isinstance(covariance, FitParameterCovariance)
+    assert covariance.parameter_names == ("a0", "a1")
+    assert covariance.parameterization == (
+        "resistance_power_series_at_model_reference_temperature"
+    )
+    assert covariance.estimation_method == "residual_variance_scaled_least_squares"
+    residual_variance = (
+        math.fsum(residual * residual for residual in result.evidence.residuals_ohms)
+        / result.evidence.residual_degrees_of_freedom
+    )
+    assert covariance.covariance_matrix[0][0] == pytest.approx(residual_variance / 3.0)
+    assert covariance.covariance_matrix[0][1] == pytest.approx(0.0, abs=1e-15)
+    assert covariance.covariance_matrix[1][0] == pytest.approx(0.0, abs=1e-15)
+    assert covariance.covariance_matrix[1][1] == pytest.approx(residual_variance / 2.0)
+
+
+def test_fit_polynomial_covariance_from_residual_variance_uses_relative_weights() -> (
+    None
+):
+    raw_weights = (1.0, 4.0, 2.0, 1.0)
+    observations = (
+        CalibrationObservation(0.0, 100.0, weight=raw_weights[0]),
+        CalibrationObservation(50.0, 120.4, weight=raw_weights[1]),
+        CalibrationObservation(100.0, 139.7, weight=raw_weights[2]),
+        CalibrationObservation(150.0, 160.2, weight=raw_weights[3]),
+    )
+
+    result = fit_polynomial(observations, degree=1)
+    covariance = result.evidence.parameter_covariance
+
+    assert isinstance(covariance, FitParameterCovariance)
+    assert result.evidence.weighting_method == "normalized_explicit_weights"
+    assert covariance.estimation_method == "residual_variance_scaled_least_squares"
+    reference_temperature_c = result.model.reference_temperature_c
+    offsets = tuple(
+        observation.temperature_c - reference_temperature_c
+        for observation in observations
+    )
+    weighted_residual_variance = (
+        math.fsum(
+            weight * residual * residual
+            for weight, residual in zip(
+                raw_weights, result.evidence.residuals_ohms, strict=True
+            )
+        )
+        / result.evidence.residual_degrees_of_freedom
+    )
+    sum_w = math.fsum(raw_weights)
+    sum_wx = math.fsum(
+        weight * offset for weight, offset in zip(raw_weights, offsets, strict=True)
+    )
+    sum_wxx = math.fsum(
+        weight * offset * offset
+        for weight, offset in zip(raw_weights, offsets, strict=True)
+    )
+    determinant = sum_w * sum_wxx - sum_wx * sum_wx
+    expected = (
+        (
+            weighted_residual_variance * sum_wxx / determinant,
+            -weighted_residual_variance * sum_wx / determinant,
+        ),
+        (
+            -weighted_residual_variance * sum_wx / determinant,
+            weighted_residual_variance * sum_w / determinant,
+        ),
+    )
+    for actual_row, expected_row in zip(
+        covariance.covariance_matrix, expected, strict=True
+    ):
+        assert actual_row == pytest.approx(expected_row)
+
+
+def test_fit_polynomial_covariance_transforms_to_narrowed_model_reference() -> None:
+    observations = (
+        CalibrationObservation(0.0, 100.0, standard_uncertainty_ohms=1.0),
+        CalibrationObservation(50.0, 150.0, standard_uncertainty_ohms=1.0),
+        CalibrationObservation(100.0, 200.0, standard_uncertainty_ohms=1.0),
+    )
+
+    result = fit_polynomial(
+        observations,
+        degree=1,
+        minimum_temperature_c=20.0,
+        maximum_temperature_c=60.0,
+    )
+    covariance = result.evidence.parameter_covariance
+
+    assert isinstance(covariance, FitParameterCovariance)
+    assert result.model.reference_temperature_c == 40.0
+    # For x = T - 40, X.T @ X = [[3, 30], [30, 5300]].
+    assert covariance.covariance_matrix[0][0] == pytest.approx(5300.0 / 15000.0)
+    assert covariance.covariance_matrix[0][1] == pytest.approx(-30.0 / 15000.0)
+    assert covariance.covariance_matrix[1][0] == pytest.approx(-30.0 / 15000.0)
+    assert covariance.covariance_matrix[1][1] == pytest.approx(3.0 / 15000.0)
+
+
+def test_fit_polynomial_degree_two_covariance_transforms_to_narrowed_reference() -> (
+    None
+):
+    observations = (
+        CalibrationObservation(0.0, 100.0, standard_uncertainty_ohms=1.0),
+        CalibrationObservation(50.0, 121.25, standard_uncertainty_ohms=1.0),
+        CalibrationObservation(100.0, 145.0, standard_uncertainty_ohms=1.0),
+        CalibrationObservation(150.0, 171.25, standard_uncertainty_ohms=1.0),
+    )
+
+    result = fit_polynomial(
+        observations,
+        degree=2,
+        minimum_temperature_c=20.0,
+        maximum_temperature_c=80.0,
+    )
+    covariance = result.evidence.parameter_covariance
+
+    assert isinstance(covariance, FitParameterCovariance)
+    assert covariance.parameter_names == ("a0", "a1", "a2")
+    assert result.model.reference_temperature_c == 50.0
+    expected = (
+        (0.55, 0.003, -0.0001),
+        (0.003, 0.00018, -0.000002),
+        (-0.0001, -0.000002, 0.00000004),
+    )
+    for actual_row, expected_row in zip(
+        covariance.covariance_matrix, expected, strict=True
+    ):
+        assert actual_row == pytest.approx(expected_row)
+
+
+def test_fit_polynomial_saturated_covariance_requires_absolute_uncertainties() -> None:
+    unweighted = fit_polynomial(
+        (
+            CalibrationObservation(0.0, 100.0),
+            CalibrationObservation(100.0, 200.0),
+        ),
+        degree=1,
+    )
+    uncertainty_weighted = fit_polynomial(
+        (
+            CalibrationObservation(0.0, 100.0, standard_uncertainty_ohms=1.0),
+            CalibrationObservation(100.0, 200.0, standard_uncertainty_ohms=2.0),
+        ),
+        degree=1,
+    )
+
+    assert unweighted.evidence.parameter_covariance is None
+    assert unweighted.evidence.parameter_covariance_unavailable_reason == (
+        "residual_variance_requires_positive_degrees_of_freedom"
+    )
+    covariance = uncertainty_weighted.evidence.parameter_covariance
+    assert isinstance(covariance, FitParameterCovariance)
+    assert covariance.estimation_method == "resistance_standard_uncertainties"
+    # For x = T - 50 and u = (1, 2) ohm,
+    # X.T @ W @ X = [[1.25, -37.5], [-37.5, 3125]].
+    assert covariance.covariance_matrix[0][0] == pytest.approx(1.25)
+    assert covariance.covariance_matrix[0][1] == pytest.approx(0.015)
+    assert covariance.covariance_matrix[1][0] == pytest.approx(0.015)
+    assert covariance.covariance_matrix[1][1] == pytest.approx(0.0005)
+    assert uncertainty_weighted.evidence.parameter_covariance_unavailable_reason is None
 
 
 def test_fit_polynomial_requires_one_consistent_weighting_convention() -> None:
