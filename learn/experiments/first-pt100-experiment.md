@@ -47,7 +47,7 @@ The name **Pt100** gives us two useful clues:
 
 !!! note "rtd-sensor is an interpreter"
     `rtd-sensor` is not pretending that your computer has a temperature probe
-    attached to it at this point. It calculates the standardized relationship 
+    attached to it at this point. It calculates the standardized relationship
     between resistance and temperature. Later, we will feed it measurements from real
     hardware.
 
@@ -196,7 +196,7 @@ it to temperature.
 
 !!! info "Where the resistance comes from"
     `rtd-sensor` does not read a multimeter, ADC, or a MAX31865 itself. Those
-    devices obtain the resistance measurement. `rtd-sensor` handles the resistance 
+    devices obtain the resistance measurement. `rtd-sensor` handles the resistance
     temperature detector (RTD) model that turns that resistance into temperature.
 
 ## Try your own experiments
