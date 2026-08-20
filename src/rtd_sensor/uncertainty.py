@@ -27,7 +27,7 @@ from __future__ import annotations
 import math
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, TypeAlias
 
 from ._protocols import RTDUncertaintyModel
 from ._validation import as_float as _as_float
@@ -48,8 +48,8 @@ __all__ = [
 ]
 
 
-type BoundDistribution = Literal["rectangular", "triangular"]
-type EvaluationMethod = Literal["A", "B"]
+BoundDistribution: TypeAlias = Literal["rectangular", "triangular"]
+EvaluationMethod: TypeAlias = Literal["A", "B"]
 
 
 @dataclass(frozen=True, slots=True)

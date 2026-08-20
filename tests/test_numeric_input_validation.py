@@ -3,6 +3,7 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
 from collections.abc import Callable
+from typing import Any
 
 import pytest
 
@@ -56,6 +57,16 @@ def test_builtin_conversion_apis_reject_boolean_measurements(
 ) -> None:
     with pytest.raises(TypeError, match="not bool"):
         function(True)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [b"100.0", bytearray(b"100.0"), memoryview(b"100.0")],
+)
+def test_numeric_inputs_accept_bytes_like_values(
+    value: Any,
+) -> None:
+    assert pt100.resistance_to_celsius(value) == pytest.approx(0.0)
 
 
 def test_public_iec_model_rejects_boolean_parameters_and_measurements() -> None:

@@ -29,8 +29,8 @@ jobs:
           version: "0.12.3"
           enable-cache: true
 
-      - name: Install Python 3.14
-        run: uv python install 3.14
+      - name: Install supported smoke-test Pythons
+        run: uv python install 3.11 3.14
 
       - name: Check lockfile consistency
         run: uv lock --check
@@ -95,13 +95,24 @@ jobs:
 
           index=0
           for artifact in dist/*.whl dist/*.tar.gz; do
-            env_dir=".release-smoke-${index}"
-            uv venv --python 3.14 "${env_dir}"
-            uv pip install --python "${env_dir}/bin/python" "${artifact}"
-            "${env_dir}/bin/python" - <<'PY'
+            for python_version in 3.11 3.14; do
+              env_dir=".release-smoke-${python_version}-${index}"
+              uv venv --python "${python_version}" "${env_dir}"
+              uv pip install --python "${env_dir}/bin/python" "${artifact}"
+              SMOKE_PYTHON_VERSION="${python_version}" "${env_dir}/bin/python" - <<'PY'
           import importlib.metadata
           import importlib.util
           import os
+          import sys
+
+          expected_python = tuple(
+              int(part) for part in os.environ["SMOKE_PYTHON_VERSION"].split(".")
+          )
+          if sys.version_info[:2] != expected_python:
+              raise SystemExit(
+                  f"smoke environment uses Python {sys.version_info[:2]!r}, "
+                  f"expected {expected_python!r}"
+              )
 
           expected_version = os.environ["RELEASE_TAG"].removeprefix("v")
           actual_version = importlib.metadata.version("rtd-sensor")
@@ -140,7 +151,8 @@ jobs:
           if rtd_sensor.catalog is not catalog:
               raise SystemExit("installed public package export smoke check failed")
           PY
-            rm -rf "${env_dir}"
+              rm -rf "${env_dir}"
+            done
             index=$((index + 1))
           done
 

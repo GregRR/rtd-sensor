@@ -21,6 +21,7 @@ import math
 import random
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from typing import TypeAlias
 
 from . import _models
 from ._protocols import RTDModel as _RTDModelProtocol
@@ -40,7 +41,7 @@ __all__ = [
 ]
 
 
-type RTDType = str
+RTDType: TypeAlias = str
 
 # Python's type system cannot derive a Literal[...] union from a runtime
 # registry. Keep the public spelling as strings and make the immutable model

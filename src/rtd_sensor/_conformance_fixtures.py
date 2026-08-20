@@ -12,7 +12,7 @@ behavior that cannot be represented by the nominal built-in model catalog.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, TypeAlias
 
 from .models import (
     CallendarVanDusenRTDModel,
@@ -22,7 +22,7 @@ from .models import (
     PolynomialRTDModel,
 )
 
-type FixtureStatus = Literal["ok", "invalid_model"]
+FixtureStatus: TypeAlias = Literal["ok", "invalid_model"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -106,13 +106,13 @@ class PiecewisePolynomialFixture:
     anchors: tuple[FixtureAnchor, ...] = ()
 
 
-type ModelFixture = (
+ModelFixture: TypeAlias = (
     CharacteristicModelFixture
     | CallendarVanDusenFixture
     | PolynomialFixture
     | PiecewisePolynomialFixture
 )
-type ConfigurableFixtureModel = (
+ConfigurableFixtureModel: TypeAlias = (
     IEC60751RTDModel
     | CallendarVanDusenRTDModel
     | PolynomialRTDModel

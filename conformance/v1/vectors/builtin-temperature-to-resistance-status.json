@@ -5,7 +5,7 @@
   "format_version": 1,
   "input_unit": "degree_celsius",
   "output_unit": "ohm",
-  "rtd_sensor_version": "0.6.0",
+  "rtd_sensor_version": "0.6.1",
   "test_groups": [
     {
       "cases": [

@@ -4,10 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "rtd-sensor"
-version = "0.6.0"
+version = "0.6.1"
 description = "Python RTD conversion and modeling for IEC 60751 platinum and documented nickel RTDs, with calibration fitting, tolerance, uncertainty, portable models, and cross-language conformance."
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.11"
 license = "MPL-2.0"
 license-files = ["LICENSE"]
 authors = [
@@ -44,6 +44,9 @@ classifiers = [
 "Intended Audience :: Developers",
 "Intended Audience :: Science/Research",
 "Programming Language :: Python :: 3",
+"Programming Language :: Python :: 3.11",
+"Programming Language :: Python :: 3.12",
+"Programming Language :: Python :: 3.13",
 "Programming Language :: Python :: 3.14",
 "Topic :: Scientific/Engineering",
 ]
@@ -76,7 +79,7 @@ addopts = "-ra"
 
 [tool.ruff]
 line-length = 88
-target-version = "py314"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = [
@@ -89,7 +92,7 @@ select = [
 ]
 
 [tool.mypy]
-python_version = "3.14"
+python_version = "3.11"
 strict = true
 files = [
 "src",

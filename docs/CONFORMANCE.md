@@ -329,7 +329,7 @@ A representative structure is:
   "artifact_type": "vector_set",
   "format_version": 1,
   "contract_version": 1,
-  "rtd_sensor_version": "0.6.0",
+  "rtd_sensor_version": "0.6.1",
   "capability_id": "conversion.temperature_to_resistance",
   "input_unit": "degree_celsius",
   "output_unit": "ohm",

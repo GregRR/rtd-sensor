@@ -46,7 +46,9 @@ other layer's responsibilities.
 
 Items 1 through 7 shipped in version 0.5.0 on 2026-08-16. Version 0.5.1 was a
 corrective documentation/release-process release and did not add roadmap feature
-scope. Items 8 through 11 shipped in version 0.6.0 on 2026-08-17.
+scope. Items 8 through 11 shipped in version 0.6.0 on 2026-08-17. Version 0.6.1
+expands supported Python versions from Python 3.14 only to Python 3.11 through
+3.14 without adding roadmap feature scope.
 
 Item 12 remains an ongoing, provenance-dependent built-in expansion track rather
 than a release gate. New characteristics may land whenever their equations, source
@@ -57,6 +59,7 @@ provenance, independent validation, range, and tests are support-ready.
 - **0.5.0:** items 1–7; published 2026-08-16.
 - **0.5.1:** corrective documentation/release-process release; published 2026-08-16.
 - **0.6.0:** items 8–11; published 2026-08-17.
+- **0.6.1:** Python 3.11–3.14 compatibility release; no new roadmap feature scope.
 - **0.7.0:** calibration and statistical foundation.
 - **0.8.0:** industrial measurement effects, including self-heating characterization
   and zero-power correction.

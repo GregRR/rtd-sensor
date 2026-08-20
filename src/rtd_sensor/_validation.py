@@ -6,12 +6,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Buffer
 from typing import SupportsFloat, SupportsIndex
 
 
 def as_float(
-    value: str | Buffer | SupportsFloat | SupportsIndex,
+    value: str | bytes | bytearray | memoryview | SupportsFloat | SupportsIndex,
     *,
     name: str,
 ) -> float:

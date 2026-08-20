@@ -10,7 +10,7 @@ import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Protocol
+from typing import Protocol, TypeVar
 
 from . import _definitions
 from ._validation import as_float as _as_float
@@ -31,6 +31,7 @@ __all__ = [
 
 _BISECTION_ITERATIONS = 60
 _MAX_POLYNOMIAL_DEGREE = 12
+_CurveT = TypeVar("_CurveT")
 
 
 class RTDCurve(Protocol):
@@ -1170,10 +1171,10 @@ _BUILTIN_RTD_CURVES = {
 BUILTIN_RTD_CURVES: Mapping[str, RTDCurve] = MappingProxyType(_BUILTIN_RTD_CURVES)
 
 
-def _require_builtin_curve_type[CurveT](
+def _require_builtin_curve_type(
     characteristic_id: str,
-    expected_type: type[CurveT],
-) -> CurveT:
+    expected_type: type[_CurveT],
+) -> _CurveT:
     """Return one built-in curve after verifying its expected concrete type."""
     curve = BUILTIN_RTD_CURVES[characteristic_id]
     if not isinstance(curve, expected_type):

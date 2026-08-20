@@ -15,6 +15,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import TypeAlias
 
 from .exceptions import InvalidPortableModelDefinitionError, InvalidRTDModelError
 from .models import (
@@ -37,7 +38,7 @@ _PORTABLE_FORMAT_VERSION = 1
 _IEC60751_PT385_CHARACTERISTIC_ID = "iec60751_pt385"
 _PIECEWISE_CONTINUITY_KIND = "additive_resistance_ratio_offset"
 
-type PortableRTDModel = (
+PortableRTDModel: TypeAlias = (
     IEC60751RTDModel
     | CallendarVanDusenRTDModel
     | PolynomialRTDModel

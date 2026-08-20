@@ -34,8 +34,8 @@ A version-1 artifact has this shape:
 Version 1 supports:
 
 - `characteristic_model` — a characterized reference resistance composed with
-  a published RTD characteristic. RTD-Sensor 0.6.0 reconstructs
-  `iec60751_pt385` as `IEC60751RTDModel`.
+  a published RTD characteristic. RTD-Sensor reconstructs `iec60751_pt385` as
+  `IEC60751RTDModel`.
 - `callendar_van_dusen` — custom `R0`, `A`, `B`, optional `C`, and validity
   range.
 - `polynomial` — normalized global polynomial with explicit reference
@@ -49,7 +49,7 @@ Tabulated-model portability is intentionally outside version 1 and is not a
 The schema constrains identifier syntax independently from the set of model or
 characteristic identifiers a particular RTD-Sensor release can reconstruct. In
 version 1, `characteristic_model` uses the shared identifier grammar, while the
-0.6.0 loader currently reconstructs only `iec60751_pt385`. Schema validation
+current loader reconstructs only `iec60751_pt385`. Schema validation
 therefore establishes structural validity, not support by a particular loader or
 scientific validity of the resulting model.
 

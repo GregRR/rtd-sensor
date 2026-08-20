@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.6.1 — 2026-08-19
+
+### Changed
+
+* Expanded supported Python versions from Python 3.14 only to Python 3.11 through 3.14 while retaining Python 3.14 as the primary development version.
+* Updated project metadata, compatibility-targeted tooling, CI, release smoke tests, and user/learning documentation for the Python 3.11 compatibility floor.
+
 ## 0.6.0 — 2026-08-17
 
 ### Added

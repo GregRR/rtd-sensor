@@ -18,9 +18,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Literal
+from typing import Literal, TypeAlias
 
-type Material = Literal["platinum", "nickel"]
+Material: TypeAlias = Literal["platinum", "nickel"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,7 +130,7 @@ class PiecewisePolynomialCharacteristicDefinition:
         return self.segments[-1].maximum_temperature_c
 
 
-type CharacteristicDefinition = (
+CharacteristicDefinition: TypeAlias = (
     CallendarVanDusenCharacteristicDefinition
     | PolynomialCharacteristicDefinition
     | PiecewisePolynomialCharacteristicDefinition

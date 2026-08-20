@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, TypeAlias
 
 from ._validation import as_float as _as_float
 
@@ -33,9 +33,9 @@ __all__ = [
 ]
 
 
-type RTDConstruction = Literal["wire_wound", "film"]
-type ThermometerToleranceClass = Literal["AA", "A", "B", "C"]
-type PlatinumResistorToleranceClass = Literal[
+RTDConstruction: TypeAlias = Literal["wire_wound", "film"]
+ThermometerToleranceClass: TypeAlias = Literal["AA", "A", "B", "C"]
+PlatinumResistorToleranceClass: TypeAlias = Literal[
     "W0.1",
     "W0.15",
     "W0.3",

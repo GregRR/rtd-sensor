@@ -56,6 +56,10 @@ This boundary allows identical conversion code to be used with:
 
 The core package must not depend on GPIO, SPI, I²C, ADC, or board-specific libraries.
 
+`rtd-sensor` is developed primarily with Python 3.14 while supporting CPython
+3.11 and later. Runtime code must remain compatible with the minimum supported
+Python version, and CI verifies each supported Python minor release.
+
 ### 3.2 Scientific transparency
 
 The implementation should identify the standard, equation, constants, assumptions, and supported range. Constants must not appear as unexplained magic numbers.

@@ -78,7 +78,7 @@ communicate with the hardware itself.
 python -m pip install rtd-sensor
 ```
 
-**Requires Python 3.14 or later.** The package has no runtime dependencies.
+**Requires Python 3.11 or later.** The package has no runtime dependencies.
 
 The distribution name uses a hyphen (`rtd-sensor`), while the Python import package uses an underscore (`rtd_sensor`).
 
@@ -691,7 +691,9 @@ Built-in model-aware readers keep their RTD identity fixed after construction. I
 
 ## Development setup
 
-The project targets Python 3.14 and uses [uv](https://docs.astral.sh/uv/) for development environments and dependency locking.
+The project supports Python 3.11 and later, develops primarily on Python 3.14,
+and uses [uv](https://docs.astral.sh/uv/) for development environments and
+dependency locking. CI verifies Python 3.11, 3.12, 3.13, and 3.14.
 
 ```bash
 uv sync --locked

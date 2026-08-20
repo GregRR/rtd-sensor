@@ -19,7 +19,7 @@ the calculation backward as if we had measured a real sensor.
 
 - **Hardware:** none
 - **Time:** about 10–15 minutes
-- **You need:** Python 3.14+ and `rtd-sensor`
+- **You need:** Python 3.11+ and `rtd-sensor`
 
 If you have not installed the package yet, start with [Start here](../start-here.md).
 

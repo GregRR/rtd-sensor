@@ -10,7 +10,7 @@ The first Learn `rtd-sensor` experiments need only a computer, Python, and the
 
 ## What you need
 
-- Python 3.14 or later
+- Python 3.11 or later
 - a terminal or command prompt
 - a text editor, Python IDE, or interactive Python prompt
 - the `rtd-sensor` package
@@ -26,7 +26,7 @@ these lessons.
 
 ## Install rtd-sensor
 
-If you already have a Python 3.14+ virtual environment:
+If you already have a Python 3.11+ virtual environment:
 
 ```console
 python -m pip install rtd-sensor
