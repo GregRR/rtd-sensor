@@ -1,6 +1,7 @@
 ---
 title: Start Here
-description: Get productive with rtd-sensor quickly: RTD and Pt100 basics, installation for Python 3.11+, essential terminology, and first conversion examples.
+description: >-
+Get productive with rtd-sensor quickly: RTD and Pt100 basics, installation for Python 3.11+, essential terminology, and first conversion examples.
 ---
 
 # Start Here
