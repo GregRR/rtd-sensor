@@ -21,14 +21,10 @@ class ExampleModel:
     def resistance_to_celsius(self, resistance_ohms: float) -> float:
         return (resistance_ohms - 100.0) / 0.4
 
-    def resistance_sensitivity_ohms_per_celsius(
-        self, temperature_c: float
-    ) -> float:
+    def resistance_sensitivity_ohms_per_celsius(self, temperature_c: float) -> float:
         return 0.4
 
-    def temperature_sensitivity_celsius_per_ohm(
-        self, temperature_c: float
-    ) -> float:
+    def temperature_sensitivity_celsius_per_ohm(self, temperature_c: float) -> float:
         return 2.5
 ```
 
