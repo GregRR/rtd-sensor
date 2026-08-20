@@ -31,16 +31,23 @@ from typing import Literal, TypeAlias
 
 from ._protocols import RTDUncertaintyModel
 from ._validation import as_float as _as_float
+from .fitting import (
+    FitParameterCovariance,
+    IEC60751R0FitResult,
+    PolynomialFitResult,
+)
 
 __all__ = [
     "BoundDistribution",
     "EvaluationMethod",
+    "FitCovarianceResistancePropagation",
     "RTDUncertaintyModel",
     "ResistanceUncertaintyPropagation",
     "TemperatureUncertaintyBudget",
     "TemperatureUncertaintyComponent",
     "combine_independent_standard_uncertainties",
     "expanded_uncertainty",
+    "propagate_fit_covariance_to_resistance",
     "propagate_resistance_uncertainty",
     "standard_uncertainty_from_bound",
     "standard_uncertainty_from_expanded",
@@ -95,6 +102,30 @@ class TemperatureUncertaintyComponent:
         )
         object.__setattr__(self, "source", source)
         object.__setattr__(self, "note", note)
+
+
+@dataclass(frozen=True, slots=True)
+class FitCovarianceResistancePropagation:
+    """Fitted-parameter covariance propagated to resistance at one temperature.
+
+    ``parameter_sensitivity_vector`` contains ``dR/dtheta`` values in the same
+    order as ``parameter_covariance.parameter_names``. Because fitted parameters
+    can have different dimensions, the individual sensitivity entries do not
+    necessarily share one physical unit. The propagated variance and standard
+    uncertainty are always reported in ``ohm²`` and ``ohm`` respectively.
+
+    This result describes only uncertainty associated with the retained fitted-
+    parameter covariance. It does not include measurement-resistance uncertainty,
+    calibration reference-temperature uncertainty, drift, self-heating, tolerance,
+    or other uncertainty-budget components.
+    """
+
+    temperature_c: float
+    resistance_ohms: float
+    parameter_covariance: FitParameterCovariance
+    parameter_sensitivity_vector: tuple[float, ...]
+    resistance_variance_ohms_squared: float
+    resistance_standard_uncertainty_ohms: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -264,6 +295,157 @@ def expanded_uncertainty(
     if not math.isfinite(expanded):
         raise ValueError("Expanded uncertainty result must remain finite")
     return expanded
+
+
+# Source: JCGM (2008), JCGM 100:2008, sections 5.1-5.2, and
+# Taylor & Kuyatt (1994), Appendix A; see docs/REFERENCES.md.
+def propagate_fit_covariance_to_resistance(
+    temperature_c: float,
+    *,
+    fit_result: IEC60751R0FitResult | PolynomialFitResult,
+) -> FitCovarianceResistancePropagation:
+    """Propagate fitted-parameter covariance into resistance uncertainty.
+
+    The calculation applies the covariance form of the law of propagation of
+    uncertainty using the full retained parameter covariance matrix::
+
+        u²(R) = J Cov(theta) J.T
+
+    where ``J`` is the resistance sensitivity vector with respect to the fitted
+    parameters at ``temperature_c``. Correlation terms in the fitted-parameter
+    covariance are therefore retained rather than combined as if the parameters
+    were independent. For the supported IEC-R0 and resistance-space polynomial
+    parameterizations, resistance is linear in the retained fitted parameters, so
+    this covariance transformation is exact at fixed temperature under the fit
+    model rather than a Taylor approximation.
+
+    Supported fit results are currently ``IEC60751R0FitResult`` and
+    ``PolynomialFitResult``. The fit must contain available parameter covariance.
+
+    This is fitted-model uncertainty only. It does not include uncertainty in a
+    subsequently measured resistance, calibration reference-temperature
+    uncertainty, sensor drift, tolerance, self-heating, or other effects.
+    """
+    if not isinstance(fit_result, (IEC60751R0FitResult, PolynomialFitResult)):
+        raise TypeError("fit_result must be IEC60751R0FitResult or PolynomialFitResult")
+
+    temperature = _as_float(temperature_c, name="Temperature")
+    if not math.isfinite(temperature):
+        raise ValueError("Temperature must be finite")
+
+    covariance = fit_result.evidence.parameter_covariance
+    if covariance is None:
+        reason = fit_result.evidence.parameter_covariance_unavailable_reason
+        detail = "unknown reason" if reason is None else reason
+        raise ValueError(
+            "Fit parameter covariance is unavailable "
+            f"({detail}); the fitted model itself remains valid for temperature "
+            "conversion, but its uncertainty cannot be propagated."
+        )
+
+    sensitivities: tuple[float, ...]
+    if isinstance(fit_result, IEC60751R0FitResult):
+        if covariance.parameterization != "r0_ohms" or covariance.parameter_names != (
+            "r0_ohms",
+        ):
+            raise ValueError("IEC R0 fit covariance has an unexpected parameterization")
+        resistance = _as_float(
+            fit_result.model.celsius_to_resistance(temperature),
+            name="Fitted resistance",
+        )
+        sensitivities = (resistance / fit_result.model.r0_ohms,)
+    else:
+        expected_parameter_names = tuple(
+            f"a{power}" for power in range(len(fit_result.model.coefficients) + 1)
+        )
+        if (
+            covariance.parameterization
+            != "resistance_power_series_at_model_reference_temperature"
+            or covariance.parameter_names != expected_parameter_names
+        ):
+            raise ValueError(
+                "Polynomial fit covariance has an unexpected parameterization"
+            )
+        resistance = _as_float(
+            fit_result.model.celsius_to_resistance(temperature),
+            name="Fitted resistance",
+        )
+        x = temperature - fit_result.model.reference_temperature_c
+        sensitivity_values = [1.0]
+        for _ in range(len(fit_result.model.coefficients)):
+            sensitivity_values.append(sensitivity_values[-1] * x)
+        sensitivities = tuple(sensitivity_values)
+
+    variance = _covariance_quadratic_form(
+        sensitivities,
+        covariance.covariance_matrix,
+    )
+    standard_uncertainty = math.sqrt(variance)
+    if not math.isfinite(standard_uncertainty):
+        raise ValueError(
+            "Propagated fitted-model resistance uncertainty must remain finite"
+        )
+
+    return FitCovarianceResistancePropagation(
+        temperature_c=temperature,
+        resistance_ohms=resistance,
+        parameter_covariance=covariance,
+        parameter_sensitivity_vector=sensitivities,
+        resistance_variance_ohms_squared=variance,
+        resistance_standard_uncertainty_ohms=standard_uncertainty,
+    )
+
+
+def _covariance_quadratic_form(
+    sensitivity_vector: tuple[float, ...],
+    covariance_matrix: tuple[tuple[float, ...], ...],
+) -> float:
+    size = len(sensitivity_vector)
+    if (
+        size == 0
+        or len(covariance_matrix) != size
+        or any(len(row) != size for row in covariance_matrix)
+    ):
+        raise ValueError("Parameter covariance dimensions do not match sensitivities")
+
+    terms = tuple(
+        sensitivity_vector[row]
+        * covariance_matrix[row][column]
+        * sensitivity_vector[column]
+        for row in range(size)
+        for column in range(size)
+    )
+    if not all(math.isfinite(value) for value in terms):
+        raise ValueError(
+            "Propagated fitted-model resistance variance must remain finite"
+        )
+
+    try:
+        variance = math.fsum(terms)
+    except OverflowError as error:
+        raise ValueError(
+            "Propagated fitted-model resistance variance must remain finite"
+        ) from error
+    if not math.isfinite(variance):
+        raise ValueError(
+            "Propagated fitted-model resistance variance must remain finite"
+        )
+    if variance < 0.0:
+        try:
+            absolute_sum = math.fsum(abs(value) for value in terms)
+        except OverflowError as error:
+            raise ValueError(
+                "Propagated fitted-model resistance variance must remain finite"
+            ) from error
+        rounding_tolerance = (
+            8.0 * len(terms) * math.ulp(absolute_sum) if absolute_sum > 0.0 else 0.0
+        )
+        if variance < -rounding_tolerance:
+            raise ValueError(
+                "Propagated fitted-model resistance variance must be non-negative"
+            )
+        variance = 0.0
+    return variance
 
 
 # Source: JCGM (2008), JCGM 100:2008, first-order sensitivity

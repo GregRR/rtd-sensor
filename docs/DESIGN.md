@@ -733,6 +733,53 @@ Statistics Handbook section 4.1.4.3 retained as corroboration for weighted least
 squares and inverse-variance weighting. Propagating this covariance into predicted
 resistance and temperature uncertainty remains the next 0.7.0 milestone.
 
+#### 0.7.0 fitted-covariance resistance propagation
+
+The next 0.7.0 milestone propagates retained fitted-parameter covariance into
+**predicted resistance uncertainty** while keeping that contribution separate
+from acquisition uncertainty and other measurement-budget components. For a
+model prediction ``R(T, theta)``, covariance propagation uses the full covariance
+matrix:
+
+```text
+u²_fit(R) = J Cov(theta) J^T
+```
+
+where ``J`` contains the resistance sensitivity coefficients with respect to the
+fitted parameters. This is the correlated-input law of propagation from JCGM
+100:2008 sections 5.1-5.2 and NIST Technical Note 1297 Appendix A; covariance
+off-diagonal terms must therefore be retained rather than treating the fitted
+parameters as independent. For the supported IEC-R0 and polynomial fit-space
+parameterizations, resistance is linear in the retained fitted parameters, so
+this forward resistance covariance transformation is exact at fixed temperature
+under the fit model; no Taylor truncation is introduced at this step.
+
+For an IEC 60751 `R0` fit, ``R(T) = R0 * rho(T)`` and the sensitivity vector is
+``(rho(T),)``. For a polynomial fit whose covariance is retained in the
+resistance-space basis at the returned model reference temperature,
+``x = T - reference_temperature_c`` and the sensitivity vector is directly
+``(1, x, x², ...)``. The propagation API records that vector alongside the
+covariance object, propagated variance in ohm², and standard uncertainty in
+ohms so the calculation remains auditable.
+
+Propagation is available only when the fit evidence actually contains parameter
+covariance. A fit that succeeded without estimable covariance remains a valid fit,
+but requesting covariance propagation from it fails explicitly and preserves the
+fit evidence's unavailability reason. Model temperature-range checks continue to
+apply.
+
+This result is intentionally **not** inserted automatically into
+``temperature_uncertainty_budget()``. Fitted-model uncertainty, uncertainty in a
+subsequent resistance measurement, reference-temperature uncertainty, drift,
+self-heating, tolerance assumptions, and other effects can have different sources
+and possible dependence relationships. Automatically combining them would assert
+independence that the package cannot generally know. The resistance-domain result
+therefore remains a separate inspectable contribution.
+
+This milestone does not yet propagate fitted-model covariance into the inverse
+temperature result. That later step must use the model's local inverse sensitivity
+and preserve the same first-order/local-linearization limitations.
+
 #### Portable model-definition format decision
 
 The 0.6.0 portable model definition is a **separate artifact type and schema**

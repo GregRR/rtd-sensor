@@ -33,6 +33,10 @@ print(propagated.temperature_sensitivity_celsius_per_ohm)
 print(propagated.temperature_standard_uncertainty_c)
 ```
 
+This helper propagates uncertainty in a **resistance measurement**. Uncertainty
+associated with parameters estimated during calibration is a different contribution;
+see [Fitted-model covariance propagation](fitted-model-propagation.md).
+
 The returned `ResistanceUncertaintyPropagation` retains:
 
 - resistance in ohms;

@@ -7,6 +7,12 @@ import math
 import pytest
 
 from rtd_sensor import pt100, pt1000, uncertainty
+from rtd_sensor.exceptions import RTDOutOfRangeError
+from rtd_sensor.fitting import (
+    CalibrationObservation,
+    fit_iec60751_r0,
+    fit_polynomial,
+)
 from rtd_sensor.models import CallendarVanDusenRTDModel, IEC60751RTDModel
 
 
@@ -222,3 +228,163 @@ def test_model_sensitivity_enforces_declared_temperature_range() -> None:
         model.resistance_sensitivity_ohms_per_celsius(-1.0)
     with pytest.raises(ValueError):
         model.temperature_sensitivity_celsius_per_ohm(101.0)
+
+
+def test_fit_covariance_propagates_iec_r0_variance_to_resistance() -> None:
+    fit = fit_iec60751_r0(
+        (
+            CalibrationObservation(
+                0.0,
+                100.0,
+                standard_uncertainty_ohms=0.01,
+            ),
+        ),
+        minimum_temperature_c=-50.0,
+        maximum_temperature_c=150.0,
+    )
+
+    propagated = uncertainty.propagate_fit_covariance_to_resistance(
+        100.0,
+        fit_result=fit,
+    )
+
+    ratio = IEC60751RTDModel(r0_ohms=1.0).celsius_to_resistance(100.0)
+    assert propagated.temperature_c == 100.0
+    assert propagated.resistance_ohms == pytest.approx(100.0 * ratio)
+    assert propagated.parameter_sensitivity_vector == pytest.approx((ratio,))
+    assert propagated.resistance_variance_ohms_squared == pytest.approx(
+        (ratio * 0.01) ** 2
+    )
+    assert propagated.resistance_standard_uncertainty_ohms == pytest.approx(
+        ratio * 0.01
+    )
+    assert propagated.parameter_covariance is fit.evidence.parameter_covariance
+
+
+def test_fit_covariance_propagates_polynomial_covariance_with_correlation() -> None:
+    fit = fit_polynomial(
+        (
+            CalibrationObservation(
+                0.0,
+                100.0,
+                standard_uncertainty_ohms=1.0,
+            ),
+            CalibrationObservation(
+                10.0,
+                120.0,
+                standard_uncertainty_ohms=1.0,
+            ),
+        ),
+        degree=1,
+        minimum_temperature_c=0.0,
+        maximum_temperature_c=8.0,
+    )
+
+    propagated = uncertainty.propagate_fit_covariance_to_resistance(
+        8.0,
+        fit_result=fit,
+    )
+
+    assert fit.model.reference_temperature_c == 4.0
+    assert propagated.resistance_ohms == pytest.approx(116.0)
+    assert propagated.parameter_sensitivity_vector == pytest.approx((1.0, 4.0))
+    # With independent 1-ohm standard uncertainties at 0 and 10 C, the fitted
+    # line predicts R(8 C) as 0.2*R(0 C) + 0.8*R(10 C), so the variance is
+    # 0.2**2 + 0.8**2 = 0.68 ohm^2. This includes the fitted-parameter
+    # covariance term rather than treating a0 and a1 as independent.
+    assert propagated.resistance_variance_ohms_squared == pytest.approx(0.68)
+    assert propagated.resistance_standard_uncertainty_ohms == pytest.approx(
+        math.sqrt(0.68)
+    )
+
+    at_reference = uncertainty.propagate_fit_covariance_to_resistance(
+        fit.model.reference_temperature_c,
+        fit_result=fit,
+    )
+    covariance = fit.evidence.parameter_covariance
+    assert covariance is not None
+    assert at_reference.parameter_sensitivity_vector == pytest.approx((1.0, 0.0))
+    assert at_reference.resistance_variance_ohms_squared == pytest.approx(
+        covariance.covariance_matrix[0][0]
+    )
+
+
+def test_fit_covariance_propagation_requires_available_covariance() -> None:
+    fit = fit_iec60751_r0(
+        (CalibrationObservation(0.0, 100.0),),
+        minimum_temperature_c=-50.0,
+        maximum_temperature_c=150.0,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "residual_variance_requires_positive_degrees_of_freedom.*"
+            "fitted model itself remains valid"
+        ),
+    ):
+        uncertainty.propagate_fit_covariance_to_resistance(0.0, fit_result=fit)
+
+
+def test_fit_covariance_propagation_rejects_unsupported_result_type() -> None:
+    with pytest.raises(TypeError, match="fit_result"):
+        uncertainty.propagate_fit_covariance_to_resistance(
+            0.0,
+            fit_result=object(),  # type: ignore[arg-type]
+        )
+
+
+def test_fit_covariance_propagation_uses_model_temperature_range() -> None:
+    fit = fit_iec60751_r0(
+        (
+            CalibrationObservation(
+                0.0,
+                100.0,
+                standard_uncertainty_ohms=0.01,
+            ),
+        ),
+        minimum_temperature_c=-10.0,
+        maximum_temperature_c=10.0,
+    )
+
+    with pytest.raises(RTDOutOfRangeError, match="between -10.*10"):
+        uncertainty.propagate_fit_covariance_to_resistance(20.0, fit_result=fit)
+
+
+def test_fit_covariance_propagates_quadratic_polynomial_sensitivities() -> None:
+    fit = fit_polynomial(
+        (
+            CalibrationObservation(
+                0.0,
+                100.0,
+                standard_uncertainty_ohms=1.0,
+            ),
+            CalibrationObservation(
+                5.0,
+                112.5,
+                standard_uncertainty_ohms=1.0,
+            ),
+            CalibrationObservation(
+                10.0,
+                130.0,
+                standard_uncertainty_ohms=1.0,
+            ),
+        ),
+        degree=2,
+        minimum_temperature_c=0.0,
+        maximum_temperature_c=8.0,
+    )
+
+    propagated = uncertainty.propagate_fit_covariance_to_resistance(
+        8.0,
+        fit_result=fit,
+    )
+
+    assert fit.model.reference_temperature_c == 4.0
+    assert propagated.resistance_ohms == pytest.approx(122.4)
+    assert propagated.parameter_sensitivity_vector == pytest.approx((1.0, 4.0, 16.0))
+    # Quadratic interpolation at 8 C from independent observations at 0, 5,
+    # and 10 C has Lagrange weights (-0.12, 0.64, 0.48). With 1-ohm standard
+    # uncertainty on each observation, the prediction variance is the sum of
+    # their squared weights.
+    assert propagated.resistance_variance_ohms_squared == pytest.approx(0.6544)

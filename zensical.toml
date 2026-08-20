@@ -52,6 +52,7 @@ nav = [
       { "IEC tolerance classes" = "documentation/measurement-uncertainty/tolerance.md" },
       { "Uncertainty fundamentals" = "documentation/measurement-uncertainty/uncertainty.md" },
       { "Resistance uncertainty" = "documentation/measurement-uncertainty/resistance-propagation.md" },
+      { "Fitted-model covariance" = "documentation/measurement-uncertainty/fitted-model-propagation.md" },
       { "Temperature uncertainty budgets" = "documentation/measurement-uncertainty/uncertainty-budgets.md" },
     ] },
     { "Simulation & testing" = [

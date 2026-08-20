@@ -139,4 +139,44 @@ temperature_uncertainty_budget(
 ) -> TemperatureUncertaintyBudget
 ```
 
+## `FitCovarianceResistancePropagation`
+
+**Planned for:** rtd-sensor 0.7.0.
+
+Result fields:
+
+```text
+temperature_c: float
+resistance_ohms: float
+parameter_covariance: FitParameterCovariance
+parameter_sensitivity_vector: tuple[float, ...]
+resistance_variance_ohms_squared: float
+resistance_standard_uncertainty_ohms: float
+```
+
+The sensitivity vector follows the covariance parameter order and represents
+``dR/dtheta`` for the fitted parameters. Individual sensitivity entries may have
+different physical dimensions because the parameters themselves can have
+different dimensions.
+
+## `propagate_fit_covariance_to_resistance`
+
+**Planned for:** rtd-sensor 0.7.0.
+
+```python
+propagate_fit_covariance_to_resistance(
+    temperature_c: float,
+    *,
+    fit_result: IEC60751R0FitResult | PolynomialFitResult,
+) -> FitCovarianceResistancePropagation
+```
+
+Applies covariance propagation ``J Cov(theta) J.T`` to the parameter covariance
+retained by a supported fit. For the currently supported IEC-R0 and polynomial
+fit-space parameterizations, resistance is linear in those retained parameters,
+so the resistance covariance transformation is exact at fixed temperature. The fit must have available
+parameter covariance. This result covers fitted-model uncertainty only; it does
+not automatically combine acquisition uncertainty, reference-temperature
+uncertainty, drift, tolerance, or other budget components.
+
 See [Measurement & uncertainty](../documentation/measurement-uncertainty/index.md).

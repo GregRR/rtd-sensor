@@ -71,8 +71,10 @@ Bureau International des Poids et Mesures.
 https://doi.org/10.59161/JCGM100-2008E
 
 **Project use:** Implementation basis for measurement-uncertainty terminology,
-standard uncertainty, first-order propagation, combination of independent
-components, and expanded uncertainty. Appendix H.3 is the implementation basis
+standard uncertainty, first-order propagation, covariance-aware propagation,
+combination of independent components, and expanded uncertainty. Sections 5.1-5.2
+provide the law of propagation used for fitted-parameter covariance propagation.
+Appendix H.3 is the implementation basis
 for the least-squares thermometer-calibration treatment used in v0.7.0,
 including fitted-parameter variance/covariance, residual degrees of freedom, and
 the distinction between residual-derived variance and independently established
@@ -98,7 +100,9 @@ https://www.nist.gov/pml/nist-technical-note-1297
 
 **Project use:** Implementation basis and public corroboration for Type B
 uncertainty treatment, rectangular/triangular distributions, combination of
-standard uncertainties, and expanded uncertainty.
+standard uncertainties, expanded uncertainty, and covariance-aware first-order
+propagation. Appendix A gives the law of propagation and its sensitivity/co-
+variance terms used by the fitted-model resistance-uncertainty implementation.
 
 ## Platinum RTD implementation and validation
 

@@ -73,8 +73,12 @@ resistance contribution.
 ## Independence assumption
 
 The current budget combines components as uncorrelated terms. It does not
-support covariance matrices, coefficient covariance, effective degrees of
-freedom, or Monte Carlo analysis.
+automatically ingest fitted-parameter covariance, effective degrees of freedom,
+or Monte Carlo results. Fitted-parameter covariance can be propagated separately
+into resistance uncertainty with
+`propagate_fit_covariance_to_resistance()`, but whether that contribution is
+independent of the rest of a particular measurement budget is a property of the
+actual calibration and measurement process.
 
 If two uncertainty sources are materially correlated, do not treat this helper
 as if it had modeled that covariance.
@@ -84,3 +88,4 @@ as if it had modeled that covariance.
 - [IEC tolerance](tolerance.md)
 - [Uncertainty fundamentals](uncertainty.md)
 - [Resistance propagation](resistance-propagation.md)
+- [Fitted-model covariance propagation](fitted-model-propagation.md)

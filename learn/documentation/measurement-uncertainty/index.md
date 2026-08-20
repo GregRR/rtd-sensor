@@ -16,6 +16,7 @@ This section keeps those ideas separate:
 - [IEC 60751 tolerance classes](tolerance.md)
 - [Uncertainty fundamentals](uncertainty.md)
 - [Resistance uncertainty propagation](resistance-propagation.md)
+- [Fitted-model covariance propagation](fitted-model-propagation.md)
 - [Temperature uncertainty budgets](uncertainty-budgets.md)
 
 !!! important "Tolerance and uncertainty are not synonyms"
