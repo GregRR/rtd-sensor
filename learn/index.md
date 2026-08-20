@@ -6,17 +6,17 @@ description: Learn and use rtd-sensor, from quick Python setup and complete docu
 # Learn rtd-sensor
 
 ## What is rtd-sensor?
-`rtd-sensor` is a Python library that turns RTD resistance values into temperatures, and 
-temperatures back into expected resistance values. It supports common platinum  
-RTDs such as Pt100, Pt500, Pt1000, and several nickel sensor types. It also provides 
-tools for calibration, custom sensor models, tolerance, uncertainty, simulation, and 
+`rtd-sensor` is a Python library that turns RTD resistance values into temperatures, and
+temperatures back into expected resistance values. It supports common platinum
+RTDs such as Pt100, Pt500, Pt1000, and several nickel sensor types. It also provides
+tools for calibration, custom sensor models, tolerance, uncertainty, simulation, and
 working with many readings at once.
 
 ## What rtd-sensor is not
-`rtd-sensor` does not read a physical RTDs directly. Hardware such as a MAX31865 or another 
-measurement circuit must first determine the sensor’s resistance, and your hardware or 
-acquisition software must pass that resistance to `rtd-sensor`. `rtd-sensor` handles the 
-RTD science and calculations; it does not handle wiring, SPI/I²C communication, ADCs, or 
+`rtd-sensor` does not read a physical RTD directly. Hardware such as a MAX31865 or another
+measurement circuit must first determine the sensor’s resistance, and your hardware or
+acquisition software must pass that resistance to `rtd-sensor`. `rtd-sensor` handles the
+RTD science and calculations; it does not handle wiring, SPI/I²C communication, ADCs, or
 other sensor-interface hardware.
 
 ## Let's Go!
@@ -29,8 +29,8 @@ professional or hobby project? Start with the complete user documentation:
 
 **Or learn RTDs by experimenting. No hardware is required to start.**
 
-The RTD Playground, for beginner to intermediates, begins with only Python and 
-`rtd-sensor`. Later exercises will add a real Pt100, a multimeter, a MAX31865, 
+The RTD Playground, for beginners to intermediate users, begins with only Python and
+`rtd-sensor`. Later exercises will add a real Pt100, a multimeter, a MAX31865,
 and a Raspberry Pi.
 
 [Visit the RTD Playground](playground/index.md)
