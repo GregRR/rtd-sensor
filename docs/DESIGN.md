@@ -632,6 +632,56 @@ The fitted `PolynomialRTDModel` uses the midpoint of the declared fitted validit
 range as its reference temperature. This is a deterministic numerical anchor, not a
 claim that a calibration observation exists at that exact temperature.
 
+#### 0.7.0 characterized-reference-resistance fitting
+
+The first 0.7.0 fitting tranche estimates only `R0` while holding the verified
+IEC 60751 PT-385 normalized characteristic fixed. The public entry point is
+`rtd_sensor.fitting.fit_iec60751_r0()`. For observations `(T_i, R_i)`, the
+model is linear in the single fitted parameter:
+
+```text
+R_i = R0 × rho_IEC(T_i)
+```
+
+where `rho_IEC(T)` is the package's existing normalized IEC characteristic.
+The fitter therefore uses the closed-form one-parameter least-squares solution
+rather than introducing a second numerical optimizer. Explicit relative weights
+and resistance standard uncertainties use the same normalized weighting
+conventions as `fit_polynomial()`. Temperature remains the independent variable;
+this tranche does not reinterpret reference-temperature uncertainty as resistance
+uncertainty or implement an errors-in-variables fit.
+
+The result must reuse `IEC60751RTDModel`; fitting `R0` does not create a parallel
+calibrated-model kind. Fit evidence remains separate and retains the original
+observations, resistance residuals, observation/fitted-parameter/degrees-of-freedom
+counts, observation temperature span, declared model range, weighting diagnostics,
+and the fitting method. Residuals remain observed resistance minus fitted
+resistance.
+
+Range semantics differ deliberately from the polynomial fitter because the
+standard characteristic shape is not being inferred from the calibration points.
+When at least two distinct calibration temperatures are supplied and no model
+range is given, the deployable model defaults to the observed span. A
+single-temperature fit can identify `R0`, but it must declare both model range
+limits explicitly because no nonzero applicability interval can be inferred from
+one temperature. When both limits are explicitly supplied, the declared
+applicability range is independent of the observation span: it may be broader,
+narrower, or disjoint, but must remain within the supported IEC PT-385 range.
+This is intentional because the standard characteristic shape is fixed rather
+than inferred from the calibration temperatures. The caller-declared range must
+not be presented as evidence that the calibration observations validated
+performance throughout that interval.
+
+An `R0` fit establishes only the best-fit reference resistance under the assumed
+IEC characteristic and resistance-residual model. It does not establish IEC
+tolerance-class conformance, physical sensor accuracy, or calibration validity
+outside what the retained evidence and caller-declared range justify.
+
+Coefficient/parameter covariance is intentionally not folded into this first
+implementation slice. Retaining and propagating fitted-parameter covariance
+remains a required 0.7.0 follow-up and should build on this evidence/result
+separation rather than changing the deployable model definition.
+
 #### Portable model-definition format decision
 
 The 0.6.0 portable model definition is a **separate artifact type and schema**

@@ -1,12 +1,14 @@
 ---
 title: Calibration fitting
-description: Fit validated polynomial RTD models from calibration observations with auditable residuals, diagnostics, optional weighting, and explicit failure semantics.
+description: Fit characterized IEC 60751 R0 values or validated polynomial RTD models from calibration observations with auditable residuals, diagnostics, and optional weighting.
 ---
 
 # Calibration fitting
 
-`rtd_sensor.fitting` fits a validated `PolynomialRTDModel` from measured
-**temperature/resistance calibration observations** without requiring NumPy.
+`rtd_sensor.fitting` fits RTD models from measured **temperature/resistance
+calibration observations** without requiring NumPy. The 0.6.0 API introduced
+polynomial fitting; 0.7.0 adds fitting of a characterized IEC 60751 PT-385
+reference resistance while keeping the standard characteristic fixed.
 
 The API deliberately returns two things together:
 
@@ -16,7 +18,50 @@ The API deliberately returns two things together:
 
 **Available since:** rtd-sensor 0.6.0.
 
-## Basic fit
+## Fit a characterized IEC 60751 `R0`
+
+**Planned for:** rtd-sensor 0.7.0.
+
+When the probe is assumed to retain the standard IEC 60751 PT-385 curve and you
+only want to estimate its individual reference resistance, fit `R0` directly:
+
+```python
+from rtd_sensor import fitting
+
+observations = (
+    fitting.CalibrationObservation(0.0, 100.037),
+    fitting.CalibrationObservation(100.0, 138.556),
+)
+
+fit = fitting.fit_iec60751_r0(observations)
+print(fit.model.r0_ohms)
+```
+
+The returned numerical model is an ordinary `IEC60751RTDModel`; the calibration
+process does not create a second model kind. The evidence retains the observations
+and residuals separately.
+
+With two or more distinct temperatures, the model range defaults to the observed
+span. A single-temperature observation can identify `R0`, but you must then
+declare a nonzero applicability range explicitly:
+
+```python
+fit = fitting.fit_iec60751_r0(
+    (fitting.CalibrationObservation(0.0, 100.037),),
+    minimum_temperature_c=-50.0,
+    maximum_temperature_c=250.0,
+)
+```
+
+An explicitly declared range describes where you intend to use the fitted model,
+not where calibration observations were collected. With an independent basis it
+may be broader, narrower, or even disjoint from the observation span. The fit
+evidence keeps those two ranges separate so the applicability declaration is not
+mistaken for calibration evidence. Fitting `R0` does not by itself establish IEC
+tolerance-class conformance or prove physical accuracy away from the calibration
+points.
+
+## Polynomial fit
 
 ```python
 from rtd_sensor import fitting

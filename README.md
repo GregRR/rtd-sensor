@@ -56,7 +56,7 @@ Only RTD characteristics whose equations, validity ranges, independent reference
 - convert a compensated RTD resistance measurement to temperature;
 - calculate the expected resistance of an RTD at a known temperature;
 - convert ordered batches of temperatures or resistances without a NumPy dependency;
-- model an individual IEC 60751 probe with a characterized R0 or custom Callendar–Van Dusen coefficients;
+- model or fit an individual IEC 60751 probe with a characterized R0, or use custom Callendar–Van Dusen coefficients;
 - fit a validated polynomial RTD model from calibration observations while retaining auditable fit evidence;
 - serialize and reconstruct supported configurable or fitted models with a versioned portable definition;
 - preserve authoritative manufacturer/user table data with a table-backed RTD model;
@@ -230,6 +230,8 @@ temperature_c = probe.resistance_to_celsius(119.42)
 ```
 
 The configurable model retains the standard IEC 60751 PT-385 curve while allowing an individually characterized `R0` and a narrower declared or calibrated temperature range.
+
+If you have temperature/resistance calibration observations and want to estimate only `R0` while retaining the standard PT-385 curve, use `rtd_sensor.fitting.fit_iec60751_r0()`. The fit returns the same `IEC60751RTDModel` plus immutable evidence; it does not create a separate calibrated-model type.
 
 For a probe whose calibration certificate or manufacturer documentation supplies an IEC-style Callendar–Van Dusen coefficient set, use `CallendarVanDusenRTDModel`:
 

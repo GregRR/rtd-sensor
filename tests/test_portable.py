@@ -61,6 +61,34 @@ def test_characterized_iec_model_round_trip_preserves_behavior_and_range() -> No
     _assert_behavior_matches(model, loaded.model, [-50.0, 0.0, 100.0, 250.0])
 
 
+def test_fitted_iec_r0_can_be_reconstructed_without_refitting() -> None:
+    source_model = IEC60751RTDModel(r0_ohms=100.037)
+    observations = (
+        fitting.CalibrationObservation(
+            temperature_c=0.0,
+            resistance_ohms=source_model.celsius_to_resistance(0.0),
+        ),
+        fitting.CalibrationObservation(
+            temperature_c=100.0,
+            resistance_ohms=source_model.celsius_to_resistance(100.0),
+        ),
+    )
+    fit = fitting.fit_iec60751_r0(
+        observations,
+        minimum_temperature_c=-50.0,
+        maximum_temperature_c=250.0,
+    )
+
+    artifact = portable.model_to_portable_definition(fit.model)
+    loaded = portable.model_from_portable_definition(json.loads(json.dumps(artifact)))
+
+    assert isinstance(loaded.model, IEC60751RTDModel)
+    assert loaded.model.r0_ohms == fit.model.r0_ohms
+    assert loaded.model.minimum_temperature_c == -50.0
+    assert loaded.model.maximum_temperature_c == 250.0
+    _assert_behavior_matches(fit.model, loaded.model, [-50.0, 0.0, 100.0, 250.0])
+
+
 def test_custom_cvd_round_trip_preserves_behavior() -> None:
     model = CallendarVanDusenRTDModel(
         r0_ohms=100.025,

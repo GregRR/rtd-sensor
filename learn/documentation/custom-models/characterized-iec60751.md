@@ -63,6 +63,19 @@ conforms to every IEC 60751 construction, tolerance, or test requirement. It is
 a numerical model of the PT-385 characteristic with your selected reference
 resistance.
 
+## Fit `R0` from calibration observations
+
+For rtd-sensor 0.7.0, `rtd_sensor.fitting.fit_iec60751_r0()` estimates `R0`
+from one or more temperature/resistance calibration observations while holding
+the PT-385 characteristic fixed. It returns an `IEC60751RTDModel` plus separate
+immutable fit evidence. An explicitly declared model range describes intended
+applicability and need not contain the observation temperatures; the evidence
+retains the actual observation span independently.
+
+This is different from fitting arbitrary Callendar–Van Dusen coefficients: the
+standard curve shape is assumed, and only its reference-resistance scale is
+estimated.
+
 ## Portable deployment
 
 `IEC60751RTDModel` is supported by the versioned

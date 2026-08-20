@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+* Added IEC 60751 PT-385 reference-resistance fitting from calibration observations, reusing the existing calibration weighting conventions and returning a characterized `IEC60751RTDModel` with immutable fit evidence.
+
 ## 0.6.1 — 2026-08-19
 
 ### Changed

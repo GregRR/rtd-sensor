@@ -89,8 +89,11 @@ def test_package_exports_fitting_module() -> None:
 def test_fitting_public_api() -> None:
     assert set(fitting.__all__) == {
         "CalibrationObservation",
+        "IEC60751R0FitEvidence",
+        "IEC60751R0FitResult",
         "PolynomialFitEvidence",
         "PolynomialFitResult",
+        "fit_iec60751_r0",
         "fit_polynomial",
     }
 

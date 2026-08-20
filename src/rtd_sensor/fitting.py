@@ -2,11 +2,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Calibration fitting for traceable RTD polynomial models.
+"""Calibration fitting for traceable RTD models.
 
 The fitting API intentionally keeps the fitted numerical model separate from the
 observations and diagnostics that justify it. Successful fits return a validated
-:class:`~rtd_sensor.models.PolynomialRTDModel` together with immutable fit evidence.
+model together with immutable fit evidence.
 """
 
 from __future__ import annotations
@@ -16,14 +16,18 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
 
+from . import _curves
 from ._curves import _MAX_POLYNOMIAL_DEGREE
 from .exceptions import InvalidRTDModelError, RTDFitError
-from .models import PolynomialRTDModel
+from .models import IEC60751RTDModel, PolynomialRTDModel
 
 __all__ = [
     "CalibrationObservation",
+    "IEC60751R0FitEvidence",
+    "IEC60751R0FitResult",
     "PolynomialFitEvidence",
     "PolynomialFitResult",
+    "fit_iec60751_r0",
     "fit_polynomial",
 ]
 
@@ -97,6 +101,50 @@ class CalibrationObservation:
         object.__setattr__(self, "resistance_ohms", resistance_ohms)
         object.__setattr__(self, "weight", weight)
         object.__setattr__(self, "standard_uncertainty_ohms", uncertainty)
+
+
+@dataclass(frozen=True, slots=True)
+class IEC60751R0FitEvidence:
+    """Immutable observations and diagnostics supporting an IEC R0 fit.
+
+    The fitted parameter is only ``R0``. The IEC 60751 PT-385 normalized
+    characteristic remains fixed. Residuals are ``observed resistance - fitted
+    resistance`` in ohms. ``rms_residual_ohms`` is the descriptive root mean
+    square ``sqrt(sum(residual**2) / observation_count)``, not a
+    degrees-of-freedom-adjusted estimate of residual standard deviation. When
+    ``residual_degrees_of_freedom`` is zero, the residual metrics are
+    approximately zero by construction and do not measure fit quality.
+
+    The observation span is retained separately from the model's declared
+    validity range because a caller may have independent justification for an
+    applicability interval that is broader, narrower, or disjoint from the
+    temperatures used to characterize ``R0``.
+    """
+
+    observations: tuple[CalibrationObservation, ...]
+    residuals_ohms: tuple[float, ...]
+    observation_count: int
+    fitted_parameter_count: int
+    residual_degrees_of_freedom: int
+    observation_minimum_temperature_c: float
+    observation_maximum_temperature_c: float
+    minimum_temperature_c: float
+    maximum_temperature_c: float
+    rms_residual_ohms: float
+    max_absolute_residual_ohms: float
+    weighting_method: _WeightingMethod
+    effective_weights: tuple[float, ...] | None
+    weighted_sum_squared_residual: float | None
+    weighted_rms_residual_ohms: float | None
+    solver: str
+
+
+@dataclass(frozen=True, slots=True)
+class IEC60751R0FitResult:
+    """Fitted IEC 60751 model and the evidence supporting the R0 estimate."""
+
+    model: IEC60751RTDModel
+    evidence: IEC60751R0FitEvidence
 
 
 @dataclass(frozen=True, slots=True)
@@ -338,6 +386,175 @@ def _power_series_value(coefficients: tuple[float, ...], x: float) -> float:
     for coefficient in reversed(coefficients):
         result = result * x + coefficient
     return result
+
+
+def fit_iec60751_r0(
+    observations: Iterable[CalibrationObservation],
+    *,
+    minimum_temperature_c: float | None = None,
+    maximum_temperature_c: float | None = None,
+    name: str = "Fitted IEC 60751 RTD",
+) -> IEC60751R0FitResult:
+    """Fit only ``R0`` while retaining the IEC 60751 PT-385 characteristic.
+
+    For each observation, the normalized IEC characteristic supplies
+    ``rho(T) = R(T) / R0`` and the fitter solves the one-parameter linear
+    least-squares problem ``R_observed = R0 * rho(T)``. Relative weights and
+    resistance standard uncertainties use the same conventions as
+    :func:`fit_polynomial`. Temperature is treated as the independent variable.
+
+    If no model range is supplied, at least two distinct temperatures are
+    required and the returned model uses the observed temperature span. If a
+    range is supplied, both limits must be supplied together. That explicit
+    applicability range is independent of the observation span: it may be
+    broader, narrower, or disjoint, but it must remain inside the IEC 60751
+    PT-385 characteristic range. The range is a caller-declared applicability
+    assumption; it is not evidence that the calibration observations validated
+    performance throughout that interval.
+
+    A single observation can therefore identify ``R0`` only when the caller
+    explicitly declares the model range. Fitting ``R0`` does not establish IEC
+    tolerance-class conformance or physical probe accuracy away from the
+    calibration observations.
+
+    Raises:
+        TypeError: If observations use an invalid value category.
+        ValueError: If scalar range arguments are malformed.
+        RTDFitError: If observations are absent, weighting is inconsistent, a
+            default validity span cannot be inferred, or the fit cannot produce
+            a finite positive ``R0``.
+    """
+
+    observation_tuple = tuple(observations)
+    if not observation_tuple:
+        raise RTDFitError("At least one calibration observation is required")
+    if not all(
+        isinstance(observation, CalibrationObservation)
+        for observation in observation_tuple
+    ):
+        raise TypeError("Observations must be CalibrationObservation values")
+
+    distinct_temperatures = {
+        observation.temperature_c for observation in observation_tuple
+    }
+    observed_minimum_c = min(distinct_temperatures)
+    observed_maximum_c = max(distinct_temperatures)
+    if (
+        observed_minimum_c < _curves.IEC_60751_PT385.minimum_temperature_c
+        or observed_maximum_c > _curves.IEC_60751_PT385.maximum_temperature_c
+    ):
+        raise RTDFitError(
+            "Calibration temperatures must lie within the IEC 60751 PT-385 range"
+        )
+
+    has_minimum = minimum_temperature_c is not None
+    has_maximum = maximum_temperature_c is not None
+    if has_minimum != has_maximum:
+        raise ValueError(
+            "Minimum and maximum fitted temperatures must be supplied together"
+        )
+
+    if not has_minimum:
+        if observed_minimum_c == observed_maximum_c:
+            raise RTDFitError(
+                "A single-temperature R0 fit requires an explicit model range"
+            )
+        minimum_c = observed_minimum_c
+        maximum_c = observed_maximum_c
+    else:
+        assert minimum_temperature_c is not None
+        assert maximum_temperature_c is not None
+        minimum_c = _as_float(
+            minimum_temperature_c,
+            name="Minimum fitted temperature",
+        )
+        maximum_c = _as_float(
+            maximum_temperature_c,
+            name="Maximum fitted temperature",
+        )
+        if not math.isfinite(minimum_c):
+            raise ValueError("Minimum fitted temperature must be finite")
+        if not math.isfinite(maximum_c):
+            raise ValueError("Maximum fitted temperature must be finite")
+        if minimum_c >= maximum_c:
+            raise ValueError(
+                "Minimum fitted temperature must be below maximum fitted temperature"
+            )
+
+    weighting_method, effective_weights = _effective_weights(observation_tuple)
+
+    numerator_terms: list[float] = []
+    denominator_terms: list[float] = []
+    for index, observation in enumerate(observation_tuple):
+        ratio = _curves.IEC_60751_PT385.resistance_ratio(observation.temperature_c)
+        weight = 1.0 if effective_weights is None else effective_weights[index]
+        numerator_terms.append(weight * ratio * observation.resistance_ohms)
+        denominator_terms.append(weight * ratio * ratio)
+
+    numerator = math.fsum(numerator_terms)
+    denominator = math.fsum(denominator_terms)
+    if (
+        not math.isfinite(numerator)
+        or not math.isfinite(denominator)
+        or denominator <= 0.0
+    ):
+        raise RTDFitError("R0 fit produced a non-finite least-squares system")
+
+    r0_ohms = numerator / denominator
+    if not math.isfinite(r0_ohms) or r0_ohms <= 0.0:
+        raise RTDFitError("Fitted R0 must be finite and positive")
+
+    try:
+        model = IEC60751RTDModel(
+            r0_ohms=r0_ohms,
+            name=name,
+            minimum_temperature_c=minimum_c,
+            maximum_temperature_c=maximum_c,
+        )
+    except InvalidRTDModelError as error:
+        raise RTDFitError(f"Fitted IEC 60751 model is not valid: {error}") from error
+
+    residuals = tuple(
+        observation.resistance_ohms
+        - r0_ohms * _curves.IEC_60751_PT385.resistance_ratio(observation.temperature_c)
+        for observation in observation_tuple
+    )
+    rms_residual_ohms = math.sqrt(
+        math.fsum(residual * residual for residual in residuals) / len(residuals)
+    )
+    max_absolute_residual_ohms = max(abs(residual) for residual in residuals)
+
+    weighted_sum_squared_residual: float | None = None
+    weighted_rms_residual_ohms: float | None = None
+    if effective_weights is not None:
+        weighted_sum_squared_residual = math.fsum(
+            weight * residual * residual
+            for weight, residual in zip(effective_weights, residuals, strict=True)
+        )
+        total_weight = math.fsum(effective_weights)
+        weighted_rms_residual_ohms = math.sqrt(
+            weighted_sum_squared_residual / total_weight
+        )
+
+    evidence = IEC60751R0FitEvidence(
+        observations=observation_tuple,
+        residuals_ohms=residuals,
+        observation_count=len(observation_tuple),
+        fitted_parameter_count=1,
+        residual_degrees_of_freedom=len(observation_tuple) - 1,
+        observation_minimum_temperature_c=observed_minimum_c,
+        observation_maximum_temperature_c=observed_maximum_c,
+        minimum_temperature_c=minimum_c,
+        maximum_temperature_c=maximum_c,
+        rms_residual_ohms=rms_residual_ohms,
+        max_absolute_residual_ohms=max_absolute_residual_ohms,
+        weighting_method=weighting_method,
+        effective_weights=effective_weights,
+        weighted_sum_squared_residual=weighted_sum_squared_residual,
+        weighted_rms_residual_ohms=weighted_rms_residual_ohms,
+        solver="closed_form_single_parameter_least_squares",
+    )
+    return IEC60751R0FitResult(model=model, evidence=evidence)
 
 
 def fit_polynomial(

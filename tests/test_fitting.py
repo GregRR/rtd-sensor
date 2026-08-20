@@ -10,11 +10,14 @@ import pytest
 from rtd_sensor.exceptions import RTDFitError
 from rtd_sensor.fitting import (
     CalibrationObservation,
+    IEC60751R0FitEvidence,
+    IEC60751R0FitResult,
     PolynomialFitEvidence,
     PolynomialFitResult,
+    fit_iec60751_r0,
     fit_polynomial,
 )
-from rtd_sensor.models import PolynomialRTDModel
+from rtd_sensor.models import IEC60751RTDModel, PolynomialRTDModel
 
 
 def _synthetic_resistance(temperature_c: float) -> float:
@@ -24,6 +27,205 @@ def _synthetic_resistance(temperature_c: float) -> float:
         + 4.0e-6 * temperature_c**2
         + 1.0e-9 * temperature_c**3
     )
+
+
+def _iec_observations(
+    r0_ohms: float,
+    temperatures_c: tuple[float, ...],
+) -> tuple[CalibrationObservation, ...]:
+    model = IEC60751RTDModel(r0_ohms=r0_ohms)
+    return tuple(
+        CalibrationObservation(
+            temperature_c,
+            model.celsius_to_resistance(temperature_c),
+        )
+        for temperature_c in temperatures_c
+    )
+
+
+def test_fit_iec60751_r0_recovers_exact_characterized_model() -> None:
+    observations = _iec_observations(100.037, (-50.0, 0.0, 100.0, 250.0))
+
+    result = fit_iec60751_r0(observations)
+
+    assert isinstance(result, IEC60751R0FitResult)
+    assert isinstance(result.model, IEC60751RTDModel)
+    assert isinstance(result.evidence, IEC60751R0FitEvidence)
+    assert result.model.r0_ohms == pytest.approx(100.037, abs=1e-13)
+    assert result.model.minimum_temperature_c == -50.0
+    assert result.model.maximum_temperature_c == 250.0
+    assert result.evidence.observation_count == 4
+    assert result.evidence.fitted_parameter_count == 1
+    assert result.evidence.residual_degrees_of_freedom == 3
+    assert result.evidence.observation_minimum_temperature_c == -50.0
+    assert result.evidence.observation_maximum_temperature_c == 250.0
+    assert result.evidence.rms_residual_ohms < 1e-12
+    assert result.evidence.max_absolute_residual_ohms < 1e-12
+    assert result.evidence.weighting_method == "unweighted"
+    assert result.evidence.solver == "closed_form_single_parameter_least_squares"
+
+
+def test_fit_iec60751_r0_retains_observed_minus_fitted_residuals() -> None:
+    observations = (
+        CalibrationObservation(0.0, 100.0),
+        CalibrationObservation(100.0, 138.6),
+        CalibrationObservation(200.0, 175.7),
+    )
+
+    result = fit_iec60751_r0(observations)
+    expected = tuple(
+        observation.resistance_ohms
+        - result.model.celsius_to_resistance(observation.temperature_c)
+        for observation in observations
+    )
+
+    assert result.evidence.residuals_ohms == pytest.approx(expected)
+    assert result.evidence.rms_residual_ohms == pytest.approx(
+        math.sqrt(math.fsum(value * value for value in expected) / len(expected))
+    )
+
+
+def test_fit_iec60751_r0_supports_relative_weights() -> None:
+    base = IEC60751RTDModel(r0_ohms=100.0)
+    observations = (
+        CalibrationObservation(0.0, 100.0, weight=1.0),
+        CalibrationObservation(100.0, base.celsius_to_resistance(100.0), weight=1.0),
+        CalibrationObservation(100.0, 150.0, weight=0.0001),
+    )
+
+    result = fit_iec60751_r0(observations)
+
+    assert result.evidence.weighting_method == "normalized_explicit_weights"
+    assert result.evidence.effective_weights == (1.0, 1.0, 0.0001)
+    assert result.evidence.weighted_sum_squared_residual is not None
+    assert result.evidence.weighted_rms_residual_ohms is not None
+    assert result.model.r0_ohms < 100.01
+
+
+def test_fit_iec60751_r0_supports_resistance_standard_uncertainty() -> None:
+    base = IEC60751RTDModel(r0_ohms=100.0)
+    observations = (
+        CalibrationObservation(
+            0.0,
+            100.0,
+            standard_uncertainty_ohms=0.01,
+        ),
+        CalibrationObservation(
+            100.0,
+            base.celsius_to_resistance(100.0),
+            standard_uncertainty_ohms=0.02,
+        ),
+    )
+
+    result = fit_iec60751_r0(observations)
+
+    assert result.evidence.weighting_method == (
+        "normalized_inverse_variance_from_standard_uncertainty"
+    )
+    assert result.evidence.effective_weights == pytest.approx((1.0, 0.25))
+    assert result.model.r0_ohms == pytest.approx(100.0, abs=1e-13)
+
+
+def test_fit_iec60751_r0_single_temperature_requires_explicit_range() -> None:
+    observation = CalibrationObservation(0.0, 100.037)
+
+    with pytest.raises(RTDFitError, match="single-temperature R0 fit"):
+        fit_iec60751_r0((observation,))
+
+    result = fit_iec60751_r0(
+        (observation,),
+        minimum_temperature_c=-50.0,
+        maximum_temperature_c=250.0,
+    )
+
+    assert result.model.r0_ohms == pytest.approx(100.037)
+    assert result.model.minimum_temperature_c == -50.0
+    assert result.model.maximum_temperature_c == 250.0
+    assert result.evidence.residual_degrees_of_freedom == 0
+    assert result.evidence.observation_minimum_temperature_c == 0.0
+    assert result.evidence.observation_maximum_temperature_c == 0.0
+
+
+def test_fit_iec60751_r0_explicit_range_is_separate_from_observation_span() -> None:
+    observations = _iec_observations(100.037, (0.0, 100.0))
+
+    result = fit_iec60751_r0(
+        observations,
+        minimum_temperature_c=-100.0,
+        maximum_temperature_c=400.0,
+    )
+
+    assert result.evidence.observation_minimum_temperature_c == 0.0
+    assert result.evidence.observation_maximum_temperature_c == 100.0
+    assert result.evidence.minimum_temperature_c == -100.0
+    assert result.evidence.maximum_temperature_c == 400.0
+
+
+def test_fit_iec60751_r0_explicit_range_may_be_disjoint_from_observations() -> None:
+    observations = _iec_observations(100.037, (0.0, 20.0))
+
+    result = fit_iec60751_r0(
+        observations,
+        minimum_temperature_c=500.0,
+        maximum_temperature_c=600.0,
+    )
+
+    assert result.model.minimum_temperature_c == 500.0
+    assert result.model.maximum_temperature_c == 600.0
+    assert result.evidence.observation_minimum_temperature_c == 0.0
+    assert result.evidence.observation_maximum_temperature_c == 20.0
+    assert result.evidence.minimum_temperature_c == 500.0
+    assert result.evidence.maximum_temperature_c == 600.0
+
+
+def test_fit_iec60751_r0_requires_both_explicit_range_limits() -> None:
+    observations = _iec_observations(100.0, (0.0, 100.0))
+
+    with pytest.raises(ValueError, match="must be supplied together"):
+        fit_iec60751_r0(observations, minimum_temperature_c=-50.0)
+
+    with pytest.raises(ValueError, match="must be supplied together"):
+        fit_iec60751_r0(observations, maximum_temperature_c=250.0)
+
+
+def test_fit_iec60751_r0_rejects_range_outside_iec_characteristic() -> None:
+    observations = _iec_observations(100.0, (0.0, 100.0))
+
+    with pytest.raises(RTDFitError, match="not valid"):
+        fit_iec60751_r0(
+            observations,
+            minimum_temperature_c=-201.0,
+            maximum_temperature_c=100.0,
+        )
+
+
+def test_fit_iec60751_r0_rejects_observations_outside_iec_characteristic() -> None:
+    observations = (
+        CalibrationObservation(-201.0, 18.0),
+        CalibrationObservation(0.0, 100.0),
+    )
+
+    with pytest.raises(RTDFitError, match="IEC 60751 PT-385 range"):
+        fit_iec60751_r0(observations)
+
+
+def test_fit_iec60751_r0_accepts_one_pass_iterable() -> None:
+    observations = (
+        observation for observation in _iec_observations(100.037, (-25.0, 0.0, 100.0))
+    )
+
+    result = fit_iec60751_r0(observations)
+
+    assert result.model.r0_ohms == pytest.approx(100.037, abs=1e-13)
+    assert len(result.evidence.observations) == 3
+
+
+def test_fit_iec60751_r0_rejects_empty_and_non_observation_inputs() -> None:
+    with pytest.raises(RTDFitError, match="At least one calibration observation"):
+        fit_iec60751_r0(())
+
+    with pytest.raises(TypeError, match="CalibrationObservation"):
+        fit_iec60751_r0([(0.0, 100.0), (100.0, 138.5)])  # type: ignore[list-item]
 
 
 def test_calibration_observation_normalizes_values_and_is_immutable() -> None:
