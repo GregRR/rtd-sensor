@@ -12,3 +12,12 @@ For each third-party image, record:
 - whether the image was modified.
 
 Original project photographs, diagrams, and generated figures do not
+
+### Pt100 sensors
+
+- **Image:** *pt100-sensors.png*
+- **Creator:** dirkhb
+- **Source:** [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Pt100_Sensors.png)
+- **License:** Public domain
+- **Modifications:** Color correction
+- **Used on:** Learn rtd-sensor home page

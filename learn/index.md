@@ -25,6 +25,14 @@ calculation in reverse.
 [Start your first Pt100 experiment](experiments/first-pt100-experiment.md)
 { .md-button .md-button--primary }
 
+![Three different Pt100 temperature sensors](assets/images/pt100-sensors.png){ width="400" loading=lazy }
+
+/// caption
+Three different Pt100 temperature sensors. Color-corrected from
+[*Pt100 Sensors.png* by dirkhb](https://commons.wikimedia.org/wiki/File:Pt100_Sensors.png),
+released into the public domain.
+///
+
 ## Where this goes
 
 The experiments will gradually move from software-only exploration to real
@@ -38,6 +46,9 @@ hardware:
 6. connect a MAX31865 and Raspberry Pi;
 7. explore calibration, tolerance, uncertainty, and portable models;
 8. go deeper into cross-language and embedded RTD implementations.
+
+[Start your first Pt100 experiment](experiments/first-pt100-experiment.md)
+{ .md-button .md-button--primary }
 
 !!! note "This is the learning site"
     The main repository documentation remains the engineering reference for

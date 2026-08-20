@@ -44,12 +44,11 @@ The name **Pt100** gives us two useful clues:
 - **Pt** means the sensing element is platinum.
 - **100** means an ideal Pt100 has a resistance of **100 ohms at 0 °C**.
 
-That is enough theory for now.
 
-!!! note "A model, not imaginary hardware"
+!!! note "rtd-sensor is an interpreter"
     `rtd-sensor` is not pretending that your computer has a temperature probe
-    attached. It calculates the standardized relationship between Pt100
-    temperature and resistance. Later, we will feed it measurements from real
+    attached to it at this point. It calculates the standardized relationship 
+    between resistance and temperature. Later, we will feed it measurements from real
     hardware.
 
 ## Experiment 1: discover the "100" in Pt100
@@ -196,9 +195,9 @@ sensor: take the best available estimate of the Pt100's resistance and convert
 it to temperature.
 
 !!! info "Where the resistance comes from"
-    `rtd-sensor` does not read a multimeter, ADC, or MAX31865 itself. Those
-    devices obtain the resistance measurement. `rtd-sensor` handles the RTD
-    model that turns that resistance into temperature.
+    `rtd-sensor` does not read a multimeter, ADC, or a MAX31865 itself. Those
+    devices obtain the resistance measurement. `rtd-sensor` handles the resistance 
+    temperature detector (RTD) model that turns that resistance into temperature.
 
 ## Try your own experiments
 
