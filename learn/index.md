@@ -1,26 +1,47 @@
 ---
 title: Learn rtd-sensor
-description: Learn how Pt100 and other RTD temperature sensors work through beginner-friendly Python experiments, then move on to real measurements, calibration, uncertainty, and embedded systems.
+description: Learn and use rtd-sensor, from quick Python setup and complete documentation through beginner-friendly RTD experiments, calibration, uncertainty, and embedded interoperability.
 ---
 
 # Learn rtd-sensor
 
-**Learn RTDs by experimenting with them. No hardware is required to start.**
+## What is rtd-sensor?
+`rtd-sensor` is a Python library that turns RTD resistance values into temperatures, and 
+temperatures back into expected resistance values. It supports common platinum  
+RTDs such as Pt100, Pt500, Pt1000, and several nickel sensor types. It also provides 
+tools for calibration, custom sensor models, tolerance, uncertainty, simulation, and 
+working with many readings at once.
 
-`rtd-sensor` is a Python library for resistance temperature detector (RTD)
-conversion and modeling. This site is the hands-on companion to the project:
-short experiments that let you change values, make predictions, and see what
-happens.
+## What rtd-sensor is not
+`rtd-sensor` does not read a physical RTDs directly. Hardware such as a MAX31865 or another 
+measurement circuit must first determine the sensor’s resistance, and your hardware or 
+acquisition software must pass that resistance to `rtd-sensor`. `rtd-sensor` handles the 
+RTD science and calculations; it does not handle wiring, SPI/I²C communication, ADCs, or 
+other sensor-interface hardware.
 
-You can begin with only Python and `rtd-sensor`. Later experiments add a real
-Pt100, a multimeter, a MAX31865, and a Raspberry Pi.
+## Let's Go!
+
+Ready to dive in and use `rtd-sensor` in research, engineering, or in a
+professional or hobby project? Start with the complete user documentation:
+
+[Full rtd-sensor Documentation](documentation/index.md)
+{ .md-button .md-button--docs }
+
+**Or learn RTDs by experimenting. No hardware is required to start.**
+
+The RTD Playground, for beginner to intermediates, begins with only Python and 
+`rtd-sensor`. Later exercises will add a real Pt100, a multimeter, a MAX31865, 
+and a Raspberry Pi.
+
+[Visit the RTD Playground](playground/index.md)
+{ .md-button .md-button--primary }
 
 ## Start with a Pt100
 
 A **Pt100** is a platinum RTD whose ideal resistance is 100 ohms at 0 °C. In the
-first experiment, Python will act as the measurement lab: you will ask what
-resistance a Pt100 should have at different temperatures and then run the
-calculation in reverse.
+first experiment, Python acts as the measurement lab: you ask what resistance a
+Pt100 should have at different temperatures and then run the calculation in
+reverse.
 
 [Start your first Pt100 experiment](experiments/first-pt100-experiment.md)
 { .md-button .md-button--primary }
@@ -33,10 +54,10 @@ Three different Pt100 temperature sensors. Color-corrected from
 released into the public domain.
 ///
 
-## Where this goes
+## Where the RTD Playground goes
 
-The experiments will gradually move from software-only exploration to real
-hardware:
+The beginner-to-intermediate exercises will gradually move from software-only
+exploration to real hardware:
 
 1. calculate Pt100 resistance and temperature;
 2. plot an RTD curve;
@@ -47,10 +68,11 @@ hardware:
 7. explore calibration, tolerance, uncertainty, and portable models;
 8. go deeper into cross-language and embedded RTD implementations.
 
-[Start your first Pt100 experiment](experiments/first-pt100-experiment.md)
+[Visit the RTD Playground](playground/index.md)
 { .md-button .md-button--primary }
 
-!!! note "This is the learning site"
-    The main repository documentation remains the engineering reference for
-    `rtd-sensor`. These pages are deliberately experiment-first and
-    beginner-friendly.
+!!! note "Two ways to use this site"
+    If you already know Python and want to use the package, begin with
+    [Start Here](start-here.md) or the [full documentation](documentation/index.md).
+    If you want a more detailed, experiment-driven introduction, use the
+    [RTD Playground](playground/index.md).

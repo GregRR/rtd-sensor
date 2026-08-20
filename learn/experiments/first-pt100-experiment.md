@@ -21,7 +21,7 @@ the calculation backward as if we had measured a real sensor.
 - **Time:** about 10–15 minutes
 - **You need:** Python 3.11+ and `rtd-sensor`
 
-If you have not installed the package yet, start with [Start here](../start-here.md).
+If you have not installed the package yet, start with the [RTD Playground introduction](../playground/index.md).
 
 ## The question
 

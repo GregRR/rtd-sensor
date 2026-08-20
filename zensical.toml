@@ -1,7 +1,7 @@
 [project]
 site_name = "Learn rtd-sensor"
 site_url = "https://gregrr.github.io/rtd-sensor/"
-site_description = "Beginner-friendly RTD sensor experiments with Python, from Pt100 basics and plotting through real measurements, calibration, uncertainty, and embedded use."
+site_description = "Approachable, complete rtd-sensor documentation plus beginner-to-intermediate RTD experiments with Python."
 site_author = "Greg Roe"
 docs_dir = "learn"
 site_dir = "site"
@@ -12,11 +12,88 @@ copyright = "Copyright &copy; 2026 Greg Roe"
 extra_css = ["stylesheets/extra.css"]
 nav = [
   { "Home" = "index.md" },
-  { "Start here" = "start-here.md" },
-  { "Experiments" = [
+  { "Start Here" = "start-here.md" },
+  { "Documentation" = [
+    { "Documentation home" = "documentation/index.md" },
+    { "Using rtd-sensor" = [
+      { "Overview" = "documentation/using/index.md" },
+      { "Installation" = "documentation/using/installation.md" },
+      { "Temperature ↔ resistance" = "documentation/using/conversion.md" },
+      { "Valid ranges and errors" = "documentation/using/ranges-errors.md" },
+      { "Sensitivity" = "documentation/using/sensitivity.md" },
+      { "Batch conversion" = "documentation/using/batch.md" },
+      { "Discovering built-in models" = "documentation/using/catalog.md" },
+      { "Choosing the right model" = "documentation/using/choosing-model.md" },
+      { "Migrating from pt100-core" = "documentation/using/migration.md" },
+    ] },
+    { "Built-in RTDs" = [
+      { "Overview" = "documentation/built-in-rtds/index.md" },
+      { "Pt100" = "documentation/built-in-rtds/pt100.md" },
+      { "Pt500" = "documentation/built-in-rtds/pt500.md" },
+      { "Pt1000" = "documentation/built-in-rtds/pt1000.md" },
+      { "Ni1000 6180" = "documentation/built-in-rtds/ni1000.md" },
+      { "Ni1000 TK5000" = "documentation/built-in-rtds/ni1000-tk5000.md" },
+      { "Ni120 6720" = "documentation/built-in-rtds/ni120.md" },
+    ] },
+    { "Custom & calibrated models" = [
+      { "Overview" = "documentation/custom-models/index.md" },
+      { "Characterized IEC 60751" = "documentation/custom-models/characterized-iec60751.md" },
+      { "Callendar–Van Dusen" = "documentation/custom-models/callendar-van-dusen.md" },
+      { "Polynomial models" = "documentation/custom-models/polynomial.md" },
+      { "Piecewise polynomial models" = "documentation/custom-models/piecewise-polynomial.md" },
+      { "Tabulated models" = "documentation/custom-models/tabulated.md" },
+      { "Calibration fitting" = "documentation/custom-models/calibration-fitting.md" },
+      { "Portable model definitions" = "documentation/custom-models/portable-definitions.md" },
+    ] },
+    { "Measurement & uncertainty" = [
+      { "Overview" = "documentation/measurement-uncertainty/index.md" },
+      { "Hardware/acquisition boundary" = "documentation/measurement-uncertainty/acquisition-boundary.md" },
+      { "ResistanceReader" = "documentation/measurement-uncertainty/resistance-reader.md" },
+      { "IEC tolerance classes" = "documentation/measurement-uncertainty/tolerance.md" },
+      { "Uncertainty fundamentals" = "documentation/measurement-uncertainty/uncertainty.md" },
+      { "Resistance uncertainty" = "documentation/measurement-uncertainty/resistance-propagation.md" },
+      { "Temperature uncertainty budgets" = "documentation/measurement-uncertainty/uncertainty-budgets.md" },
+    ] },
+    { "Simulation & testing" = [
+      { "Overview" = "documentation/simulation-testing/index.md" },
+      { "Simulation readers" = "documentation/simulation-testing/simulation.md" },
+    ] },
+    { "Integration" = [
+      { "Overview" = "documentation/integration/index.md" },
+      { "RTDModel interface" = "documentation/integration/rtdmodel-interface.md" },
+      { "Third-party models" = "documentation/integration/third-party-models.md" },
+      { "Error handling" = "documentation/integration/error-handling.md" },
+      { "Hardware integration" = "documentation/integration/hardware-integration.md" },
+    ] },
+  ] },
+  { "RTD Playground" = [
+    { "Playground home" = "playground/index.md" },
     { "1. Your first Pt100 experiment" = "experiments/first-pt100-experiment.md" },
   ] },
-  { "Engineering docs" = "https://github.com/GregRR/rtd-sensor/tree/main/docs" },
+  { "Advanced" = [
+    { "Advanced home" = "advanced/index.md" },
+    { "Conformance in plain English" = "advanced/conformance.md" },
+    { "Conformance artifacts" = "advanced/conformance-artifacts.md" },
+    { "Numerical acceptance" = "advanced/numerical-acceptance.md" },
+    { "Binary32 compatibility" = "advanced/binary32.md" },
+    { "Independent C11 verification" = "advanced/c11.md" },
+    { "Cross-language & embedded" = "advanced/cross-language-embedded.md" },
+  ] },
+  { "API Reference" = [
+    { "API home" = "api/index.md" },
+    { "Built-in sensor modules" = "api/builtins.md" },
+    { "batch" = "api/batch.md" },
+    { "catalog" = "api/catalog.md" },
+    { "exceptions" = "api/exceptions.md" },
+    { "fitting" = "api/fitting.md" },
+    { "measurement" = "api/measurement.md" },
+    { "models" = "api/models.md" },
+    { "portable" = "api/portable.md" },
+    { "simulation" = "api/simulation.md" },
+    { "tolerance" = "api/tolerance.md" },
+    { "uncertainty" = "api/uncertainty.md" },
+  ] },
+  { "Project" = "project/index.md" },
 ]
 
 [project.theme]
