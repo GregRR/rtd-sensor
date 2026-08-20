@@ -997,7 +997,7 @@ The following decisions remain intentionally deferred:
 
 1. Alternate standardized platinum curves and historical `R0`, alpha, delta, beta coefficient notation.
 2. ITS-90 interpolation support for reference-grade calibrated PRTs.
-3. Covariance-aware uncertainty propagation, effective degrees of freedom, fitted-coefficient covariance, and Monte Carlo methods.
+3. General covariance-aware uncertainty budgets beyond the fitted-coefficient covariance propagation planned for 0.7.0, effective degrees of freedom, coverage-interval selection, and Monte Carlo methods.
 4. The exact production embedded repository/API boundary after real MCU implementation experience exists.
 5. Whether generated C/C++ deployment artifacts or lookup tables provide enough demonstrated benefit to become maintained public outputs.
 6. A richer public calibration-certificate metadata schema beyond the provenance needed to reconstruct and audit a model.
@@ -1126,10 +1126,11 @@ R(t) = R0 × [1 + A×t + B×t² + C×(t - 100)×t³]
 
 The built-in Pt100, Pt500, and Pt1000 modules model the ideal standardized curve.
 Public model objects can consume an individually characterized `R0` or a
-traceable custom Callendar–Van Dusen coefficient set, but the library does
-not currently fit calibration coefficients from observations. Sensor
-tolerance, lead-wire resistance, self-heating, and measurement-circuit
-errors remain separate concerns.
+traceable custom Callendar–Van Dusen coefficient set. Version 0.6.0 also
+supports polynomial calibration fitting from observations; fitting
+characterized `R0` and custom Callendar–Van Dusen parameters is planned for
+0.7.0. Sensor tolerance, lead-wire resistance, self-heating, and
+measurement-circuit errors remain separate concerns.
 
 ### Test provenance
 
