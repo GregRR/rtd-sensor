@@ -5,9 +5,11 @@ description: Quick API reference for rtd_sensor.uncertainty standard uncertainty
 
 # `rtd_sensor.uncertainty`
 
-All public uncertainty symbols were **introduced in project release 0.3.0**
-under `pt100-core` / `rtd`. The current `rtd_sensor.uncertainty` import path
-began with rtd-sensor 0.4.0.
+The core uncertainty helpers, resistance propagation, and temperature-budget APIs
+were introduced in project release 0.3.0 under `pt100-core` / `rtd`; their current
+`rtd_sensor.uncertainty` import path began with rtd-sensor 0.4.0. Fitted-parameter
+covariance propagation into resistance and inferred temperature was added in
+rtd-sensor 0.7.0.
 
 ## Type aliases
 
@@ -141,7 +143,7 @@ temperature_uncertainty_budget(
 
 ## `FitCovarianceResistancePropagation`
 
-**Planned for:** rtd-sensor 0.7.0.
+**Introduced in:** rtd-sensor 0.7.0.
 
 Result fields:
 
@@ -161,7 +163,7 @@ different dimensions.
 
 ## `propagate_fit_covariance_to_resistance`
 
-**Planned for:** rtd-sensor 0.7.0.
+**Introduced in:** rtd-sensor 0.7.0.
 
 ```python
 propagate_fit_covariance_to_resistance(
@@ -186,7 +188,7 @@ See [Measurement & uncertainty](../documentation/measurement-uncertainty/index.m
 
 ## `FitCovarianceTemperaturePropagation`
 
-**Planned for:** rtd-sensor 0.7.0.
+**Introduced in:** rtd-sensor 0.7.0.
 
 Result fields:
 
@@ -208,7 +210,7 @@ and the model's local inverse sensitivity.
 
 ## `propagate_fit_covariance_to_temperature`
 
-**Planned for:** rtd-sensor 0.7.0.
+**Introduced in:** rtd-sensor 0.7.0.
 
 ```python
 propagate_fit_covariance_to_temperature(

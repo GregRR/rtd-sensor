@@ -1,6 +1,6 @@
 ---
 title: Installation
-description: Install rtd-sensor 0.6.1 on Python 3.11 or later with pip or uv and understand the distribution and import package names.
+description: Install rtd-sensor on Python 3.11 or later with pip or uv and understand the distribution and import package names.
 ---
 
 # Installation

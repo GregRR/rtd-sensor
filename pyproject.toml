@@ -65,7 +65,7 @@ dev = [
 [project.urls]
 Homepage = "https://github.com/GregRR/rtd-sensor"
 Repository = "https://github.com/GregRR/rtd-sensor"
-Documentation = "https://github.com/GregRR/rtd-sensor/tree/main/docs"
+Documentation = "https://gregrr.github.io/rtd-sensor/"
 Conformance = "https://github.com/GregRR/rtd-sensor/tree/main/conformance"
 Changelog = "https://github.com/GregRR/rtd-sensor/blob/main/CHANGELOG.md"
 Issues = "https://github.com/GregRR/rtd-sensor/issues"

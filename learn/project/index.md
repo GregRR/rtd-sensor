@@ -31,4 +31,4 @@ copy here.
 - [Image credits](../about/image-credits.md)
 - [GitHub repository](https://github.com/GregRR/rtd-sensor)
 
-The current release is **rtd-sensor 0.6.1**, supporting **Python 3.11 and later**.
+`rtd-sensor` supports **Python 3.11 and later**; Python 3.14 is the primary development version.

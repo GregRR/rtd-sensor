@@ -5,7 +5,10 @@ description: Quick API reference for rtd_sensor.fitting calibration observations
 
 # `rtd_sensor.fitting`
 
-The public fitting API was **introduced in rtd-sensor 0.6.0**. IEC 60751 `R0`, selected custom Callendar–Van Dusen parameter fitting, and expanded statistical diagnostics are planned for rtd-sensor 0.7.0.
+The public fitting API was **introduced in rtd-sensor 0.6.0**. rtd-sensor 0.7.0
+adds characterized IEC 60751 `R0` fitting, selected custom Callendar–Van Dusen
+parameter fitting, fitted-parameter covariance/diagnostics, calibration provenance,
+and explicit reference-temperature uncertainty handling.
 
 ## `CalibrationObservation`
 
@@ -25,11 +28,19 @@ CalibrationObservation(
 observation. `standard_uncertainty_temperature_c` records uncertainty in the
 calibration/reference temperature coordinate; current fitters do not use it as a
 weight. Fits reject it by default unless the caller explicitly chooses
-`temperature_uncertainty_handling="retain_not_used"`.
+`temperature_uncertainty_handling="retain_not_used"`. The
+`standard_uncertainty_temperature_c` field was added in rtd-sensor 0.7.0.
+
+## Type aliases added in rtd-sensor 0.7.0
+
+```text
+CalibrationTemperatureUncertaintyHandling = Literal["reject", "retain_not_used"]
+CallendarVanDusenFitParameter = Literal["r0_ohms", "a", "b", "c"]
+```
 
 ## `CalibrationProvenance`
 
-**Planned for:** rtd-sensor 0.7.0
+**Introduced in:** rtd-sensor 0.7.0
 
 Immutable application-neutral calibration context retained only with fit evidence.
 Optional fields are `certificate_identifier`, `calibration_date`, `laboratory`,
@@ -39,7 +50,7 @@ metadata.
 
 ## `fit_iec60751_r0`
 
-**Planned for:** rtd-sensor 0.7.0
+**Introduced in:** rtd-sensor 0.7.0
 
 ```python
 fit_iec60751_r0(
@@ -67,7 +78,7 @@ so this assumption remains visible.
 
 ## `fit_callendar_van_dusen`
 
-**Planned for:** rtd-sensor 0.7.0
+**Introduced in:** rtd-sensor 0.7.0
 
 ```python
 fit_callendar_van_dusen(
@@ -101,7 +112,7 @@ may use an independently justified explicit applicability range.
 
 ## `CallendarVanDusenFitResult` / `CallendarVanDusenFitEvidence`
 
-**Planned for:** rtd-sensor 0.7.0
+**Introduced in:** rtd-sensor 0.7.0
 
 The result contains a validated `CallendarVanDusenRTDModel` plus immutable fit
 evidence. Evidence identifies the fitted parameters, residuals, observation span
@@ -112,7 +123,7 @@ scales used for identifiability/stability.
 
 ## `IEC60751R0FitResult`
 
-**Planned for:** rtd-sensor 0.7.0
+**Introduced in:** rtd-sensor 0.7.0
 
 Fields:
 
@@ -123,7 +134,7 @@ evidence: IEC60751R0FitEvidence
 
 ## `IEC60751R0FitEvidence`
 
-**Planned for:** rtd-sensor 0.7.0
+**Introduced in:** rtd-sensor 0.7.0
 
 Key fields include observations, calibration/reference-temperature uncertainty
 treatment, optional `CalibrationProvenance`, resistance residuals, counts/degrees of
@@ -132,7 +143,7 @@ diagnostics, fitted-parameter covariance when available, and the fitting method.
 
 ## `FitParameterCovariance`
 
-**Planned for:** rtd-sensor 0.7.0
+**Introduced in:** rtd-sensor 0.7.0
 
 Immutable fit evidence describing a fitted-parameter covariance matrix. Key fields:
 
@@ -177,7 +188,8 @@ directly from those uncertainties and can be available even for a saturated fit.
 
 ## `fit_polynomial`
 
-**Introduced in:** rtd-sensor 0.6.0
+**Introduced in:** rtd-sensor 0.6.0. The `temperature_uncertainty_handling` and
+`provenance` arguments were added in rtd-sensor 0.7.0.
 
 ```python
 fit_polynomial(
@@ -209,7 +221,9 @@ evidence: PolynomialFitEvidence
 
 ## `PolynomialFitEvidence`
 
-**Introduced in:** rtd-sensor 0.6.0
+**Introduced in:** rtd-sensor 0.6.0; covariance, chi-square diagnostics,
+reference-temperature uncertainty treatment, and calibration provenance were added
+in rtd-sensor 0.7.0.
 
 Key fields include observations, calibration/reference-temperature uncertainty
 treatment, optional `CalibrationProvenance`, residuals, degree, counts/degrees of

@@ -720,6 +720,9 @@ uv run --locked mypy
 
 ## Further documentation
 
+The complete user documentation and RTD Playground are published at
+[**Learn rtd-sensor**](https://gregrr.github.io/rtd-sensor/).
+
 See [`docs/DESIGN.md`](https://github.com/GregRR/rtd-sensor/blob/main/docs/DESIGN.md) for detailed architecture and mathematical
 assumptions, [`docs/CONFORMANCE.md`](https://github.com/GregRR/rtd-sensor/blob/main/docs/CONFORMANCE.md) for the stable
 language-neutral RTD conformance contract,

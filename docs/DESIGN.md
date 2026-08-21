@@ -625,10 +625,10 @@ freedom. A saturated fit with zero residual degrees of freedom can interpolate i
 observations nearly exactly; a small RMS or maximum residual in that case must not be
 interpreted by itself as evidence of predictive quality or freedom from overfitting.
 The weighted RMS is likewise a descriptive weighted residual measure normalized by
-total effective weight. Beginning with the 0.7.0 diagnostics milestone, fits whose
-observations all provide absolute resistance standard uncertainties also retain
-`chi_squared = sum((residual/u_R)^2)` and, when residual degrees of freedom are
-positive, `reduced_chi_squared = chi_squared / dof`. These are residual-consistency
+total effective weight. The 0.7.0 diagnostics add
+`chi_squared = sum((residual/u_R)^2)` for fits whose observations all provide
+absolute resistance standard uncertainties and, when residual degrees of freedom
+are positive, `reduced_chi_squared = chi_squared / dof`. These are residual-consistency
 diagnostics under the stated independent resistance-uncertainty model, not automatic
 fit-acceptance thresholds and not substitutes for a complete calibration uncertainty
 budget. Relative/manual weights have no absolute variance scale, so they do not
@@ -854,13 +854,13 @@ or other components unless they are represented separately by a later model.
 This implementation follows the least-squares calibration variance/covariance
 treatment in JCGM 100:2008 Appendix H.3, with the NIST/SEMATECH Engineering
 Statistics Handbook section 4.1.4.3 retained as corroboration for weighted least
-squares and inverse-variance weighting. The following 0.7.0 milestones propagate
-that retained covariance into forward resistance and inverse temperature results.
+squares and inverse-variance weighting. The 0.7.0 covariance-propagation APIs use
+that retained covariance for forward resistance and inverse temperature results.
 
 #### 0.7.0 fitted-covariance resistance propagation
 
-The next 0.7.0 milestone propagates retained fitted-parameter covariance into
-**predicted resistance uncertainty** while keeping that contribution separate
+The fitted-covariance resistance API propagates retained fitted-parameter covariance
+into **predicted resistance uncertainty** while keeping that contribution separate
 from acquisition uncertainty and other measurement-budget components. For a
 model prediction ``R(T, theta)``, covariance propagation uses the full covariance
 matrix:
@@ -1316,7 +1316,7 @@ The following decisions remain intentionally deferred:
 
 1. Alternate standardized platinum curves and historical `R0`, alpha, delta, beta coefficient notation.
 2. ITS-90 interpolation support for reference-grade calibrated PRTs.
-3. General covariance-aware uncertainty budgets beyond the fitted-coefficient covariance propagation planned for 0.7.0, effective degrees of freedom, coverage-interval selection, and Monte Carlo methods.
+3. General covariance-aware uncertainty budgets beyond the fitted-coefficient covariance propagation implemented in 0.7.0, effective degrees of freedom, coverage-interval selection, and Monte Carlo methods.
 4. The exact production embedded repository/API boundary after real MCU implementation experience exists.
 5. Whether generated C/C++ deployment artifacts or lookup tables provide enough demonstrated benefit to become maintained public outputs.
 6. A richer public calibration-certificate metadata schema beyond the provenance needed to reconstruct and audit a model.

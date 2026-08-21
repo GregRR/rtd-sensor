@@ -76,7 +76,7 @@ positive_range = CallendarVanDusenRTDModel(
 
 ## Fit CVD parameters from calibration observations
 
-**Planned for:** rtd-sensor 0.7.0.
+**Introduced in:** rtd-sensor 0.7.0.
 
 If you have calibration observations rather than a coefficient set, use
 `rtd_sensor.fitting.fit_callendar_van_dusen()` and state which parameters should

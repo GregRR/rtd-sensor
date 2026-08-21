@@ -5,7 +5,7 @@ description: Propagate calibration-fit parameter covariance into predicted RTD r
 
 # Fitted-model covariance propagation
 
-**Planned for:** rtd-sensor 0.7.0.
+**Introduced in:** rtd-sensor 0.7.0.
 
 A fitted RTD model does not have perfectly known parameters. When a supported
 calibration fit retains parameter covariance, `rtd-sensor` can propagate that

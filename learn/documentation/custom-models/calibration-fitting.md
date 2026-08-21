@@ -20,7 +20,7 @@ The API deliberately returns two things together:
 
 ## Fit a characterized IEC 60751 `R0`
 
-**Planned for:** rtd-sensor 0.7.0.
+**Introduced in:** rtd-sensor 0.7.0.
 
 When the probe is assumed to retain the standard IEC 60751 PT-385 curve and you
 only want to estimate its individual reference resistance, fit `R0` directly:
@@ -63,7 +63,7 @@ points.
 
 ## Fit selected Callendar–Van Dusen parameters
 
-**Planned for:** rtd-sensor 0.7.0.
+**Introduced in:** rtd-sensor 0.7.0.
 
 When calibration observations are intended to define a custom platinum CVD curve,
 select exactly which parameters should be estimated and supply the others as fixed
@@ -127,7 +127,10 @@ print(fit.evidence.max_absolute_residual_ohms)
 
 ## What the evidence contains
 
-`PolynomialFitEvidence` retains information including:
+All three fit families retain immutable observations, residuals, weighting and
+uncertainty treatment, optional calibration provenance, and fit diagnostics.
+Model-specific evidence adds the parameterization details needed to audit that fit.
+For example, `PolynomialFitEvidence` retains information including:
 
 - the original observations;
 - per-point resistance residuals;
@@ -232,8 +235,9 @@ silently change model behavior or acquire a downstream deployment meaning.
 
 ## Fitted-parameter covariance
 
-In 0.7.0, both IEC `R0` and polynomial fitting retain parameter covariance when
-the regression assumptions provide enough information to estimate it:
+In 0.7.0, IEC `R0`, selected custom CVD, and polynomial fitting retain parameter
+covariance when the regression assumptions provide enough information to estimate
+it:
 
 ```python
 covariance = fit.evidence.parameter_covariance
@@ -254,10 +258,12 @@ covariance directly, so covariance can remain available even when residual degre
 of freedom are zero. The observed residuals remain a separate diagnostic and do not
 silently rescale the supplied uncertainties.
 
-Polynomial covariance is reported for the resistance-space power series at the
-returned model's reference temperature: `R(T) = a0 + a1*x + a2*x² + ...`. This is
-fit evidence, not additional state embedded into the portable model. In 0.7.0,
-that covariance can be propagated into predicted resistance uncertainty with
+Custom CVD covariance is reported in the fitted subset of the public `R0`, `A`,
+`B`, `C` basis. Polynomial covariance is reported for the resistance-space power
+series at the returned model's reference temperature:
+`R(T) = a0 + a1*x + a2*x² + ...`. This is fit evidence, not additional state
+embedded into the portable model. In 0.7.0, supported fitted covariance can be
+propagated into predicted resistance uncertainty with
 `uncertainty.propagate_fit_covariance_to_resistance()` or into first-order inferred
 temperature uncertainty with
 `uncertainty.propagate_fit_covariance_to_temperature()`.
@@ -266,8 +272,10 @@ See [Fitted-model covariance propagation](../measurement-uncertainty/fitted-mode
 
 ## Fit range
 
-By default, the fitted model uses the observed calibration span. You may narrow
-it inside that span:
+Range semantics depend on what the calibration observations actually determine.
+Polynomial fits and CVD fits that estimate any shape coefficient (`A`, `B`, or `C`)
+may not extend the deployable model beyond the observed calibration span. You may
+narrow them inside that span:
 
 ```python
 fit = fitting.fit_polynomial(
@@ -278,8 +286,12 @@ fit = fitting.fit_polynomial(
 )
 ```
 
-The fitting API does not silently extrapolate the deployable model beyond the
-observed calibration span.
+IEC `R0` fitting, and CVD `R0`-only fitting with independently fixed shape
+coefficients, are different: the standard/fixed curve shape is not inferred from
+the observations, so an explicitly justified applicability range may be broader,
+narrower, or disjoint from the observation span within the underlying model's
+supported domain. Fit evidence retains the observation span separately so that an
+applicability declaration is not mistaken for calibration evidence.
 
 ## When fitting fails
 
@@ -293,12 +305,16 @@ model.
 
 ## Save the fitted model
 
-A fitted polynomial can be passed directly to
-[portable model definitions](portable-definitions.md) so another process or
-language can reconstruct the numerical model without rerunning the fit.
+The numerical model returned by any supported IEC `R0`, custom CVD, or polynomial
+fit can be passed directly to [portable model definitions](portable-definitions.md)
+so another process or language can reconstruct the deployable model without
+rerunning the fit. Fit evidence, covariance, and calibration provenance remain
+separate from that portable numerical definition.
 
 ## Related features
 
+- [Characterized IEC 60751 models](characterized-iec60751.md)
+- [Callendar–Van Dusen models](callendar-van-dusen.md)
 - [Polynomial models](polynomial.md)
 - [Portable model definitions](portable-definitions.md)
-- [Uncertainty fundamentals](../measurement-uncertainty/uncertainty.md)
+- [Fitted-model covariance propagation](../measurement-uncertainty/fitted-model-propagation.md)

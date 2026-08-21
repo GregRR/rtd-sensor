@@ -82,6 +82,8 @@ the files expected to change:
 - [ ] `docs/RELEASING.md`
 - [ ] `CHANGELOG.md`
 - [ ] `CITATION.cff`
+- [ ] the complete `learn/` documentation and Playground tree
+- [ ] `zensical.toml` navigation/site configuration
 - [ ] public API docstrings and source comments
 - [ ] examples, installation instructions, and command snippets
 - [ ] package/import names, supported-version statements, and release highlights
@@ -100,6 +102,12 @@ For the documentation set as a whole, verify:
 - [ ] documents do not contradict one another;
 - [ ] documentation does not claim unsupported behavior;
 - [ ] important newly implemented user-facing behavior is not omitted;
+- [ ] every new or changed public API is reflected in the Learn API reference and
+      the appropriate explanatory/user-guide page, or its omission is deliberate;
+- [ ] Learn/API version labels do not still describe implemented target-release
+      functionality as planned;
+- [ ] the README and package `Documentation` URL lead users to the canonical Learn
+      site while engineering documents remain directly discoverable;
 - [ ] every external source that materially supports a new or changed equation,
       coefficient set, range, tolerance rule, uncertainty/calibration method,
       validation dataset, numerical criterion, or scientific/engineering decision
@@ -111,7 +119,19 @@ For the documentation set as a whole, verify:
       presented as support for released behavior.
 
 A document that is individually accurate can still conflict with another
-current document. Cross-document consistency is an explicit release check.
+current document. Cross-document consistency is an explicit release check. In
+particular, treat `learn/` as part of the released product documentation rather
+than as a secondary website that can lag behind the README or engineering docs.
+
+Build the Learn site strictly as part of this gate using the same pinned Zensical
+version as `.github/workflows/docs.yml`:
+
+```bash
+uvx --from "zensical==0.0.55" zensical build --clean --strict
+```
+
+The strict build must complete without broken links, missing navigation targets, or
+other documentation validation errors.
 
 ## 4. Repository drift sweep
 
@@ -231,6 +251,7 @@ Before publishing:
 - [ ] required CI jobs pass on the exact release commit;
 - [ ] local `HEAD` and remote `main` identify the same intended release commit;
 - [ ] `.github/workflows/ci.yml` has been reviewed;
+- [ ] `.github/workflows/docs.yml` has been reviewed;
 - [ ] `.github/workflows/release.yml` has been reviewed;
 - [ ] workflow triggers and tag/version assumptions are correct;
 - [ ] action/runtime/tool versions and permissions are intentional;
@@ -311,6 +332,7 @@ Verify the externally visible release itself:
 - [ ] the installed version is the newly published version;
 - [ ] representative public-API smoke tests pass against the published package;
 - [ ] README and release notes render correctly;
+- [ ] the published Learn site renders the release's API/status wording correctly;
 - [ ] documentation links and relevant badges/version links work;
 - [ ] the normal public installation command resolves to the new release;
 - [ ] the published conformance ZIP checksum validates;
