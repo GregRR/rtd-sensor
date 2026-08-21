@@ -73,7 +73,7 @@ nav = [
   ] },
   { "Advanced" = [
     { "Advanced home" = "advanced/index.md" },
-    { "Conformance in plain English" = "advanced/conformance.md" },
+    { "Understanding conformance" = "advanced/conformance.md" },
     { "Conformance artifacts" = "advanced/conformance-artifacts.md" },
     { "Numerical acceptance" = "advanced/numerical-acceptance.md" },
     { "Binary32 compatibility" = "advanced/binary32.md" },

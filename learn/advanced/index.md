@@ -9,7 +9,7 @@ Most users do not need to understand the conformance system to convert an RTD.
 These pages are for implementers, embedded developers, and reviewers who need to
 reproduce or verify `rtd-sensor` behavior outside the Python package.
 
-- [Conformance in plain English](conformance.md)
+- [Understanding conformance](conformance.md)
 - [Conformance artifacts](conformance-artifacts.md)
 - [Numerical acceptance](numerical-acceptance.md)
 - [Binary32 compatibility](binary32.md)

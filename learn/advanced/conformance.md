@@ -1,9 +1,9 @@
 ---
-title: Conformance in plain English
+title: Understanding conformance
 description: Understand what rtd-sensor's language-neutral conformance contract guarantees and how behavioral conformance differs from copying Python internals.
 ---
 
-# Conformance in plain English
+# Understanding conformance
 
 The `rtd-sensor` conformance system lets an independent implementation answer:
 
