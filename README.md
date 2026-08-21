@@ -63,7 +63,7 @@ Only RTD characteristics whose equations, validity ranges, independent reference
 - discover verified built-in models and their immutable metadata;
 - compose a hardware-neutral resistance reader with any structural RTD model;
 - evaluate IEC 60751 platinum tolerance limits;
-- propagate fitted-model parameter covariance into predicted resistance uncertainty;
+- propagate fitted-model parameter covariance into predicted resistance or inferred temperature uncertainty;
 - propagate resistance-measurement uncertainty into temperature uncertainty;
 - generate RTD measurements for software testing and simulation; or
 - validate independent implementations against the stable conformance-v1 artifacts.

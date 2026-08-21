@@ -15,11 +15,11 @@ specification is converted with :func:`standard_uncertainty_from_bound`, the
 selected probability distribution is an explicit modeling assumption made by
 the caller.
 
-The RTD-specific helpers use first-order propagation through the exact local
-sensitivity supplied by the active RTD model. They preserve the resistance
-contribution and additional temperature-domain components separately so the
-uncertainty budget
-remains inspectable rather than collapsing immediately to one number.
+The RTD-specific helpers use exact local sensitivities supplied by the active RTD
+model. Inverse temperature transformations use first-order propagation. The
+helpers preserve fitted-model, resistance-measurement, and additional
+temperature-domain contributions separately so uncertainty analysis remains
+inspectable rather than collapsing immediately to one number.
 """
 
 from __future__ import annotations
@@ -41,6 +41,7 @@ __all__ = [
     "BoundDistribution",
     "EvaluationMethod",
     "FitCovarianceResistancePropagation",
+    "FitCovarianceTemperaturePropagation",
     "RTDUncertaintyModel",
     "ResistanceUncertaintyPropagation",
     "TemperatureUncertaintyBudget",
@@ -48,6 +49,7 @@ __all__ = [
     "combine_independent_standard_uncertainties",
     "expanded_uncertainty",
     "propagate_fit_covariance_to_resistance",
+    "propagate_fit_covariance_to_temperature",
     "propagate_resistance_uncertainty",
     "standard_uncertainty_from_bound",
     "standard_uncertainty_from_expanded",
@@ -126,6 +128,38 @@ class FitCovarianceResistancePropagation:
     parameter_sensitivity_vector: tuple[float, ...]
     resistance_variance_ohms_squared: float
     resistance_standard_uncertainty_ohms: float
+
+
+@dataclass(frozen=True, slots=True)
+class FitCovarianceTemperaturePropagation:
+    """Fitted-parameter covariance propagated to inferred temperature.
+
+    ``resistance_parameter_sensitivity_vector`` retains ``dR/dtheta`` and
+    ``parameter_sensitivity_vector`` contains the derived ``dT/dtheta`` values,
+    both in the same order as ``parameter_covariance.parameter_names``. The
+    temperature sensitivities come from implicit differentiation of the fitted
+    RTD relationship at the converted temperature::
+
+        dT/dtheta = -(dR/dtheta) * (dT/dR)
+
+    The resulting covariance propagation is first-order/local because inferred
+    temperature is generally nonlinear in the fitted parameters. The measured
+    resistance is treated as fixed; its own uncertainty is not included.
+
+    This result describes only uncertainty associated with the retained fitted-
+    parameter covariance. It does not include measurement-resistance uncertainty,
+    calibration reference-temperature uncertainty, drift, self-heating, tolerance,
+    or other uncertainty-budget components.
+    """
+
+    resistance_ohms: float
+    temperature_c: float
+    parameter_covariance: FitParameterCovariance
+    resistance_parameter_sensitivity_vector: tuple[float, ...]
+    temperature_sensitivity_celsius_per_ohm: float
+    parameter_sensitivity_vector: tuple[float, ...]
+    temperature_variance_celsius_squared: float
+    temperature_standard_uncertainty_c: float
 
 
 @dataclass(frozen=True, slots=True)
@@ -393,6 +427,90 @@ def propagate_fit_covariance_to_resistance(
         parameter_sensitivity_vector=sensitivities,
         resistance_variance_ohms_squared=variance,
         resistance_standard_uncertainty_ohms=standard_uncertainty,
+    )
+
+
+# Source: JCGM (2008), JCGM 100:2008, sections 5.1-5.2, and
+# Taylor & Kuyatt (1994), Appendix A; see docs/REFERENCES.md.
+def propagate_fit_covariance_to_temperature(
+    resistance_ohms: float,
+    *,
+    fit_result: IEC60751R0FitResult | PolynomialFitResult,
+) -> FitCovarianceTemperaturePropagation:
+    """Propagate fitted-parameter covariance into inferred temperature.
+
+    The supplied resistance is first converted with the fitted model. At that
+    inferred temperature, the retained resistance-parameter sensitivities are
+    combined with the model's local inverse sensitivity using implicit
+    differentiation::
+
+        dT/dtheta = -(dR/dtheta) * (dT/dR)
+
+    The full fitted-parameter covariance is then propagated as::
+
+        u²(T) = J_T Cov(theta) J_T.T
+
+    Unlike forward resistance propagation for the currently supported fit
+    parameterizations, this inverse-temperature propagation is a first-order
+    local linearization. The measured resistance is treated as fixed. Its own
+    uncertainty, calibration reference-temperature uncertainty, sensor drift,
+    tolerance, self-heating, and other effects are not included.
+    """
+    if not isinstance(fit_result, (IEC60751R0FitResult, PolynomialFitResult)):
+        raise TypeError("fit_result must be IEC60751R0FitResult or PolynomialFitResult")
+
+    resistance = _validate_positive_finite(
+        resistance_ohms,
+        name="Resistance",
+    )
+    temperature = _as_float(
+        fit_result.model.resistance_to_celsius(resistance),
+        name="Converted temperature",
+    )
+    if not math.isfinite(temperature):
+        raise ValueError("Converted temperature must remain finite")
+
+    resistance_propagation = propagate_fit_covariance_to_resistance(
+        temperature,
+        fit_result=fit_result,
+    )
+    temperature_sensitivity = _as_float(
+        fit_result.model.temperature_sensitivity_celsius_per_ohm(temperature),
+        name="Temperature sensitivity",
+    )
+    if not math.isfinite(temperature_sensitivity):
+        raise ValueError("Temperature sensitivity must remain finite")
+
+    parameter_sensitivities = tuple(
+        -temperature_sensitivity * sensitivity
+        for sensitivity in resistance_propagation.parameter_sensitivity_vector
+    )
+    if not all(math.isfinite(value) for value in parameter_sensitivities):
+        raise ValueError(
+            "Fitted-model temperature parameter sensitivities must remain finite"
+        )
+
+    variance = _covariance_quadratic_form(
+        parameter_sensitivities,
+        resistance_propagation.parameter_covariance.covariance_matrix,
+    )
+    standard_uncertainty = math.sqrt(variance)
+    if not math.isfinite(standard_uncertainty):
+        raise ValueError(
+            "Propagated fitted-model temperature uncertainty must remain finite"
+        )
+
+    return FitCovarianceTemperaturePropagation(
+        resistance_ohms=resistance,
+        temperature_c=temperature,
+        parameter_covariance=resistance_propagation.parameter_covariance,
+        resistance_parameter_sensitivity_vector=(
+            resistance_propagation.parameter_sensitivity_vector
+        ),
+        temperature_sensitivity_celsius_per_ohm=temperature_sensitivity,
+        parameter_sensitivity_vector=parameter_sensitivities,
+        temperature_variance_celsius_squared=variance,
+        temperature_standard_uncertainty_c=standard_uncertainty,
     )
 
 

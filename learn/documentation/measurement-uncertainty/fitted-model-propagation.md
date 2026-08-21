@@ -1,6 +1,6 @@
 ---
 title: Fitted-model covariance propagation
-description: Propagate calibration-fit parameter covariance into predicted RTD resistance uncertainty without mixing it automatically into the rest of the measurement budget.
+description: Propagate calibration-fit parameter covariance into predicted RTD resistance or inferred temperature uncertainty without mixing it automatically into the rest of the measurement budget.
 ---
 
 # Fitted-model covariance propagation
@@ -9,8 +9,8 @@ description: Propagate calibration-fit parameter covariance into predicted RTD r
 
 A fitted RTD model does not have perfectly known parameters. When a supported
 calibration fit retains parameter covariance, `rtd-sensor` can propagate that
-covariance into the resistance predicted by the fitted curve at a selected
-temperature.
+covariance into either the resistance predicted by the fitted curve at a selected
+temperature or the temperature inferred from a fixed resistance.
 
 For a model prediction `R(T, θ)`, covariance propagation is:
 
@@ -91,6 +91,46 @@ print(propagated.parameter_sensitivity_vector)
 print(propagated.resistance_variance_ohms_squared)
 ```
 
+## Propagate into inferred temperature
+
+For an inverse conversion, the measured resistance is held fixed while the
+fitted parameters vary. If the model satisfies
+
+```text
+R_model(T, θ) = R_measured
+```
+
+implicit differentiation gives the fitted-parameter temperature sensitivity:
+
+```text
+dT/dθ = -(dR/dθ) * (dT/dR)
+```
+
+The full covariance is then propagated with
+
+```text
+u²_fit(T) = J_T Cov(θ) J_Tᵀ
+```
+
+```python
+resistance = fit.model.celsius_to_resistance(25.0)
+
+temperature_propagated = uncertainty.propagate_fit_covariance_to_temperature(
+    resistance,
+    fit_result=fit,
+)
+
+print(temperature_propagated.temperature_c)
+print(temperature_propagated.temperature_standard_uncertainty_c)
+print(temperature_propagated.parameter_sensitivity_vector)
+```
+
+Unlike the forward resistance transformation above, this inverse result is a
+**first-order local linearization** because inferred temperature is generally
+nonlinear in the fitted parameters. The result retains both the resistance-side
+parameter sensitivity vector and the derived temperature-side vector so the
+calculation can be inspected.
+
 ## What this uncertainty means
 
 This result describes the uncertainty associated with the **fitted parameters
@@ -105,7 +145,7 @@ It does not automatically include:
 - IEC tolerance assumptions; or
 - other acquisition/systematic effects.
 
-The function also does not automatically insert this contribution into
+Neither propagation function automatically inserts this contribution into
 `temperature_uncertainty_budget()`. Whether two contributions are independent
 is a property of the actual measurement/calibration process, not something the
 package can infer safely from two numbers.
@@ -118,13 +158,14 @@ which to estimate the unknown residual variance scale. If covariance is
 unavailable, propagation fails explicitly and reports the reason retained by
 the fit evidence rather than returning zero uncertainty.
 
-## First-order limitation
+## Forward exactness and inverse local linearization
 
 The forward resistance covariance transformation is exact for the currently
-supported linear-in-parameter fit representations at fixed temperature. Later
-temperature-domain propagation through the inverse RTD relationship will introduce
-a local-linearization step, and Monte Carlo or other methods may eventually be
-appropriate where that nonlinearity matters.
+supported linear-in-parameter fit representations at fixed temperature. The
+inverse temperature propagation is first-order/local because it uses the local
+implicit sensitivity at the converted temperature. Monte Carlo or other methods
+may eventually be appropriate when parameter uncertainty is large enough that
+inverse-model nonlinearity matters.
 
 ## Related pages
 

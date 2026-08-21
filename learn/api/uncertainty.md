@@ -180,3 +180,52 @@ not automatically combine acquisition uncertainty, reference-temperature
 uncertainty, drift, tolerance, or other budget components.
 
 See [Measurement & uncertainty](../documentation/measurement-uncertainty/index.md).
+
+## `FitCovarianceTemperaturePropagation`
+
+**Planned for:** rtd-sensor 0.7.0.
+
+Result fields:
+
+```text
+resistance_ohms: float
+temperature_c: float
+parameter_covariance: FitParameterCovariance
+resistance_parameter_sensitivity_vector: tuple[float, ...]
+temperature_sensitivity_celsius_per_ohm: float
+parameter_sensitivity_vector: tuple[float, ...]
+temperature_variance_celsius_squared: float
+temperature_standard_uncertainty_c: float
+```
+
+`parameter_sensitivity_vector` follows the covariance parameter order and
+represents `dT/dtheta` for the fitted parameters with the measured resistance
+held fixed. It is obtained from the retained resistance-parameter sensitivities
+and the model's local inverse sensitivity.
+
+## `propagate_fit_covariance_to_temperature`
+
+**Planned for:** rtd-sensor 0.7.0.
+
+```python
+propagate_fit_covariance_to_temperature(
+    resistance_ohms: float,
+    *,
+    fit_result: IEC60751R0FitResult | PolynomialFitResult,
+) -> FitCovarianceTemperaturePropagation
+```
+
+Converts the supplied resistance with the fitted model and propagates the full
+retained parameter covariance into inferred temperature using the implicit
+first-order sensitivity
+
+```text
+dT/dtheta = -(dR/dtheta) * (dT/dR)
+```
+
+The resistance is treated as fixed. This result therefore covers fitted-model
+parameter uncertainty only; uncertainty in the resistance measurement itself,
+reference-temperature uncertainty, drift, tolerance, and other budget components
+remain separate.
+
+See [Fitted-model covariance propagation](../documentation/measurement-uncertainty/fitted-model-propagation.md).

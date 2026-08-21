@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+* Added first-order propagation of fitted-parameter covariance into inferred temperature uncertainty for IEC 60751 `R0` and polynomial fits, using implicit inverse-model sensitivities while keeping measured-resistance uncertainty separate.
 * Added first-order propagation of fitted-parameter covariance into predicted resistance standard uncertainty for IEC 60751 `R0` and polynomial fits, retaining the full covariance terms and parameter sensitivity vector.
 * Added fitted-parameter covariance evidence for IEC 60751 `R0` and polynomial calibration fits, distinguishing covariance derived from supplied resistance standard uncertainties from covariance whose common residual scale must be estimated from positive residual degrees of freedom.
 * Added IEC 60751 PT-385 reference-resistance fitting from calibration observations, reusing the existing calibration weighting conventions and returning a characterized `IEC60751RTDModel` with immutable fit evidence.

@@ -166,8 +166,9 @@ Polynomial covariance is reported for the resistance-space power series at the
 returned model's reference temperature: `R(T) = a0 + a1*x + a2*x² + ...`. This is
 fit evidence, not additional state embedded into the portable model. In 0.7.0,
 that covariance can be propagated into predicted resistance uncertainty with
-`uncertainty.propagate_fit_covariance_to_resistance()`. Temperature-domain
-propagation remains a later 0.7.0 step.
+`uncertainty.propagate_fit_covariance_to_resistance()` or into first-order inferred
+temperature uncertainty with
+`uncertainty.propagate_fit_covariance_to_temperature()`.
 
 See [Fitted-model covariance propagation](../measurement-uncertainty/fitted-model-propagation.md).
 

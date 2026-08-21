@@ -13,7 +13,11 @@ from rtd_sensor.fitting import (
     fit_iec60751_r0,
     fit_polynomial,
 )
-from rtd_sensor.models import CallendarVanDusenRTDModel, IEC60751RTDModel
+from rtd_sensor.models import (
+    CallendarVanDusenRTDModel,
+    IEC60751RTDModel,
+    PolynomialRTDModel,
+)
 
 
 def test_rectangular_bound_converts_to_standard_uncertainty() -> None:
@@ -388,3 +392,228 @@ def test_fit_covariance_propagates_quadratic_polynomial_sensitivities() -> None:
     # uncertainty on each observation, the prediction variance is the sum of
     # their squared weights.
     assert propagated.resistance_variance_ohms_squared == pytest.approx(0.6544)
+
+
+def test_fit_covariance_propagates_iec_r0_variance_to_temperature() -> None:
+    fit = fit_iec60751_r0(
+        (
+            CalibrationObservation(
+                0.0,
+                100.0,
+                standard_uncertainty_ohms=0.01,
+            ),
+        ),
+        minimum_temperature_c=-50.0,
+        maximum_temperature_c=150.0,
+    )
+    resistance = fit.model.celsius_to_resistance(100.0)
+
+    propagated = uncertainty.propagate_fit_covariance_to_temperature(
+        resistance,
+        fit_result=fit,
+    )
+
+    ratio = IEC60751RTDModel(r0_ohms=1.0).celsius_to_resistance(100.0)
+    inverse_sensitivity = fit.model.temperature_sensitivity_celsius_per_ohm(100.0)
+    expected_parameter_sensitivity = -inverse_sensitivity * ratio
+    expected_variance = (expected_parameter_sensitivity * 0.01) ** 2
+
+    assert propagated.resistance_ohms == pytest.approx(resistance)
+    assert propagated.temperature_c == pytest.approx(100.0)
+    assert propagated.resistance_parameter_sensitivity_vector == pytest.approx((ratio,))
+    assert propagated.temperature_sensitivity_celsius_per_ohm == pytest.approx(
+        inverse_sensitivity
+    )
+    assert propagated.parameter_sensitivity_vector == pytest.approx(
+        (expected_parameter_sensitivity,)
+    )
+    assert propagated.temperature_variance_celsius_squared == pytest.approx(
+        expected_variance
+    )
+    assert propagated.temperature_standard_uncertainty_c == pytest.approx(
+        math.sqrt(expected_variance)
+    )
+
+
+def test_fit_covariance_temperature_sensitivity_matches_finite_difference() -> None:
+    fit = fit_iec60751_r0(
+        (
+            CalibrationObservation(
+                0.0,
+                100.0,
+                standard_uncertainty_ohms=0.01,
+            ),
+        ),
+        minimum_temperature_c=-50.0,
+        maximum_temperature_c=150.0,
+    )
+    resistance = fit.model.celsius_to_resistance(100.0)
+    propagated = uncertainty.propagate_fit_covariance_to_temperature(
+        resistance,
+        fit_result=fit,
+    )
+
+    step_ohms = 1.0e-4
+    lower_model = IEC60751RTDModel(
+        r0_ohms=fit.model.r0_ohms - step_ohms,
+        minimum_temperature_c=fit.model.minimum_temperature_c,
+        maximum_temperature_c=fit.model.maximum_temperature_c,
+    )
+    upper_model = IEC60751RTDModel(
+        r0_ohms=fit.model.r0_ohms + step_ohms,
+        minimum_temperature_c=fit.model.minimum_temperature_c,
+        maximum_temperature_c=fit.model.maximum_temperature_c,
+    )
+    numerical_sensitivity = (
+        upper_model.resistance_to_celsius(resistance)
+        - lower_model.resistance_to_celsius(resistance)
+    ) / (2.0 * step_ohms)
+
+    assert propagated.parameter_sensitivity_vector[0] == pytest.approx(
+        numerical_sensitivity,
+        rel=1e-8,
+        abs=1e-10,
+    )
+
+
+def test_fit_covariance_propagates_polynomial_variance_to_temperature() -> None:
+    fit = fit_polynomial(
+        (
+            CalibrationObservation(
+                0.0,
+                100.0,
+                standard_uncertainty_ohms=1.0,
+            ),
+            CalibrationObservation(
+                10.0,
+                120.0,
+                standard_uncertainty_ohms=1.0,
+            ),
+        ),
+        degree=1,
+        minimum_temperature_c=0.0,
+        maximum_temperature_c=8.0,
+    )
+    resistance = fit.model.celsius_to_resistance(8.0)
+
+    propagated = uncertainty.propagate_fit_covariance_to_temperature(
+        resistance,
+        fit_result=fit,
+    )
+    resistance_propagated = uncertainty.propagate_fit_covariance_to_resistance(
+        8.0,
+        fit_result=fit,
+    )
+    inverse_sensitivity = fit.model.temperature_sensitivity_celsius_per_ohm(8.0)
+
+    assert propagated.temperature_c == pytest.approx(8.0)
+    assert propagated.resistance_parameter_sensitivity_vector == pytest.approx(
+        (1.0, 4.0)
+    )
+    assert propagated.parameter_sensitivity_vector == pytest.approx(
+        (-inverse_sensitivity, -4.0 * inverse_sensitivity)
+    )
+    assert propagated.temperature_variance_celsius_squared == pytest.approx(
+        resistance_propagated.resistance_variance_ohms_squared * inverse_sensitivity**2
+    )
+
+
+def test_polynomial_temperature_parameter_sensitivity_matches_finite_difference() -> (
+    None
+):
+    fit = fit_polynomial(
+        (
+            CalibrationObservation(
+                0.0,
+                100.0,
+                standard_uncertainty_ohms=0.2,
+            ),
+            CalibrationObservation(
+                10.0,
+                120.0,
+                standard_uncertainty_ohms=0.3,
+            ),
+            CalibrationObservation(
+                20.0,
+                142.0,
+                standard_uncertainty_ohms=0.4,
+            ),
+        ),
+        degree=2,
+        minimum_temperature_c=0.0,
+        maximum_temperature_c=20.0,
+    )
+    resistance = fit.model.celsius_to_resistance(8.0)
+    propagated = uncertainty.propagate_fit_covariance_to_temperature(
+        resistance,
+        fit_result=fit,
+    )
+
+    a0 = fit.model.reference_resistance_ohms
+    a1 = a0 * fit.model.coefficients[0]
+    a2 = a0 * fit.model.coefficients[1]
+    step = 1.0e-6
+    perturbed_temperatures: list[float] = []
+    for offset in (-step, step):
+        model = PolynomialRTDModel(
+            reference_resistance_ohms=a0,
+            reference_temperature_c=fit.model.reference_temperature_c,
+            coefficients=(a1 / a0, (a2 + offset) / a0),
+            minimum_temperature_c=fit.model.minimum_temperature_c,
+            maximum_temperature_c=fit.model.maximum_temperature_c,
+        )
+        perturbed_temperatures.append(model.resistance_to_celsius(resistance))
+
+    numerical_sensitivity = (perturbed_temperatures[1] - perturbed_temperatures[0]) / (
+        2.0 * step
+    )
+    assert propagated.parameter_sensitivity_vector[2] == pytest.approx(
+        numerical_sensitivity,
+        rel=1e-8,
+        abs=1e-9,
+    )
+
+
+def test_fit_covariance_temperature_propagation_requires_available_covariance() -> None:
+    fit = fit_iec60751_r0(
+        (CalibrationObservation(0.0, 100.0),),
+        minimum_temperature_c=-50.0,
+        maximum_temperature_c=150.0,
+    )
+
+    with pytest.raises(ValueError, match="fitted model itself remains valid"):
+        uncertainty.propagate_fit_covariance_to_temperature(
+            100.0,
+            fit_result=fit,
+        )
+
+
+def test_fit_covariance_temperature_propagation_uses_model_resistance_range() -> None:
+    fit = fit_iec60751_r0(
+        (
+            CalibrationObservation(
+                0.0,
+                100.0,
+                standard_uncertainty_ohms=0.01,
+            ),
+        ),
+        minimum_temperature_c=-10.0,
+        maximum_temperature_c=10.0,
+    )
+    out_of_range_resistance = IEC60751RTDModel(r0_ohms=100.0).celsius_to_resistance(
+        20.0
+    )
+
+    with pytest.raises(RTDOutOfRangeError, match="declared model range"):
+        uncertainty.propagate_fit_covariance_to_temperature(
+            out_of_range_resistance,
+            fit_result=fit,
+        )
+
+
+def test_fit_covariance_temperature_propagation_rejects_unsupported_result() -> None:
+    with pytest.raises(TypeError, match="fit_result"):
+        uncertainty.propagate_fit_covariance_to_temperature(
+            100.0,
+            fit_result=object(),  # type: ignore[arg-type]
+        )

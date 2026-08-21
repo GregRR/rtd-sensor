@@ -730,8 +730,8 @@ or other components unless they are represented separately by a later model.
 This implementation follows the least-squares calibration variance/covariance
 treatment in JCGM 100:2008 Appendix H.3, with the NIST/SEMATECH Engineering
 Statistics Handbook section 4.1.4.3 retained as corroboration for weighted least
-squares and inverse-variance weighting. Propagating this covariance into predicted
-resistance and temperature uncertainty remains the next 0.7.0 milestone.
+squares and inverse-variance weighting. The following 0.7.0 milestones propagate
+that retained covariance into forward resistance and inverse temperature results.
 
 #### 0.7.0 fitted-covariance resistance propagation
 
@@ -776,9 +776,47 @@ and possible dependence relationships. Automatically combining them would assert
 independence that the package cannot generally know. The resistance-domain result
 therefore remains a separate inspectable contribution.
 
-This milestone does not yet propagate fitted-model covariance into the inverse
-temperature result. That later step must use the model's local inverse sensitivity
-and preserve the same first-order/local-linearization limitations.
+#### 0.7.0 fitted-covariance temperature propagation
+
+Fitted-parameter covariance can also be propagated into the temperature inferred
+from a fixed resistance measurement. This is a different mathematical case from
+the forward resistance result. Let the fitted model satisfy
+``R_model(T, theta) = R_measured``. Implicit differentiation with the measured
+resistance held fixed gives
+
+```text
+dT/dtheta = -(dR/dtheta) * (dT/dR)
+```
+
+where ``dR/dtheta`` is the same fitted-parameter resistance sensitivity vector
+used by the forward propagation milestone and ``dT/dR`` is the model's local
+inverse RTD sensitivity at the inferred temperature. The resulting parameter
+sensitivity vector is propagated through the full retained covariance matrix:
+
+```text
+u²_fit(T) = J_T Cov(theta) J_T^T
+```
+
+Unlike the forward resistance transformation for the currently supported
+linear-in-parameter representations, inferred temperature is generally nonlinear
+in the fitted parameters. This result is therefore explicitly a **first-order
+local linearization** around the fitted model and converted temperature. The
+measured resistance is treated as fixed; uncertainty in that resistance is not
+silently added to the fitted-model contribution.
+
+The public result retains the fixed resistance, inferred temperature, covariance
+object, resistance-parameter sensitivity vector, local ``dT/dR`` sensitivity,
+temperature-parameter sensitivity vector, propagated variance in °C², and standard
+uncertainty in °C. This keeps the implicit sensitivity calculation inspectable and
+makes the distinction from a complete measurement uncertainty budget explicit.
+
+The same separation rule as the resistance-side milestone applies: this fitted-
+model contribution is not automatically inserted into
+``temperature_uncertainty_budget()``. A later caller may combine fitted-model,
+resistance-measurement, reference-temperature, drift, self-heating, and other
+effects only when their provenance and dependence assumptions justify that
+combination. JCGM 100:2008 sections 5.1-5.2 and NIST Technical Note 1297 Appendix A
+remain the implementation basis for this first-order covariance propagation.
 
 #### Portable model-definition format decision
 

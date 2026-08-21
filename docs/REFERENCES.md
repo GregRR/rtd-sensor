@@ -73,7 +73,8 @@ https://doi.org/10.59161/JCGM100-2008E
 **Project use:** Implementation basis for measurement-uncertainty terminology,
 standard uncertainty, first-order propagation, covariance-aware propagation,
 combination of independent components, and expanded uncertainty. Sections 5.1-5.2
-provide the law of propagation used for fitted-parameter covariance propagation.
+provide the law of propagation used for fitted-parameter covariance propagation
+into both forward resistance and first-order inverse temperature results.
 Appendix H.3 is the implementation basis
 for the least-squares thermometer-calibration treatment used in v0.7.0,
 including fitted-parameter variance/covariance, residual degrees of freedom, and
@@ -102,7 +103,8 @@ https://www.nist.gov/pml/nist-technical-note-1297
 uncertainty treatment, rectangular/triangular distributions, combination of
 standard uncertainties, expanded uncertainty, and covariance-aware first-order
 propagation. Appendix A gives the law of propagation and its sensitivity/co-
-variance terms used by the fitted-model resistance-uncertainty implementation.
+variance terms used by the fitted-model resistance- and temperature-uncertainty
+implementations.
 
 ## Platinum RTD implementation and validation
 

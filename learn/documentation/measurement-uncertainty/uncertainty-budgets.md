@@ -75,8 +75,9 @@ resistance contribution.
 The current budget combines components as uncorrelated terms. It does not
 automatically ingest fitted-parameter covariance, effective degrees of freedom,
 or Monte Carlo results. Fitted-parameter covariance can be propagated separately
-into resistance uncertainty with
-`propagate_fit_covariance_to_resistance()`, but whether that contribution is
+into resistance uncertainty with `propagate_fit_covariance_to_resistance()` or
+into first-order inferred-temperature uncertainty with
+`propagate_fit_covariance_to_temperature()`, but whether that contribution is
 independent of the rest of a particular measurement budget is a property of the
 actual calibration and measurement process.
 
