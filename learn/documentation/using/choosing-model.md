@@ -59,8 +59,9 @@ interpolation between the published points is the behavior you want to retain.
 ## Use calibration fitting when
 
 You have your own measured `(temperature, resistance)` observations and want to
-fit a validated polynomial model while retaining evidence such as residuals,
-RMS error, fit range, and conditioning diagnostics.
+fit a characterized IEC `R0`, selected custom CVD parameters, or a validated
+polynomial model while retaining residuals, covariance, fit range, and
+conditioning/identifiability diagnostics.
 
 [Calibration fitting](../custom-models/calibration-fitting.md)
 
@@ -75,7 +76,9 @@ published CVD coefficients → CallendarVanDusenRTDModel
 one published polynomial → PolynomialRTDModel
 published interval polynomials → PiecewisePolynomialRTDModel
 published R/T table → TabulatedRTDModel
-measured calibration observations → fit_polynomial()
+measured calibration observations → fit_iec60751_r0(),
+                                    fit_callendar_van_dusen(),
+                                    or fit_polynomial()
 ```
 
 ## Do not identify an RTD by resistance alone

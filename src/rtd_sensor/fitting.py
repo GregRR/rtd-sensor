@@ -19,15 +19,19 @@ from typing import Literal
 from . import _curves
 from ._curves import _MAX_POLYNOMIAL_DEGREE
 from .exceptions import InvalidRTDModelError, RTDFitError
-from .models import IEC60751RTDModel, PolynomialRTDModel
+from .models import CallendarVanDusenRTDModel, IEC60751RTDModel, PolynomialRTDModel
 
 __all__ = [
     "CalibrationObservation",
+    "CallendarVanDusenFitEvidence",
+    "CallendarVanDusenFitParameter",
+    "CallendarVanDusenFitResult",
     "IEC60751R0FitEvidence",
     "IEC60751R0FitResult",
     "FitParameterCovariance",
     "PolynomialFitEvidence",
     "PolynomialFitResult",
+    "fit_callendar_van_dusen",
     "fit_iec60751_r0",
     "fit_polynomial",
 ]
@@ -46,8 +50,16 @@ _CovarianceEstimationMethod = Literal[
 ]
 _CovarianceParameterization = Literal[
     "r0_ohms",
+    "callendar_van_dusen_parameters",
     "resistance_power_series_at_model_reference_temperature",
 ]
+CallendarVanDusenFitParameter = Literal["r0_ohms", "a", "b", "c"]
+_CVD_PARAMETER_ORDER: tuple[CallendarVanDusenFitParameter, ...] = (
+    "r0_ohms",
+    "a",
+    "b",
+    "c",
+)
 _CovarianceUnavailableReason = Literal[
     "residual_variance_requires_positive_degrees_of_freedom",
     "covariance_not_finitely_representable",
@@ -126,17 +138,53 @@ class FitParameterCovariance:
     ``R(T) = a0 + a1*x + ...``. This is intentionally fit evidence rather than
     part of the deployable model definition.
 
-    ``residual_variance_scaled_least_squares`` means the unknown common residual
-    variance scale was estimated from the fit residuals and residual degrees of
-    freedom. ``resistance_standard_uncertainties`` means absolute, independent
-    resistance standard uncertainties supplied on every observation defined the
-    covariance directly; residual scatter does not rescale that covariance.
+    ``parameter_transformation`` records an additional basis transformation when
+    covariance is not exposed in the exact linear fit basis.
+    ``standard_uncertainties`` and ``correlation_matrix`` are derived diagnostics
+    in the same parameter order. ``residual_variance_scaled_least_squares`` means
+    the unknown common residual variance scale was estimated from the fit residuals
+    and residual degrees of freedom. ``resistance_standard_uncertainties`` means
+    absolute, independent resistance standard uncertainties supplied on every
+    observation defined the covariance directly; residual scatter does not rescale
+    that covariance.
     """
 
     parameter_names: tuple[str, ...]
     covariance_matrix: tuple[tuple[float, ...], ...]
     estimation_method: _CovarianceEstimationMethod
     parameterization: _CovarianceParameterization
+    parameter_transformation: str | None = None
+
+    @property
+    def standard_uncertainties(self) -> tuple[float, ...]:
+        """Return standard uncertainties derived from covariance diagonal terms."""
+        return tuple(
+            math.sqrt(self.covariance_matrix[index][index])
+            for index in range(len(self.parameter_names))
+        )
+
+    @property
+    def correlation_matrix(self) -> tuple[tuple[float | None, ...], ...]:
+        """Return parameter correlations, using ``None`` when undefined.
+
+        A correlation coefficient is undefined when either parameter has zero
+        variance. Those entries are therefore reported as ``None`` rather than
+        assigning an arbitrary numerical correlation.
+        """
+        standard_uncertainties = self.standard_uncertainties
+        return tuple(
+            tuple(
+                (
+                    self.covariance_matrix[row][column]
+                    / (standard_uncertainties[row] * standard_uncertainties[column])
+                    if standard_uncertainties[row] > 0.0
+                    and standard_uncertainties[column] > 0.0
+                    else None
+                )
+                for column in range(len(self.parameter_names))
+            )
+            for row in range(len(self.parameter_names))
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,7 +205,9 @@ class IEC60751R0FitEvidence:
     temperatures used to characterize ``R0``. Parameter covariance is retained
     when its statistical scale is defined. Unweighted and relative-weighted
     zero-DOF fits record why covariance is unavailable; absolute resistance
-    standard uncertainties can define covariance even at zero residual DOF.
+    standard uncertainties can define covariance even at zero residual DOF. When
+    those absolute uncertainties are supplied, chi-square and reduced-chi-square
+    residual-consistency diagnostics are retained as well.
     """
 
     observations: tuple[CalibrationObservation, ...]
@@ -175,6 +225,8 @@ class IEC60751R0FitEvidence:
     effective_weights: tuple[float, ...] | None
     weighted_sum_squared_residual: float | None
     weighted_rms_residual_ohms: float | None
+    chi_squared: float | None
+    reduced_chi_squared: float | None
     parameter_covariance: FitParameterCovariance | None
     parameter_covariance_unavailable_reason: _CovarianceUnavailableReason | None
     solver: str
@@ -186,6 +238,56 @@ class IEC60751R0FitResult:
 
     model: IEC60751RTDModel
     evidence: IEC60751R0FitEvidence
+
+
+@dataclass(frozen=True, slots=True)
+class CallendarVanDusenFitEvidence:
+    """Immutable observations and diagnostics supporting a custom CVD fit.
+
+    ``fitted_parameter_names`` identifies which of ``R0``, ``A``, ``B``, and
+    ``C`` were estimated rather than supplied as fixed inputs. The least-squares
+    system uses an algebraically linearized CVD parameterization with explicit
+    column scaling; covariance is transformed back to the public fitted parameter
+    basis before it is exposed. The condition diagnostic therefore reflects the
+    scaled estimation problem used to decide whether the requested parameters are
+    identifiable from the supplied observations. Absolute-uncertainty fits also
+    retain chi-square/reduced-chi-square residual-consistency diagnostics.
+    """
+
+    observations: tuple[CalibrationObservation, ...]
+    residuals_ohms: tuple[float, ...]
+    fitted_parameter_names: tuple[CallendarVanDusenFitParameter, ...]
+    observation_count: int
+    fitted_parameter_count: int
+    residual_degrees_of_freedom: int
+    observation_minimum_temperature_c: float
+    observation_maximum_temperature_c: float
+    minimum_temperature_c: float
+    maximum_temperature_c: float
+    rms_residual_ohms: float
+    max_absolute_residual_ohms: float
+    weighting_method: _WeightingMethod
+    effective_weights: tuple[float, ...] | None
+    weighted_sum_squared_residual: float | None
+    weighted_rms_residual_ohms: float | None
+    chi_squared: float | None
+    reduced_chi_squared: float | None
+    parameter_covariance: FitParameterCovariance | None
+    parameter_covariance_unavailable_reason: _CovarianceUnavailableReason | None
+    scaled_system_condition_number: float
+    scaled_system_condition_limit: float
+    conditioning_method: str
+    solver: str
+    linearized_parameter_names: tuple[str, ...]
+    design_column_scales: tuple[float, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CallendarVanDusenFitResult:
+    """Validated custom CVD model and the evidence supporting the fit."""
+
+    model: CallendarVanDusenRTDModel
+    evidence: CallendarVanDusenFitEvidence
 
 
 @dataclass(frozen=True, slots=True)
@@ -205,7 +307,9 @@ class PolynomialFitEvidence:
     basis at the returned model's reference temperature. Unweighted and relative-
     weighted fits estimate the common variance scale from residuals and therefore
     require positive residual degrees of freedom; absolute resistance standard
-    uncertainties define covariance directly.
+    uncertainties define covariance directly. Absolute-uncertainty fits also
+    retain chi-square and, when residual degrees of freedom are positive,
+    reduced-chi-square residual-consistency diagnostics.
     """
 
     observations: tuple[CalibrationObservation, ...]
@@ -222,6 +326,8 @@ class PolynomialFitEvidence:
     effective_weights: tuple[float, ...] | None
     weighted_sum_squared_residual: float | None
     weighted_rms_residual_ohms: float | None
+    chi_squared: float | None
+    reduced_chi_squared: float | None
     parameter_covariance: FitParameterCovariance | None
     parameter_covariance_unavailable_reason: _CovarianceUnavailableReason | None
     scaled_system_condition_number: float
@@ -366,7 +472,7 @@ def _householder_least_squares(
 
     coefficients = _back_substitute(upper, rhs[:column_count])
     if not all(math.isfinite(value) for value in coefficients):
-        raise RTDFitError("Polynomial fit produced non-finite coefficients")
+        raise RTDFitError("Least-squares fit produced non-finite coefficients")
     return (
         tuple(coefficients),
         condition_number,
@@ -498,6 +604,34 @@ def _covariance_scale_and_method(
     )
 
 
+def _chi_squared_diagnostics(
+    observations: tuple[CalibrationObservation, ...],
+    residuals_ohms: tuple[float, ...],
+    *,
+    weighting_method: _WeightingMethod,
+    residual_degrees_of_freedom: int,
+) -> tuple[float | None, float | None]:
+    """Return chi-square diagnostics when absolute resistance uncertainties exist."""
+    if weighting_method != "normalized_inverse_variance_from_standard_uncertainty":
+        return (None, None)
+
+    uncertainties = tuple(
+        observation.standard_uncertainty_ohms for observation in observations
+    )
+    assert all(uncertainty is not None for uncertainty in uncertainties)
+    chi_squared = math.fsum(
+        (residual / uncertainty) ** 2
+        for residual, uncertainty in zip(residuals_ohms, uncertainties, strict=True)
+        if uncertainty is not None
+    )
+    reduced = (
+        chi_squared / residual_degrees_of_freedom
+        if residual_degrees_of_freedom > 0
+        else None
+    )
+    return (chi_squared, reduced)
+
+
 def _shift_scaled_polynomial_transform(
     coefficient_count: int,
     *,
@@ -569,6 +703,539 @@ def _power_series_value(coefficients: tuple[float, ...], x: float) -> float:
     for coefficient in reversed(coefficients):
         result = result * x + coefficient
     return result
+
+
+def _validate_cvd_fit_parameters(
+    fit_parameters: Iterable[CallendarVanDusenFitParameter],
+) -> tuple[CallendarVanDusenFitParameter, ...]:
+    if isinstance(fit_parameters, (str, bytes)):
+        raise TypeError("fit_parameters must be an iterable of parameter names")
+    requested = tuple(fit_parameters)
+    if not requested:
+        raise ValueError("At least one Callendar-Van Dusen parameter must be fitted")
+    if not all(isinstance(parameter, str) for parameter in requested):
+        raise TypeError("Callendar-Van Dusen fit parameter names must be strings")
+    unknown = [
+        parameter for parameter in requested if parameter not in _CVD_PARAMETER_ORDER
+    ]
+    if unknown:
+        raise ValueError(f"Unsupported Callendar-Van Dusen fit parameter: {unknown[0]}")
+    if len(set(requested)) != len(requested):
+        raise ValueError("Callendar-Van Dusen fit parameter names must be unique")
+    requested_set = set(requested)
+    return tuple(
+        parameter for parameter in _CVD_PARAMETER_ORDER if parameter in requested_set
+    )
+
+
+def _cvd_c_basis(temperature_c: float) -> float:
+    if temperature_c >= 0.0:
+        return 0.0
+    return (temperature_c - 100.0) * temperature_c**3
+
+
+def _cvd_shape_basis(
+    parameter: CallendarVanDusenFitParameter,
+    temperature_c: float,
+) -> float:
+    if parameter == "a":
+        return temperature_c
+    if parameter == "b":
+        return temperature_c * temperature_c
+    if parameter == "c":
+        return _cvd_c_basis(temperature_c)
+    raise ValueError(f"No shape basis exists for {parameter}")
+
+
+def _cvd_resistance_unchecked(
+    temperature_c: float,
+    *,
+    r0_ohms: float,
+    a: float,
+    b: float,
+    c: float | None,
+) -> float:
+    ratio = 1.0 + a * temperature_c + b * temperature_c**2
+    if temperature_c < 0.0:
+        ratio += (0.0 if c is None else c) * _cvd_c_basis(temperature_c)
+    return r0_ohms * ratio
+
+
+def _column_scaled_least_squares(
+    raw_matrix: list[list[float]],
+    vector: list[float],
+    *,
+    effective_weights: tuple[float, ...] | None,
+) -> tuple[
+    tuple[float, ...],
+    float,
+    tuple[tuple[float, ...], ...],
+    tuple[float, ...],
+]:
+    column_count = len(raw_matrix[0])
+    column_scales = tuple(
+        max(abs(row[column]) for row in raw_matrix) for column in range(column_count)
+    )
+    if not all(math.isfinite(scale) and scale > 0.0 for scale in column_scales):
+        raise RTDFitError(
+            "Requested Callendar-Van Dusen parameters are not identifiable from "
+            "the supplied calibration temperatures"
+        )
+
+    matrix: list[list[float]] = []
+    weighted_vector: list[float] = []
+    for index, row in enumerate(raw_matrix):
+        weight = 1.0 if effective_weights is None else effective_weights[index]
+        row_scale = math.sqrt(weight)
+        matrix.append(
+            [
+                row[column] / column_scales[column] * row_scale
+                for column in range(column_count)
+            ]
+        )
+        weighted_vector.append(vector[index] * row_scale)
+
+    scaled_coefficients, condition_number, upper = _householder_least_squares(
+        matrix,
+        weighted_vector,
+    )
+    coefficients = tuple(
+        coefficient / scale
+        for coefficient, scale in zip(scaled_coefficients, column_scales, strict=True)
+    )
+    return coefficients, condition_number, upper, column_scales
+
+
+def _cvd_covariance_transform(
+    fitted_parameter_names: tuple[CallendarVanDusenFitParameter, ...],
+    *,
+    linearized_parameter_names: tuple[str, ...],
+    r0_ohms: float,
+    fitted_values: dict[CallendarVanDusenFitParameter, float],
+) -> tuple[tuple[float, ...], ...]:
+    size = len(fitted_parameter_names)
+    if "r0_ohms" not in fitted_parameter_names:
+        return tuple(
+            tuple(1.0 if row == column else 0.0 for column in range(size))
+            for row in range(size)
+        )
+
+    r0_column = linearized_parameter_names.index("r0_ohms")
+    transform: list[list[float]] = []
+    for parameter in fitted_parameter_names:
+        row = [0.0] * size
+        if parameter == "r0_ohms":
+            row[r0_column] = 1.0
+        else:
+            linearized_name = f"r0_times_{parameter}"
+            parameter_column = linearized_parameter_names.index(linearized_name)
+            row[r0_column] = -fitted_values[parameter] / r0_ohms
+            row[parameter_column] = 1.0 / r0_ohms
+        transform.append(row)
+    return tuple(tuple(row) for row in transform)
+
+
+def fit_callendar_van_dusen(
+    observations: Iterable[CalibrationObservation],
+    *,
+    fit_parameters: Iterable[CallendarVanDusenFitParameter],
+    r0_ohms: float | None = None,
+    a: float | None = None,
+    b: float | None = None,
+    c: float | None = None,
+    minimum_temperature_c: float | None = None,
+    maximum_temperature_c: float | None = None,
+    name: str = "Fitted Callendar-Van Dusen RTD",
+    coefficient_source: str | None = None,
+) -> CallendarVanDusenFitResult:
+    """Fit selected Callendar-Van Dusen parameters to calibration observations.
+
+    The requested parameters are estimated only when the supplied temperatures
+    identify the corresponding CVD basis functions with acceptable conditioning.
+    Parameters not listed in ``fit_parameters`` must be supplied as fixed values,
+    except ``C`` may be omitted for a wholly non-negative declared model range.
+
+    The modern CVD equation is algebraically linearized for least squares. When
+    ``R0`` is fitted, shape coefficients are estimated internally as ``R0*A``,
+    ``R0*B``, and ``R0*C`` and transformed back to the public ``R0, A, B, C``
+    basis. The coefficient transformation is exact; when ``R0`` and shape
+    coefficients are fitted jointly, covariance in the public ratio parameters is
+    obtained by first-order Jacobian propagation from the exact linearized-fit
+    covariance. This avoids nonlinear optimization while retaining the exact CVD
+    model form and making the covariance approximation explicit.
+
+    If any shape coefficient (``A``, ``B``, or ``C``) is fitted, the declared model
+    range may be narrowed but not extended beyond the calibration-observation span.
+    If only ``R0`` is fitted while all shape coefficients are fixed, an explicitly
+    supplied applicability range may be independent of the observation span, just
+    as for characterized-standard ``R0`` fitting.
+
+    Temperature remains the independent variable. ``standard_uncertainty_ohms``
+    therefore describes resistance uncertainty only; temperature-coordinate
+    uncertainty is not silently converted into resistance weighting.
+    """
+
+    # Source: Pearce et al. (2022), Appendix 1, for the modern CVD form
+    # R(t) = R0[1 + A*t + B*t^2 + C*(t-100)*t^3] below 0 °C, with C=0 above 0 °C.
+    fitted_parameter_names = _validate_cvd_fit_parameters(fit_parameters)
+    fitted_parameter_set = set(fitted_parameter_names)
+
+    observation_tuple = tuple(observations)
+    if not observation_tuple:
+        raise RTDFitError("At least one calibration observation is required")
+    if not all(
+        isinstance(observation, CalibrationObservation)
+        for observation in observation_tuple
+    ):
+        raise TypeError("Observations must be CalibrationObservation values")
+
+    distinct_temperatures = {
+        observation.temperature_c for observation in observation_tuple
+    }
+    if len(distinct_temperatures) < len(fitted_parameter_names):
+        raise RTDFitError(
+            f"Fitting {len(fitted_parameter_names)} Callendar-Van Dusen parameters "
+            f"requires at least {len(fitted_parameter_names)} distinct calibration "
+            "temperatures"
+        )
+    if "c" in fitted_parameter_set and not any(
+        temperature < 0.0 for temperature in distinct_temperatures
+    ):
+        raise RTDFitError(
+            "Fitting C requires at least one negative-temperature calibration "
+            "observation"
+        )
+
+    observed_minimum_c = min(distinct_temperatures)
+    observed_maximum_c = max(distinct_temperatures)
+    explicit_range = (
+        minimum_temperature_c is not None or maximum_temperature_c is not None
+    )
+    if explicit_range and (
+        minimum_temperature_c is None or maximum_temperature_c is None
+    ):
+        raise ValueError(
+            "Minimum and maximum fitted temperatures must be supplied together"
+        )
+    if explicit_range:
+        assert minimum_temperature_c is not None
+        assert maximum_temperature_c is not None
+        minimum_c = _as_float(minimum_temperature_c, name="Minimum fitted temperature")
+        maximum_c = _as_float(maximum_temperature_c, name="Maximum fitted temperature")
+    else:
+        if observed_minimum_c == observed_maximum_c:
+            raise RTDFitError(
+                "A single calibration temperature requires an explicit model range"
+            )
+        minimum_c = observed_minimum_c
+        maximum_c = observed_maximum_c
+
+    if not math.isfinite(minimum_c):
+        raise ValueError("Minimum fitted temperature must be finite")
+    if not math.isfinite(maximum_c):
+        raise ValueError("Maximum fitted temperature must be finite")
+    if minimum_c >= maximum_c:
+        raise ValueError(
+            "Minimum fitted temperature must be below maximum fitted temperature"
+        )
+
+    shape_parameters_fitted = any(
+        parameter in fitted_parameter_set for parameter in ("a", "b", "c")
+    )
+    if shape_parameters_fitted and (
+        minimum_c < observed_minimum_c or maximum_c > observed_maximum_c
+    ):
+        raise RTDFitError(
+            "A CVD fit that estimates A, B, or C may not extend the declared model "
+            "range beyond the observed calibration span"
+        )
+
+    supplied_values: dict[CallendarVanDusenFitParameter, float | None] = {
+        "r0_ohms": r0_ohms,
+        "a": a,
+        "b": b,
+        "c": c,
+    }
+    fixed_values: dict[CallendarVanDusenFitParameter, float | None] = {}
+    for parameter in _CVD_PARAMETER_ORDER:
+        supplied = supplied_values[parameter]
+        if parameter in fitted_parameter_set:
+            if supplied is not None:
+                raise ValueError(
+                    f"{parameter} cannot be supplied when it is listed in "
+                    "fit_parameters"
+                )
+            fixed_values[parameter] = None
+            continue
+        if parameter == "c" and supplied is None and minimum_c >= 0.0:
+            fixed_values[parameter] = None
+            continue
+        if supplied is None:
+            raise ValueError(
+                f"A fixed value for {parameter} is required when it is not fitted"
+            )
+        value = _as_float(supplied, name=parameter)
+        if not math.isfinite(value):
+            raise ValueError(f"Fixed {parameter} must be finite")
+        if parameter == "r0_ohms" and value <= 0.0:
+            raise ValueError("Fixed r0_ohms must be greater than zero")
+        fixed_values[parameter] = value
+
+    weighting_method, effective_weights = _effective_weights(observation_tuple)
+
+    raw_matrix: list[list[float]] = []
+    vector: list[float] = []
+    linearized_parameter_names: list[str] = []
+    if "r0_ohms" in fitted_parameter_set:
+        linearized_parameter_names.append("r0_ohms")
+        linearized_parameter_names.extend(
+            f"r0_times_{parameter}"
+            for parameter in fitted_parameter_names
+            if parameter != "r0_ohms"
+        )
+        for observation in observation_tuple:
+            temperature = observation.temperature_c
+            base_ratio = 1.0
+            for parameter in ("a", "b", "c"):
+                if parameter in fitted_parameter_set:
+                    continue
+                fixed = fixed_values[parameter]
+                if fixed is not None:
+                    base_ratio += fixed * _cvd_shape_basis(parameter, temperature)
+            row = [base_ratio]
+            row.extend(
+                _cvd_shape_basis(parameter, temperature)
+                for parameter in fitted_parameter_names
+                if parameter != "r0_ohms"
+            )
+            raw_matrix.append(row)
+            vector.append(observation.resistance_ohms)
+    else:
+        fixed_r0 = fixed_values["r0_ohms"]
+        assert fixed_r0 is not None
+        linearized_parameter_names.extend(fitted_parameter_names)
+        for observation in observation_tuple:
+            temperature = observation.temperature_c
+            fixed_ratio = 1.0
+            for parameter in ("a", "b", "c"):
+                if parameter in fitted_parameter_set:
+                    continue
+                fixed = fixed_values[parameter]
+                if fixed is not None:
+                    fixed_ratio += fixed * _cvd_shape_basis(parameter, temperature)
+            raw_matrix.append(
+                [
+                    fixed_r0 * _cvd_shape_basis(parameter, temperature)
+                    for parameter in fitted_parameter_names
+                ]
+            )
+            vector.append(observation.resistance_ohms - fixed_r0 * fixed_ratio)
+
+    try:
+        linearized_coefficients, condition_number, upper, column_scales = (
+            _column_scaled_least_squares(
+                raw_matrix,
+                vector,
+                effective_weights=effective_weights,
+            )
+        )
+    except RTDFitError as error:
+        if "ill-conditioned" in str(error) or "rank deficient" in str(error):
+            raise RTDFitError(
+                "Requested Callendar-Van Dusen parameters are not identifiable "
+                f"from these calibration observations: {error}"
+            ) from error
+        raise
+
+    fitted_values: dict[CallendarVanDusenFitParameter, float] = {}
+    if "r0_ohms" in fitted_parameter_set:
+        fitted_r0 = linearized_coefficients[0]
+        if not math.isfinite(fitted_r0) or fitted_r0 <= 0.0:
+            raise RTDFitError("Fitted R0 must be finite and positive")
+        fitted_values["r0_ohms"] = fitted_r0
+        coefficient_index = 1
+        for parameter in fitted_parameter_names:
+            if parameter == "r0_ohms":
+                continue
+            value = linearized_coefficients[coefficient_index] / fitted_r0
+            coefficient_index += 1
+            if not math.isfinite(value):
+                raise RTDFitError(f"Fitted {parameter} must be finite")
+            fitted_values[parameter] = value
+    else:
+        for parameter, value in zip(
+            fitted_parameter_names, linearized_coefficients, strict=True
+        ):
+            if not math.isfinite(value):
+                raise RTDFitError(f"Fitted {parameter} must be finite")
+            fitted_values[parameter] = value
+
+    final_values: dict[CallendarVanDusenFitParameter, float | None] = {}
+    for parameter in _CVD_PARAMETER_ORDER:
+        final_values[parameter] = (
+            fitted_values[parameter]
+            if parameter in fitted_parameter_set
+            else fixed_values[parameter]
+        )
+    final_r0 = final_values["r0_ohms"]
+    final_a = final_values["a"]
+    final_b = final_values["b"]
+    assert final_r0 is not None and final_a is not None and final_b is not None
+
+    try:
+        model = CallendarVanDusenRTDModel(
+            r0_ohms=final_r0,
+            a=final_a,
+            b=final_b,
+            c=final_values["c"],
+            minimum_temperature_c=minimum_c,
+            maximum_temperature_c=maximum_c,
+            name=name,
+            coefficient_source=coefficient_source,
+        )
+    except InvalidRTDModelError as error:
+        raise RTDFitError(
+            "Fitted Callendar-Van Dusen coefficients do not define a valid RTD "
+            f"model: {error}"
+        ) from error
+
+    residuals = tuple(
+        observation.resistance_ohms
+        - _cvd_resistance_unchecked(
+            observation.temperature_c,
+            r0_ohms=model.r0_ohms,
+            a=model.a,
+            b=model.b,
+            c=model.c,
+        )
+        for observation in observation_tuple
+    )
+    rms_residual_ohms = math.sqrt(
+        math.fsum(residual * residual for residual in residuals) / len(residuals)
+    )
+    max_absolute_residual_ohms = max(abs(residual) for residual in residuals)
+
+    weighted_sum_squared_residual: float | None = None
+    weighted_rms_residual_ohms: float | None = None
+    if effective_weights is not None:
+        weighted_sum_squared_residual = math.fsum(
+            weight * residual * residual
+            for weight, residual in zip(effective_weights, residuals, strict=True)
+        )
+        weighted_rms_residual_ohms = math.sqrt(
+            weighted_sum_squared_residual / math.fsum(effective_weights)
+        )
+
+    residual_degrees_of_freedom = len(observation_tuple) - len(fitted_parameter_names)
+    chi_squared, reduced_chi_squared = _chi_squared_diagnostics(
+        observation_tuple,
+        residuals,
+        weighting_method=weighting_method,
+        residual_degrees_of_freedom=residual_degrees_of_freedom,
+    )
+    covariance_scale, covariance_method, covariance_unavailable_reason = (
+        _covariance_scale_and_method(
+            observation_tuple,
+            weighting_method=weighting_method,
+            residuals_ohms=residuals,
+            effective_weights=effective_weights,
+            residual_degrees_of_freedom=residual_degrees_of_freedom,
+        )
+    )
+
+    parameter_covariance: FitParameterCovariance | None = None
+    if covariance_scale is not None:
+        assert covariance_method is not None
+        try:
+            scaled_information_inverse = _upper_triangular_information_inverse(upper)
+            scaled_covariance = _scale_covariance_matrix(
+                scaled_information_inverse, covariance_scale
+            )
+            unscale_transform = tuple(
+                tuple(
+                    1.0 / column_scales[row] if row == column else 0.0
+                    for column in range(len(column_scales))
+                )
+                for row in range(len(column_scales))
+            )
+            linearized_covariance = _transform_covariance_matrix(
+                scaled_covariance, unscale_transform
+            )
+            parameter_transform = _cvd_covariance_transform(
+                fitted_parameter_names,
+                linearized_parameter_names=tuple(linearized_parameter_names),
+                r0_ohms=model.r0_ohms,
+                fitted_values=fitted_values,
+            )
+            fitted_covariance = _transform_covariance_matrix(
+                linearized_covariance, parameter_transform
+            )
+            fitted_covariance = tuple(
+                tuple(
+                    0.5 * fitted_covariance[row][column]
+                    + 0.5 * fitted_covariance[column][row]
+                    for column in range(len(fitted_covariance))
+                )
+                for row in range(len(fitted_covariance))
+            )
+        except (OverflowError, ValueError):
+            fitted_covariance = ()
+        if (
+            not fitted_covariance
+            or not all(
+                math.isfinite(value) for row in fitted_covariance for value in row
+            )
+            or not all(
+                fitted_covariance[index][index] >= 0.0
+                for index in range(len(fitted_covariance))
+            )
+        ):
+            covariance_unavailable_reason = "covariance_not_finitely_representable"
+        else:
+            parameter_covariance = FitParameterCovariance(
+                parameter_names=fitted_parameter_names,
+                covariance_matrix=fitted_covariance,
+                estimation_method=covariance_method,
+                parameterization="callendar_van_dusen_parameters",
+                parameter_transformation=(
+                    "first_order_ratio_transform_from_linearized_cvd"
+                    if "r0_ohms" in fitted_parameter_set
+                    and any(
+                        parameter != "r0_ohms" for parameter in fitted_parameter_names
+                    )
+                    else None
+                ),
+            )
+
+    evidence = CallendarVanDusenFitEvidence(
+        observations=observation_tuple,
+        residuals_ohms=residuals,
+        fitted_parameter_names=fitted_parameter_names,
+        observation_count=len(observation_tuple),
+        fitted_parameter_count=len(fitted_parameter_names),
+        residual_degrees_of_freedom=residual_degrees_of_freedom,
+        observation_minimum_temperature_c=observed_minimum_c,
+        observation_maximum_temperature_c=observed_maximum_c,
+        minimum_temperature_c=minimum_c,
+        maximum_temperature_c=maximum_c,
+        rms_residual_ohms=rms_residual_ohms,
+        max_absolute_residual_ohms=max_absolute_residual_ohms,
+        weighting_method=weighting_method,
+        effective_weights=effective_weights,
+        weighted_sum_squared_residual=weighted_sum_squared_residual,
+        weighted_rms_residual_ohms=weighted_rms_residual_ohms,
+        chi_squared=chi_squared,
+        reduced_chi_squared=reduced_chi_squared,
+        parameter_covariance=parameter_covariance,
+        parameter_covariance_unavailable_reason=covariance_unavailable_reason,
+        scaled_system_condition_number=condition_number,
+        scaled_system_condition_limit=_MAX_SCALED_SYSTEM_CONDITION_NUMBER,
+        conditioning_method="infinity_norm_of_householder_r_after_column_scaling",
+        solver=_SOLVER,
+        linearized_parameter_names=tuple(linearized_parameter_names),
+        design_column_scales=column_scales,
+    )
+    return CallendarVanDusenFitResult(model=model, evidence=evidence)
 
 
 def fit_iec60751_r0(
@@ -720,6 +1387,12 @@ def fit_iec60751_r0(
         )
 
     residual_degrees_of_freedom = len(observation_tuple) - 1
+    chi_squared, reduced_chi_squared = _chi_squared_diagnostics(
+        observation_tuple,
+        residuals,
+        weighting_method=weighting_method,
+        residual_degrees_of_freedom=residual_degrees_of_freedom,
+    )
     covariance_scale, covariance_method, covariance_unavailable_reason = (
         _covariance_scale_and_method(
             observation_tuple,
@@ -759,6 +1432,8 @@ def fit_iec60751_r0(
         effective_weights=effective_weights,
         weighted_sum_squared_residual=weighted_sum_squared_residual,
         weighted_rms_residual_ohms=weighted_rms_residual_ohms,
+        chi_squared=chi_squared,
+        reduced_chi_squared=reduced_chi_squared,
         parameter_covariance=parameter_covariance,
         parameter_covariance_unavailable_reason=covariance_unavailable_reason,
         solver="closed_form_single_parameter_least_squares",
@@ -932,6 +1607,12 @@ def fit_polynomial(
         )
 
     residual_degrees_of_freedom = len(observation_tuple) - (degree + 1)
+    chi_squared, reduced_chi_squared = _chi_squared_diagnostics(
+        observation_tuple,
+        residuals,
+        weighting_method=weighting_method,
+        residual_degrees_of_freedom=residual_degrees_of_freedom,
+    )
     covariance_scale, covariance_method, covariance_unavailable_reason = (
         _covariance_scale_and_method(
             observation_tuple,
@@ -1006,6 +1687,8 @@ def fit_polynomial(
         effective_weights=effective_weights,
         weighted_sum_squared_residual=weighted_sum_squared_residual,
         weighted_rms_residual_ohms=weighted_rms_residual_ohms,
+        chi_squared=chi_squared,
+        reduced_chi_squared=reduced_chi_squared,
         parameter_covariance=parameter_covariance,
         parameter_covariance_unavailable_reason=covariance_unavailable_reason,
         scaled_system_condition_number=condition_number,

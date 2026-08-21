@@ -32,6 +32,7 @@ from typing import Literal, TypeAlias
 from ._protocols import RTDUncertaintyModel
 from ._validation import as_float as _as_float
 from .fitting import (
+    CallendarVanDusenFitResult,
     FitParameterCovariance,
     IEC60751R0FitResult,
     PolynomialFitResult,
@@ -336,7 +337,7 @@ def expanded_uncertainty(
 def propagate_fit_covariance_to_resistance(
     temperature_c: float,
     *,
-    fit_result: IEC60751R0FitResult | PolynomialFitResult,
+    fit_result: CallendarVanDusenFitResult | IEC60751R0FitResult | PolynomialFitResult,
 ) -> FitCovarianceResistancePropagation:
     """Propagate fitted-parameter covariance into resistance uncertainty.
 
@@ -348,20 +349,29 @@ def propagate_fit_covariance_to_resistance(
     where ``J`` is the resistance sensitivity vector with respect to the fitted
     parameters at ``temperature_c``. Correlation terms in the fitted-parameter
     covariance are therefore retained rather than combined as if the parameters
-    were independent. For the supported IEC-R0 and resistance-space polynomial
-    parameterizations, resistance is linear in the retained fitted parameters, so
-    this covariance transformation is exact at fixed temperature under the fit
-    model rather than a Taylor approximation.
+    were independent. For IEC-R0 and resistance-space polynomial parameterizations,
+    resistance is linear in the retained fitted parameters and the covariance
+    transformation is exact at fixed temperature. Custom CVD results use the public
+    ``R0, A, B, C`` parameter basis; when ``R0`` and shape coefficients are jointly
+    fitted, forward propagation is first-order/local because those parameters enter
+    the CVD equation multiplicatively.
 
-    Supported fit results are currently ``IEC60751R0FitResult`` and
-    ``PolynomialFitResult``. The fit must contain available parameter covariance.
+    Supported fit results are ``CallendarVanDusenFitResult``,
+    ``IEC60751R0FitResult``, and ``PolynomialFitResult``. The fit must contain
+    available parameter covariance.
 
     This is fitted-model uncertainty only. It does not include uncertainty in a
     subsequently measured resistance, calibration reference-temperature
     uncertainty, sensor drift, tolerance, self-heating, or other effects.
     """
-    if not isinstance(fit_result, (IEC60751R0FitResult, PolynomialFitResult)):
-        raise TypeError("fit_result must be IEC60751R0FitResult or PolynomialFitResult")
+    if not isinstance(
+        fit_result,
+        (CallendarVanDusenFitResult, IEC60751R0FitResult, PolynomialFitResult),
+    ):
+        raise TypeError(
+            "fit_result must be CallendarVanDusenFitResult, IEC60751R0FitResult, "
+            "or PolynomialFitResult"
+        )
 
     temperature = _as_float(temperature_c, name="Temperature")
     if not math.isfinite(temperature):
@@ -388,6 +398,38 @@ def propagate_fit_covariance_to_resistance(
             name="Fitted resistance",
         )
         sensitivities = (resistance / fit_result.model.r0_ohms,)
+    elif isinstance(fit_result, CallendarVanDusenFitResult):
+        if (
+            covariance.parameterization != "callendar_van_dusen_parameters"
+            or covariance.parameter_names != fit_result.evidence.fitted_parameter_names
+        ):
+            raise ValueError(
+                "Callendar-Van Dusen fit covariance has an unexpected parameterization"
+            )
+        resistance = _as_float(
+            fit_result.model.celsius_to_resistance(temperature),
+            name="Fitted resistance",
+        )
+        sensitivity_values: list[float] = []
+        for parameter in covariance.parameter_names:
+            if parameter == "r0_ohms":
+                sensitivity_values.append(resistance / fit_result.model.r0_ohms)
+            elif parameter == "a":
+                sensitivity_values.append(fit_result.model.r0_ohms * temperature)
+            elif parameter == "b":
+                sensitivity_values.append(
+                    fit_result.model.r0_ohms * temperature * temperature
+                )
+            elif parameter == "c":
+                c_basis = (
+                    (temperature - 100.0) * temperature**3 if temperature < 0.0 else 0.0
+                )
+                sensitivity_values.append(fit_result.model.r0_ohms * c_basis)
+            else:
+                raise ValueError(
+                    "Callendar-Van Dusen fit covariance has an unknown parameter name"
+                )
+        sensitivities = tuple(sensitivity_values)
     else:
         expected_parameter_names = tuple(
             f"a{power}" for power in range(len(fit_result.model.coefficients) + 1)
@@ -435,7 +477,7 @@ def propagate_fit_covariance_to_resistance(
 def propagate_fit_covariance_to_temperature(
     resistance_ohms: float,
     *,
-    fit_result: IEC60751R0FitResult | PolynomialFitResult,
+    fit_result: CallendarVanDusenFitResult | IEC60751R0FitResult | PolynomialFitResult,
 ) -> FitCovarianceTemperaturePropagation:
     """Propagate fitted-parameter covariance into inferred temperature.
 
@@ -456,8 +498,14 @@ def propagate_fit_covariance_to_temperature(
     uncertainty, calibration reference-temperature uncertainty, sensor drift,
     tolerance, self-heating, and other effects are not included.
     """
-    if not isinstance(fit_result, (IEC60751R0FitResult, PolynomialFitResult)):
-        raise TypeError("fit_result must be IEC60751R0FitResult or PolynomialFitResult")
+    if not isinstance(
+        fit_result,
+        (CallendarVanDusenFitResult, IEC60751R0FitResult, PolynomialFitResult),
+    ):
+        raise TypeError(
+            "fit_result must be CallendarVanDusenFitResult, IEC60751R0FitResult, "
+            "or PolynomialFitResult"
+        )
 
     resistance = _validate_positive_finite(
         resistance_ohms,

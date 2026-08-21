@@ -8,7 +8,7 @@ characteristics.
 
 Beyond basic conversion, the library supports configurable Callendar–Van Dusen
 models for traceable coefficient sets; generic polynomial, piecewise-polynomial, and
-table-backed custom characteristics; dependency-free calibration fitting with auditable parameter covariance
+table-backed custom characteristics; dependency-free IEC R0, custom CVD, and polynomial calibration fitting with auditable parameter covariance
 and batch conversion; versioned portable model definitions; IEC 60751 platinum
 tolerance calculations; measurement uncertainty; simulation; built-in model
 discovery; hardware-neutral measurement composition; and stable language-neutral
@@ -56,7 +56,8 @@ Only RTD characteristics whose equations, validity ranges, independent reference
 - convert a compensated RTD resistance measurement to temperature;
 - calculate the expected resistance of an RTD at a known temperature;
 - convert ordered batches of temperatures or resistances without a NumPy dependency;
-- model or fit an individual IEC 60751 probe with a characterized R0, or use custom Callendar–Van Dusen coefficients;
+- model or fit an individual IEC 60751 probe with a characterized R0;
+- use supplied custom Callendar–Van Dusen coefficients or fit selected `R0`/`A`/`B`/`C` parameters from calibration observations;
 - fit a validated polynomial RTD model from calibration observations while retaining auditable fit evidence;
 - serialize and reconstruct supported configurable or fitted models with a versioned portable definition;
 - preserve authoritative manufacturer/user table data with a table-backed RTD model;
@@ -253,6 +254,8 @@ calibrated_probe = CallendarVanDusenRTDModel(
 
 Custom coefficient models must declare their valid temperature range. `C` may be omitted only when that range is entirely at or above 0 °C. The model validates that the supplied curve remains finite, positive-resistance, and strictly increasing over the interval required for conversion. Custom coefficients are not automatically described as IEC 60751 compliant; `coefficient_source` can retain a calibration-certificate or manufacturer reference alongside the model.
 
+For calibration observations rather than an already-supplied coefficient set, `fitting.fit_callendar_van_dusen()` can estimate an explicit requested subset of `r0_ohms`, `a`, `b`, and `c` while treating the remaining parameters as fixed inputs. The fitter rejects rank-deficient or severely ill-conditioned parameter combinations, retains the scaled-system condition diagnostic, and transforms fitted covariance back into the public CVD parameter basis. Fitting `C` requires negative-temperature calibration data because that term is identically zero at and above 0 °C.
+
 ## Generic polynomial RTD models
 
 For a manufacturer, calibration laboratory, or legacy RTD characteristic that is published as one global polynomial, use `PolynomialRTDModel`:
@@ -285,9 +288,9 @@ The model analytically differentiates the polynomial, validates that resistance 
 
 Do not force a published piecewise or tabulated characteristic into this single-polynomial API. Use `PiecewisePolynomialRTDModel` for a source that publishes separate interval equations and `TabulatedRTDModel` when the authoritative source is a resistance/temperature table.
 
-## Polynomial calibration fitting
+## Calibration fitting
 
-`rtd_sensor.fitting` can fit a validated `PolynomialRTDModel` directly from measured `(temperature, resistance)` calibration observations without adding NumPy or another numerical dependency:
+`rtd_sensor.fitting` can fit characterized IEC `R0`, selected custom Callendar–Van Dusen parameters, or a validated `PolynomialRTDModel`. Polynomial fitting works directly from measured `(temperature, resistance)` calibration observations without adding NumPy or another numerical dependency:
 
 ```python
 from rtd_sensor import fitting
@@ -303,7 +306,7 @@ model = fit.model
 print(fit.evidence.rms_residual_ohms)
 ```
 
-The fit result deliberately keeps the validated numerical model separate from the evidence supporting it. Evidence retains the original observations, per-point resistance residuals, RMS and maximum absolute residual error, fitting range, solver/scaling information, a conditioning diagnostic, observation/parameter/residual-degree-of-freedom counts, and fitted-parameter covariance when the statistical basis supports it. Repeated temperatures are retained as independent observations rather than silently averaged. The reported RMS is a descriptive root mean square over the observations, not a degrees-of-freedom-adjusted uncertainty estimate; a nearly saturated fit can therefore have very small residuals without demonstrating predictive quality.
+The fit result deliberately keeps the validated numerical model separate from the evidence supporting it. Evidence retains the original observations, per-point resistance residuals, RMS and maximum absolute residual error, fitting range, solver/scaling information, conditioning/identifiability diagnostics where applicable, observation/parameter/residual-degree-of-freedom counts, and fitted-parameter covariance when the statistical basis supports it. Absolute resistance-uncertainty fits also retain chi-square and reduced-chi-square diagnostics; covariance exposes derived parameter standard uncertainties and correlations. Repeated temperatures are retained as independent observations rather than silently averaged. The reported RMS is a descriptive root mean square over the observations, not a degrees-of-freedom-adjusted uncertainty estimate; a nearly saturated fit can therefore have very small residuals without demonstrating predictive quality.
 
 Weighted least squares may use either a positive relative `weight` on every observation or a positive `standard_uncertainty_ohms` on every observation. Resistance standard uncertainties are converted to normalized inverse-variance weights; temperature is treated as the independent variable, so this initial fitter does not model temperature uncertainty. Absolute resistance standard uncertainties define parameter covariance directly under the fit assumptions, including for saturated fits. Unweighted and relative-weighted fits instead estimate the unknown common residual scale from residual scatter, so covariance is unavailable when residual degrees of freedom are zero. A caller may narrow the fitted model's validity range inside the observed calibration span, but the API does not silently extrapolate beyond that span. Rank-deficient, severely ill-conditioned, non-positive, or non-monotonic fitted curves raise `RTDFitError` instead of returning a deployable model.
 

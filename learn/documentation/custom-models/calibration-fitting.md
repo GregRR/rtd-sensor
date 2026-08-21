@@ -1,6 +1,6 @@
 ---
 title: Calibration fitting
-description: Fit characterized IEC 60751 R0 values or validated polynomial RTD models from calibration observations with auditable residuals, diagnostics, and optional weighting.
+description: Fit characterized IEC 60751 R0 values, selected custom CVD parameters, or validated polynomial RTD models from calibration observations with auditable covariance and diagnostics.
 ---
 
 # Calibration fitting
@@ -8,7 +8,7 @@ description: Fit characterized IEC 60751 R0 values or validated polynomial RTD m
 `rtd_sensor.fitting` fits RTD models from measured **temperature/resistance
 calibration observations** without requiring NumPy. The 0.6.0 API introduced
 polynomial fitting; 0.7.0 adds fitting of a characterized IEC 60751 PT-385
-reference resistance while keeping the standard characteristic fixed.
+reference resistance and selected custom Callendar–Van Dusen parameters.
 
 The API deliberately returns two things together:
 
@@ -61,6 +61,52 @@ mistaken for calibration evidence. Fitting `R0` does not by itself establish IEC
 tolerance-class conformance or prove physical accuracy away from the calibration
 points.
 
+## Fit selected Callendar–Van Dusen parameters
+
+**Planned for:** rtd-sensor 0.7.0.
+
+When calibration observations are intended to define a custom platinum CVD curve,
+select exactly which parameters should be estimated and supply the others as fixed
+inputs:
+
+```python
+from rtd_sensor import fitting
+
+observations = (
+    fitting.CalibrationObservation(-50.0, 80.31),
+    fitting.CalibrationObservation(0.0, 100.025),
+    fitting.CalibrationObservation(100.0, 138.56),
+    fitting.CalibrationObservation(200.0, 175.90),
+)
+
+fit = fitting.fit_callendar_van_dusen(
+    observations,
+    fit_parameters=("r0_ohms", "a", "b", "c"),
+)
+```
+
+The API does not guess which parameters are identifiable. `fit_parameters` is
+explicit, and the scaled least-squares system must be full-rank and below the
+project's severe-conditioning limit. `C` cannot be fitted without at least one
+negative-temperature observation because its basis term is zero at and above
+0 °C. You can also fit a subset while holding other values fixed—for example,
+fit `A` and `B` while using a previously characterized `R0`.
+
+Internally, a joint `R0/A/B/C` fit uses the exact algebraic linearization
+`(R0, R0*A, R0*B, R0*C)` and then transforms the coefficient estimates back into the public CVD parameter
+basis. When `R0` and shape coefficients are fitted jointly, the public
+coefficient covariance uses a first-order Jacobian/delta-method transformation from
+the exact linearized-fit covariance, and that transformation is recorded in the
+covariance evidence. No generic nonlinear
+optimizer is introduced for this model. The evidence records the linearized
+parameter names, design-column scales, and scaled-system condition diagnostic so
+identifiability remains inspectable.
+
+If any shape coefficient (`A`, `B`, or `C`) is estimated, the model range may be
+narrowed but not extended beyond the observation span. An `R0`-only fit with all
+shape coefficients fixed follows the characterized-model rule instead and may use
+an independently justified explicit applicability interval.
+
 ## Polynomial fit
 
 ```python
@@ -93,7 +139,9 @@ print(fit.evidence.max_absolute_residual_ohms)
 - weighting method and normalized effective weights when used;
 - weighted residual diagnostics when applicable;
 - fitted-parameter covariance when the statistical basis supports it;
-- scaled-system conditioning diagnostic;
+- covariance-derived parameter standard uncertainties and correlations;
+- chi-square and reduced-chi-square diagnostics when absolute resistance standard uncertainties are supplied;
+- scaled-system conditioning/identifiability diagnostics where applicable;
 - solver and scaling information.
 
 Residuals are **observed resistance minus fitted resistance**.
@@ -134,9 +182,7 @@ observations = (
 )
 ```
 
-These values are converted to normalized inverse-variance weights. Temperature
-is treated as the independent variable; this fitter does not model uncertainty
-in the temperature coordinate.
+These values are converted to normalized inverse-variance weights. Temperature is treated as the independent variable; the current fitters do not model uncertainty in the temperature coordinate. That limitation is explicit because reference-temperature uncertainty is an errors-in-variables problem, not resistance uncertainty in disguise.
 
 ## Fitted-parameter covariance
 

@@ -74,6 +74,40 @@ positive_range = CallendarVanDusenRTDModel(
 )
 ```
 
+## Fit CVD parameters from calibration observations
+
+**Planned for:** rtd-sensor 0.7.0.
+
+If you have calibration observations rather than a coefficient set, use
+`rtd_sensor.fitting.fit_callendar_van_dusen()` and state which parameters should
+be estimated:
+
+```python
+from rtd_sensor import fitting
+
+fit = fitting.fit_callendar_van_dusen(
+    (
+        fitting.CalibrationObservation(-50.0, 80.31),
+        fitting.CalibrationObservation(0.0, 100.025),
+        fitting.CalibrationObservation(100.0, 138.56),
+        fitting.CalibrationObservation(200.0, 175.90),
+    ),
+    fit_parameters=("r0_ohms", "a", "b", "c"),
+)
+
+model = fit.model
+```
+
+Parameters omitted from `fit_parameters` are fixed inputs and must be supplied
+explicitly, except `C` may remain absent for a wholly non-negative model range.
+Fitting `C` requires negative-temperature data. The fitter checks rank and scaled
+conditioning before returning a model, and its covariance is reported in the
+public `R0`, `A`, `B`, `C` parameter basis.
+
+A fitted custom CVD curve is still not automatically IEC 60751 compliant. The
+fit evidence says how the coefficients were estimated; standards or manufacturer
+provenance must come from the actual calibration/source record.
+
 ## Related features
 
 - [Characterized IEC 60751 models](characterized-iec60751.md)

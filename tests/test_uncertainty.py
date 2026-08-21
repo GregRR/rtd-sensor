@@ -10,6 +10,8 @@ from rtd_sensor import pt100, pt1000, uncertainty
 from rtd_sensor.exceptions import RTDOutOfRangeError
 from rtd_sensor.fitting import (
     CalibrationObservation,
+    CallendarVanDusenFitResult,
+    fit_callendar_van_dusen,
     fit_iec60751_r0,
     fit_polynomial,
 )
@@ -617,3 +619,77 @@ def test_fit_covariance_temperature_propagation_rejects_unsupported_result() -> 
             100.0,
             fit_result=object(),  # type: ignore[arg-type]
         )
+
+
+def _fitted_cvd_with_covariance() -> CallendarVanDusenFitResult:
+    source = CallendarVanDusenRTDModel(
+        r0_ohms=100.025,
+        a=3.91e-3,
+        b=-5.8e-7,
+        c=-4.1e-12,
+        minimum_temperature_c=-100.0,
+        maximum_temperature_c=200.0,
+    )
+    observations = tuple(
+        CalibrationObservation(
+            temperature_c,
+            source.celsius_to_resistance(temperature_c),
+            standard_uncertainty_ohms=0.01,
+        )
+        for temperature_c in (-100.0, -50.0, 0.0, 50.0, 100.0, 200.0)
+    )
+    return fit_callendar_van_dusen(
+        observations,
+        fit_parameters=("r0_ohms", "a", "b", "c"),
+    )
+
+
+def test_fit_covariance_propagates_cvd_parameter_sensitivities_to_resistance() -> None:
+    fit = _fitted_cvd_with_covariance()
+    temperature_c = -25.0
+
+    propagated = uncertainty.propagate_fit_covariance_to_resistance(
+        temperature_c,
+        fit_result=fit,
+    )
+
+    resistance = fit.model.celsius_to_resistance(temperature_c)
+    c_basis = (temperature_c - 100.0) * temperature_c**3
+    expected = (
+        resistance / fit.model.r0_ohms,
+        fit.model.r0_ohms * temperature_c,
+        fit.model.r0_ohms * temperature_c**2,
+        fit.model.r0_ohms * c_basis,
+    )
+    assert propagated.parameter_sensitivity_vector == pytest.approx(expected)
+    assert propagated.resistance_variance_ohms_squared >= 0.0
+    assert propagated.resistance_standard_uncertainty_ohms >= 0.0
+
+
+def test_fit_covariance_propagates_cvd_covariance_to_temperature() -> None:
+    fit = _fitted_cvd_with_covariance()
+    temperature_c = 75.0
+    resistance = fit.model.celsius_to_resistance(temperature_c)
+
+    propagated = uncertainty.propagate_fit_covariance_to_temperature(
+        resistance,
+        fit_result=fit,
+    )
+    resistance_propagated = uncertainty.propagate_fit_covariance_to_resistance(
+        temperature_c,
+        fit_result=fit,
+    )
+    inverse_sensitivity = fit.model.temperature_sensitivity_celsius_per_ohm(
+        temperature_c
+    )
+
+    assert propagated.temperature_c == pytest.approx(temperature_c)
+    assert propagated.temperature_variance_celsius_squared == pytest.approx(
+        resistance_propagated.resistance_variance_ohms_squared * inverse_sensitivity**2
+    )
+    assert propagated.parameter_sensitivity_vector == pytest.approx(
+        tuple(
+            -inverse_sensitivity * value
+            for value in resistance_propagated.parameter_sensitivity_vector
+        )
+    )

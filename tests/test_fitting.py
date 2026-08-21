@@ -10,15 +10,22 @@ import pytest
 from rtd_sensor.exceptions import RTDFitError
 from rtd_sensor.fitting import (
     CalibrationObservation,
+    CallendarVanDusenFitEvidence,
+    CallendarVanDusenFitResult,
     FitParameterCovariance,
     IEC60751R0FitEvidence,
     IEC60751R0FitResult,
     PolynomialFitEvidence,
     PolynomialFitResult,
+    fit_callendar_van_dusen,
     fit_iec60751_r0,
     fit_polynomial,
 )
-from rtd_sensor.models import IEC60751RTDModel, PolynomialRTDModel
+from rtd_sensor.models import (
+    CallendarVanDusenRTDModel,
+    IEC60751RTDModel,
+    PolynomialRTDModel,
+)
 
 
 def _synthetic_resistance(temperature_c: float) -> float:
@@ -1016,3 +1023,360 @@ def test_fit_polynomial_result_and_evidence_are_immutable() -> None:
         result.evidence.degree = 2  # type: ignore[misc]
     with pytest.raises(FrozenInstanceError):
         result.model = result.model  # type: ignore[misc]
+
+
+def _cvd_observations(
+    model: CallendarVanDusenRTDModel,
+    temperatures_c: tuple[float, ...],
+    *,
+    standard_uncertainty_ohms: float | None = None,
+) -> tuple[CalibrationObservation, ...]:
+    return tuple(
+        CalibrationObservation(
+            temperature_c,
+            model.celsius_to_resistance(temperature_c),
+            standard_uncertainty_ohms=standard_uncertainty_ohms,
+        )
+        for temperature_c in temperatures_c
+    )
+
+
+def test_fit_callendar_van_dusen_recovers_all_four_parameters() -> None:
+    source = CallendarVanDusenRTDModel(
+        r0_ohms=100.025,
+        a=3.91e-3,
+        b=-5.8e-7,
+        c=-4.1e-12,
+        minimum_temperature_c=-100.0,
+        maximum_temperature_c=300.0,
+    )
+    observations = _cvd_observations(
+        source,
+        (-100.0, -50.0, 0.0, 50.0, 100.0, 200.0, 300.0),
+    )
+
+    result = fit_callendar_van_dusen(
+        observations,
+        fit_parameters=("r0_ohms", "a", "b", "c"),
+    )
+
+    assert isinstance(result, CallendarVanDusenFitResult)
+    assert isinstance(result.evidence, CallendarVanDusenFitEvidence)
+    assert result.model.r0_ohms == pytest.approx(source.r0_ohms, abs=1e-12)
+    assert result.model.a == pytest.approx(source.a, abs=1e-15)
+    assert result.model.b == pytest.approx(source.b, abs=1e-18)
+    assert result.model.c == pytest.approx(source.c, abs=1e-22)
+    assert result.evidence.fitted_parameter_names == ("r0_ohms", "a", "b", "c")
+    assert result.evidence.residual_degrees_of_freedom == 3
+    assert result.evidence.scaled_system_condition_number < 100.0
+    assert result.evidence.parameter_covariance is not None
+    assert result.evidence.parameter_covariance.parameter_names == (
+        "r0_ohms",
+        "a",
+        "b",
+        "c",
+    )
+
+
+def test_fit_callendar_van_dusen_positive_range_omits_c() -> None:
+    source = CallendarVanDusenRTDModel(
+        r0_ohms=100.04,
+        a=3.905e-3,
+        b=-5.7e-7,
+        minimum_temperature_c=0.0,
+        maximum_temperature_c=250.0,
+    )
+    observations = _cvd_observations(source, (0.0, 50.0, 100.0, 175.0, 250.0))
+
+    result = fit_callendar_van_dusen(
+        observations,
+        fit_parameters=("r0_ohms", "a", "b"),
+    )
+
+    assert result.model.c is None
+    assert result.model.r0_ohms == pytest.approx(source.r0_ohms)
+    assert result.model.a == pytest.approx(source.a)
+    assert result.model.b == pytest.approx(source.b)
+
+
+def test_fit_callendar_van_dusen_supports_fixed_r0() -> None:
+    source = CallendarVanDusenRTDModel(
+        r0_ohms=100.02,
+        a=3.906e-3,
+        b=-5.76e-7,
+        minimum_temperature_c=0.0,
+        maximum_temperature_c=200.0,
+    )
+    observations = _cvd_observations(source, (0.0, 50.0, 100.0, 150.0, 200.0))
+
+    result = fit_callendar_van_dusen(
+        observations,
+        fit_parameters=("a", "b"),
+        r0_ohms=source.r0_ohms,
+    )
+
+    assert result.model.r0_ohms == source.r0_ohms
+    assert result.model.a == pytest.approx(source.a)
+    assert result.model.b == pytest.approx(source.b)
+    covariance = result.evidence.parameter_covariance
+    assert covariance is not None
+    assert covariance.parameter_names == ("a", "b")
+
+
+def test_fit_callendar_van_dusen_rejects_unidentifiable_c() -> None:
+    source = CallendarVanDusenRTDModel(
+        r0_ohms=100.0,
+        a=3.908e-3,
+        b=-5.775e-7,
+        minimum_temperature_c=0.0,
+        maximum_temperature_c=200.0,
+    )
+    observations = _cvd_observations(source, (0.0, 50.0, 100.0, 200.0))
+
+    with pytest.raises(RTDFitError, match="C requires at least one negative"):
+        fit_callendar_van_dusen(
+            observations,
+            fit_parameters=("r0_ohms", "a", "b", "c"),
+        )
+
+
+def test_fit_callendar_van_dusen_rejects_severely_ill_conditioned_system() -> None:
+    source = CallendarVanDusenRTDModel(
+        r0_ohms=100.0,
+        a=3.908e-3,
+        b=-5.775e-7,
+        minimum_temperature_c=100.0,
+        maximum_temperature_c=100.00000002,
+    )
+    observations = _cvd_observations(
+        source,
+        (100.0, 100.00000001, 100.00000002),
+    )
+
+    with pytest.raises(
+        RTDFitError,
+        match=(
+            "Requested Callendar-Van Dusen parameters are not identifiable.*"
+            "severely ill-conditioned"
+        ),
+    ):
+        fit_callendar_van_dusen(
+            observations,
+            fit_parameters=("a", "b"),
+            r0_ohms=source.r0_ohms,
+        )
+
+
+def test_fit_callendar_van_dusen_shape_fit_cannot_extend_range() -> None:
+    source = CallendarVanDusenRTDModel(
+        r0_ohms=100.0,
+        a=3.908e-3,
+        b=-5.775e-7,
+        minimum_temperature_c=0.0,
+        maximum_temperature_c=100.0,
+    )
+    observations = _cvd_observations(source, (0.0, 50.0, 100.0))
+
+    with pytest.raises(RTDFitError, match="may not extend"):
+        fit_callendar_van_dusen(
+            observations,
+            fit_parameters=("r0_ohms", "a", "b"),
+            minimum_temperature_c=0.0,
+            maximum_temperature_c=150.0,
+        )
+
+
+def test_fit_callendar_van_dusen_r0_only_allows_independent_range() -> None:
+    source = CallendarVanDusenRTDModel(
+        r0_ohms=100.03,
+        a=3.908e-3,
+        b=-5.775e-7,
+        c=-4.183e-12,
+        minimum_temperature_c=-100.0,
+        maximum_temperature_c=300.0,
+    )
+    observations = _cvd_observations(source, (0.0, 20.0))
+
+    result = fit_callendar_van_dusen(
+        observations,
+        fit_parameters=("r0_ohms",),
+        a=source.a,
+        b=source.b,
+        c=source.c,
+        minimum_temperature_c=200.0,
+        maximum_temperature_c=300.0,
+    )
+
+    assert result.model.r0_ohms == pytest.approx(source.r0_ohms)
+    assert result.evidence.observation_minimum_temperature_c == 0.0
+    assert result.evidence.observation_maximum_temperature_c == 20.0
+    assert result.model.minimum_temperature_c == 200.0
+    assert result.model.maximum_temperature_c == 300.0
+
+
+def test_cvd_absolute_uncertainty_fit_reports_chi_squared_diagnostics() -> None:
+    source = CallendarVanDusenRTDModel(
+        r0_ohms=100.0,
+        a=3.908e-3,
+        b=-5.775e-7,
+        minimum_temperature_c=0.0,
+        maximum_temperature_c=200.0,
+    )
+    perturbations = (0.01, -0.02, 0.015, -0.005)
+    uncertainties = (0.01, 0.02, 0.015, 0.01)
+    observations = tuple(
+        CalibrationObservation(
+            temperature_c,
+            source.celsius_to_resistance(temperature_c) + perturbation,
+            standard_uncertainty_ohms=uncertainty,
+        )
+        for temperature_c, perturbation, uncertainty in zip(
+            (0.0, 50.0, 100.0, 200.0),
+            perturbations,
+            uncertainties,
+            strict=True,
+        )
+    )
+
+    result = fit_callendar_van_dusen(
+        observations,
+        fit_parameters=("a", "b"),
+        r0_ohms=source.r0_ohms,
+    )
+
+    expected_chi_squared = math.fsum(
+        (residual / observation.standard_uncertainty_ohms) ** 2
+        for residual, observation in zip(
+            result.evidence.residuals_ohms, observations, strict=True
+        )
+        if observation.standard_uncertainty_ohms is not None
+    )
+    assert result.evidence.chi_squared == pytest.approx(expected_chi_squared)
+    assert result.evidence.reduced_chi_squared == pytest.approx(
+        expected_chi_squared / result.evidence.residual_degrees_of_freedom
+    )
+
+
+def test_cvd_saturated_unweighted_fit_reports_covariance_unavailable() -> None:
+    source = CallendarVanDusenRTDModel(
+        r0_ohms=100.0,
+        a=3.908e-3,
+        b=-5.775e-7,
+        minimum_temperature_c=50.0,
+        maximum_temperature_c=100.0,
+    )
+    observations = _cvd_observations(source, (50.0, 100.0))
+
+    result = fit_callendar_van_dusen(
+        observations,
+        fit_parameters=("a", "b"),
+        r0_ohms=source.r0_ohms,
+    )
+
+    assert result.evidence.residual_degrees_of_freedom == 0
+    assert result.evidence.parameter_covariance is None
+    assert result.evidence.parameter_covariance_unavailable_reason == (
+        "residual_variance_requires_positive_degrees_of_freedom"
+    )
+    assert result.evidence.chi_squared is None
+    assert result.evidence.reduced_chi_squared is None
+
+
+def test_absolute_uncertainty_fits_report_chi_squared_diagnostics() -> None:
+    source = IEC60751RTDModel(r0_ohms=100.0)
+    observations = (
+        CalibrationObservation(0.0, 100.01, standard_uncertainty_ohms=0.01),
+        CalibrationObservation(
+            100.0,
+            source.celsius_to_resistance(100.0) - 0.02,
+            standard_uncertainty_ohms=0.02,
+        ),
+        CalibrationObservation(
+            200.0,
+            source.celsius_to_resistance(200.0) + 0.01,
+            standard_uncertainty_ohms=0.01,
+        ),
+    )
+
+    result = fit_iec60751_r0(observations)
+
+    expected_chi_squared = math.fsum(
+        (residual / observation.standard_uncertainty_ohms) ** 2
+        for residual, observation in zip(
+            result.evidence.residuals_ohms, observations, strict=True
+        )
+        if observation.standard_uncertainty_ohms is not None
+    )
+    assert result.evidence.chi_squared == pytest.approx(expected_chi_squared)
+    assert result.evidence.reduced_chi_squared == pytest.approx(
+        expected_chi_squared / result.evidence.residual_degrees_of_freedom
+    )
+
+
+def test_fit_parameter_covariance_exposes_uncertainty_and_correlation() -> None:
+    covariance = FitParameterCovariance(
+        parameter_names=("x", "y"),
+        covariance_matrix=((4.0, 3.0), (3.0, 9.0)),
+        estimation_method="resistance_standard_uncertainties",
+        parameterization="callendar_van_dusen_parameters",
+    )
+
+    assert covariance.standard_uncertainties == pytest.approx((2.0, 3.0))
+    assert covariance.correlation_matrix[0] == pytest.approx((1.0, 0.5))
+    assert covariance.correlation_matrix[1] == pytest.approx((0.5, 1.0))
+
+
+def test_fit_callendar_van_dusen_covariance_uses_public_parameter_basis() -> None:
+    source = CallendarVanDusenRTDModel(
+        r0_ohms=100.025,
+        a=3.91e-3,
+        b=-5.8e-7,
+        c=-4.1e-12,
+        minimum_temperature_c=-100.0,
+        maximum_temperature_c=200.0,
+    )
+    observations = _cvd_observations(
+        source,
+        (-100.0, -50.0, 0.0, 50.0, 100.0, 200.0),
+        standard_uncertainty_ohms=0.01,
+    )
+
+    result = fit_callendar_van_dusen(
+        observations,
+        fit_parameters=("r0_ohms", "a", "b", "c"),
+    )
+
+    covariance = result.evidence.parameter_covariance
+    assert covariance is not None
+    assert covariance.parameterization == "callendar_van_dusen_parameters"
+    assert covariance.parameter_transformation == (
+        "first_order_ratio_transform_from_linearized_cvd"
+    )
+    assert covariance.parameter_names == ("r0_ohms", "a", "b", "c")
+    # Independently evaluated from (X.T W X)^-1 in the linearized
+    # (R0, R0*A, R0*B, R0*C) basis and the analytic Jacobian into
+    # the public (R0, A, B, C) basis.
+    assert covariance.covariance_matrix[0] == pytest.approx(
+        (
+            3.34669018e-05,
+            -2.82963169e-09,
+            -2.29226769e-12,
+            -2.47574967e-15,
+        ),
+        rel=2e-9,
+    )
+    assert covariance.covariance_matrix[3][3] == pytest.approx(
+        1.46735393e-24,
+        rel=2e-9,
+    )
+
+
+def test_fit_parameter_correlation_is_undefined_for_zero_variance() -> None:
+    covariance = FitParameterCovariance(
+        parameter_names=("x", "y"),
+        covariance_matrix=((0.0, 0.0), (0.0, 1.0)),
+        estimation_method="resistance_standard_uncertainties",
+        parameterization="callendar_van_dusen_parameters",
+    )
+
+    assert covariance.correlation_matrix == ((None, None), (None, 1.0))

@@ -21,9 +21,12 @@ u²_fit(R) = J Cov(θ) Jᵀ
 `J` is the vector of resistance sensitivities with respect to the fitted
 parameters. The full covariance matrix is used, including off-diagonal terms.
 Those terms matter because fitted parameters are generally correlated. For the
-currently supported IEC-R0 and polynomial fit-space parameterizations, resistance
-is linear in the retained fitted parameters, so this resistance covariance
-transformation is exact at fixed temperature under the fit model.
+IEC-R0 and polynomial fit-space parameterizations, resistance is linear in the
+retained fitted parameters, so this resistance covariance transformation is exact
+at fixed temperature under the fit model. Custom CVD covariance is retained in
+the public `R0`, `A`, `B`, `C` basis. If `R0` and shape coefficients are jointly
+fitted, those parameters enter the forward equation multiplicatively, so CVD
+forward propagation is first-order/local in that public basis.
 
 ## IEC 60751 R0 example
 
@@ -90,6 +93,41 @@ propagated = uncertainty.propagate_fit_covariance_to_resistance(
 print(propagated.parameter_sensitivity_vector)
 print(propagated.resistance_variance_ohms_squared)
 ```
+
+## Custom CVD example
+
+A fitted CVD result uses the same propagation functions. The sensitivity vector
+follows exactly the subset recorded by the fit covariance. At a fixed temperature:
+
+```text
+dR/dR0 = R/R0
+dR/dA  = R0*T
+dR/dB  = R0*T²
+dR/dC  = R0*(T-100)*T³   for T < 0 °C, otherwise 0
+```
+
+```python
+fit = fitting.fit_callendar_van_dusen(
+    (
+        fitting.CalibrationObservation(-50.0, 80.31, standard_uncertainty_ohms=0.01),
+        fitting.CalibrationObservation(0.0, 100.025, standard_uncertainty_ohms=0.01),
+        fitting.CalibrationObservation(100.0, 138.56, standard_uncertainty_ohms=0.01),
+        fitting.CalibrationObservation(200.0, 175.90, standard_uncertainty_ohms=0.01),
+    ),
+    fit_parameters=("r0_ohms", "a", "b", "c"),
+)
+
+propagated = uncertainty.propagate_fit_covariance_to_resistance(
+    -25.0,
+    fit_result=fit,
+)
+```
+
+Because the exposed CVD covariance is in the physical `R0`, `A`, `B`, `C`
+parameter basis, a joint `R0` plus shape-coefficient fit is nonlinear in those
+parameters even though the fitter itself used an exact linearized product basis.
+That is why CVD forward propagation is described as first-order/local rather than
+exact in the public covariance basis.
 
 ## Propagate into inferred temperature
 
@@ -160,10 +198,11 @@ the fit evidence rather than returning zero uncertainty.
 
 ## Forward exactness and inverse local linearization
 
-The forward resistance covariance transformation is exact for the currently
-supported linear-in-parameter fit representations at fixed temperature. The
-inverse temperature propagation is first-order/local because it uses the local
-implicit sensitivity at the converted temperature. Monte Carlo or other methods
+The forward resistance covariance transformation is exact for IEC-R0 and
+polynomial fit-space representations at fixed temperature. Custom CVD forward
+propagation is first-order/local when jointly fitted public parameters enter
+multiplicatively. Inverse temperature propagation is first-order/local because it
+uses the local implicit sensitivity at the converted temperature. Monte Carlo or other methods
 may eventually be appropriate when parameter uncertainty is large enough that
 inverse-model nonlinearity matters.
 

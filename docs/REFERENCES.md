@@ -321,16 +321,20 @@ White, D. R., & Tew, W. L. (2022). *Guide on secondary thermometry: Industrial
 platinum resistance thermometers*. Bureau International des Poids et Mesures.
 https://www.nist.gov/publications/guide-secondary-thermometry-industrial-platinum-resistance-thermometers
 
-**Project use:** Research/future anchor for industrial PRT self-heating,
-hysteresis, reproducibility, long-term stability, calibration, and uncertainty.
+**Project use:** Implementation and research anchor for industrial PRT calibration.
+Appendix 1 documents the modern Callendar–Van Dusen `R0`, `A`, `B`, `C` form,
+the zero-above-0-°C role of `C`, and the historical determination of CVD
+parameters from calibration measurements. It also remains a research source for
+self-heating, hysteresis, reproducibility, long-term stability, and uncertainty.
 
 Strouse, G. F., Mangum, B. W., Vaughn, C. D., & Xu, E. Y. (1998). *A new NIST
 automated calibration system for industrial-grade platinum resistance
 thermometers* (NISTIR 6225). National Institute of Standards and Technology.
 https://doi.org/10.6028/NIST.IR.6225
 
-**Project use:** Research/future source for industrial comparison-calibration
-practice and uncertainty analysis.
+**Project use:** Corroborating source for industrial comparison-calibration
+practice, uncertainty analysis, and the use of Callendar–Van Dusen or least-squares
+coefficient models in calibration reports.
 
 ## Data interchange, conformance, and provenance design sources
 

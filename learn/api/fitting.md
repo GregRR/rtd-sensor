@@ -1,11 +1,11 @@
 ---
 title: fitting API
-description: Quick API reference for rtd_sensor.fitting calibration observations, IEC 60751 R0 fitting, polynomial fitting, evidence, and results.
+description: Quick API reference for rtd_sensor.fitting calibration observations, IEC 60751 R0 fitting, custom CVD fitting, polynomial fitting, covariance, diagnostics, and results.
 ---
 
 # `rtd_sensor.fitting`
 
-The public fitting API was **introduced in rtd-sensor 0.6.0**. IEC 60751 `R0` fitting is being added for rtd-sensor 0.7.0.
+The public fitting API was **introduced in rtd-sensor 0.6.0**. IEC 60751 `R0`, selected custom Callendar–Van Dusen parameter fitting, and expanded statistical diagnostics are planned for rtd-sensor 0.7.0.
 
 ## `CalibrationObservation`
 
@@ -48,6 +48,50 @@ or disjoint from the observation span, but they must remain within the supported
 IEC characteristic range. The evidence retains the observation span separately
 so this assumption remains visible.
 
+
+## `fit_callendar_van_dusen`
+
+**Planned for:** rtd-sensor 0.7.0
+
+```python
+fit_callendar_van_dusen(
+    observations: Iterable[CalibrationObservation],
+    *,
+    fit_parameters: Iterable[CallendarVanDusenFitParameter],
+    r0_ohms: float | None = None,
+    a: float | None = None,
+    b: float | None = None,
+    c: float | None = None,
+    minimum_temperature_c: float | None = None,
+    maximum_temperature_c: float | None = None,
+    name: str = "Fitted Callendar-Van Dusen RTD",
+    coefficient_source: str | None = None,
+) -> CallendarVanDusenFitResult
+```
+
+Fits an explicitly requested subset of `r0_ohms`, `a`, `b`, and `c`. Any
+parameter not fitted must be supplied as a fixed value, except `c` may be omitted
+for a wholly non-negative model range. The fitting system is algebraically
+linearized and column-scaled before Householder QR. Rank deficiency and severe
+scaled-system ill-conditioning are rejected as non-identifiable parameter fits.
+
+Fitting `c` requires at least one negative-temperature observation because the CVD
+`C` term is zero at and above 0 °C. When any shape coefficient (`a`, `b`, or `c`)
+is fitted, the declared model range may be narrowed but not extended beyond the
+calibration-observation span. An `R0`-only CVD fit with fixed shape coefficients
+may use an independently justified explicit applicability range.
+
+## `CallendarVanDusenFitResult` / `CallendarVanDusenFitEvidence`
+
+**Planned for:** rtd-sensor 0.7.0
+
+The result contains a validated `CallendarVanDusenRTDModel` plus immutable fit
+evidence. Evidence identifies the fitted parameters, residuals, observation span
+separately from the declared model range, weighting method, chi-square diagnostics
+when absolute resistance uncertainties are supplied, parameter covariance,
+scaled-system condition diagnostic, linearized parameter names, and design-column
+scales used for identifiability/stability.
+
 ## `IEC60751R0FitResult`
 
 **Planned for:** rtd-sensor 0.7.0
@@ -78,11 +122,28 @@ parameter_names: tuple[str, ...]
 covariance_matrix: tuple[tuple[float, ...], ...]
 estimation_method: str
 parameterization: str
+parameter_transformation: str | None
 ```
 
-For an IEC `R0` fit the single parameter is `r0_ohms`. For polynomial fits the
-parameterization is the unnormalized resistance power series at the returned
-model's reference temperature, with parameter names `a0`, `a1`, and so on. `a0`
+`standard_uncertainties` and `correlation_matrix` are derived read-only
+properties. The correlation matrix is particularly useful for spotting strongly
+coupled fitted CVD or polynomial parameters; entries involving a zero-variance
+parameter are `None` because the correlation coefficient is undefined.
+
+For fits that supply an absolute `standard_uncertainty_ohms` on every observation,
+fit evidence also reports `chi_squared`; `reduced_chi_squared` is reported when
+residual degrees of freedom are positive. These are residual-consistency
+diagnostics under the stated resistance-uncertainty model, not automatic
+acceptance criteria.
+
+For an IEC `R0` fit the single parameter is `r0_ohms`. Custom CVD fits expose covariance in the actual fitted subset of the public
+`r0_ohms`, `a`, `b`, `c` parameter basis after transforming out of the internal
+linearized product basis. When `R0` and a shape coefficient are fitted jointly,
+`parameter_transformation` records that this public-parameter covariance uses a
+first-order ratio/Jacobian transformation from the exact linearized-fit covariance.
+For polynomial fits the parameterization is the unnormalized resistance power
+series at the returned model's reference temperature, with parameter names `a0`,
+`a1`, and so on. `a0`
 equals the model reference resistance; higher `a` values are the corresponding
 resistance-space coefficients rather than the model's normalized coefficients.
 
@@ -130,7 +191,8 @@ evidence: PolynomialFitEvidence
 **Introduced in:** rtd-sensor 0.6.0
 
 Key fields include observations, residuals, degree, counts/degrees of freedom,
-fit range, RMS/max residuals, weighting diagnostics, fitted-parameter covariance
-when available, condition number, solver, and scaling information.
+fit range, RMS/max residuals, weighting diagnostics, chi-square diagnostics when
+absolute resistance uncertainties are supplied, fitted-parameter covariance when
+available, condition number, solver, and scaling information.
 
 See [Calibration fitting](../documentation/custom-models/calibration-fitting.md).

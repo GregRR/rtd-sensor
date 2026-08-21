@@ -167,15 +167,18 @@ different dimensions.
 propagate_fit_covariance_to_resistance(
     temperature_c: float,
     *,
-    fit_result: IEC60751R0FitResult | PolynomialFitResult,
+    fit_result: CallendarVanDusenFitResult | IEC60751R0FitResult | PolynomialFitResult,
 ) -> FitCovarianceResistancePropagation
 ```
 
 Applies covariance propagation ``J Cov(theta) J.T`` to the parameter covariance
-retained by a supported fit. For the currently supported IEC-R0 and polynomial
-fit-space parameterizations, resistance is linear in those retained parameters,
-so the resistance covariance transformation is exact at fixed temperature. The fit must have available
-parameter covariance. This result covers fitted-model uncertainty only; it does
+retained by a supported fit. For IEC-R0 and polynomial fit-space
+parameterizations, resistance is linear in the retained parameters, so the
+resistance covariance transformation is exact at fixed temperature. For custom
+CVD fits, covariance is retained in the public `R0`/`A`/`B`/`C` parameter basis;
+when `R0` and shape coefficients are jointly estimated, forward propagation is a
+first-order local transformation because those parameters enter multiplicatively.
+The fit must have available parameter covariance. This result covers fitted-model uncertainty only; it does
 not automatically combine acquisition uncertainty, reference-temperature
 uncertainty, drift, tolerance, or other budget components.
 
@@ -211,7 +214,7 @@ and the model's local inverse sensitivity.
 propagate_fit_covariance_to_temperature(
     resistance_ohms: float,
     *,
-    fit_result: IEC60751R0FitResult | PolynomialFitResult,
+    fit_result: CallendarVanDusenFitResult | IEC60751R0FitResult | PolynomialFitResult,
 ) -> FitCovarianceTemperaturePropagation
 ```
 

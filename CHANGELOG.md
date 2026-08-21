@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 
+* Added custom Callendar–Van Dusen parameter fitting with explicit fitted-parameter selection, fixed-parameter support, scaled identifiability/conditioning diagnostics, covariance transformed to the public `R0`/`A`/`B`/`C` basis, and fitted-model uncertainty propagation for CVD fit results.
+* Added covariance-derived parameter standard uncertainties/correlations and chi-square/reduced-chi-square fit diagnostics when absolute resistance standard uncertainties are supplied.
 * Added first-order propagation of fitted-parameter covariance into inferred temperature uncertainty for IEC 60751 `R0` and polynomial fits, using implicit inverse-model sensitivities while keeping measured-resistance uncertainty separate.
 * Added first-order propagation of fitted-parameter covariance into predicted resistance standard uncertainty for IEC 60751 `R0` and polynomial fits, retaining the full covariance terms and parameter sensitivity vector.
 * Added fitted-parameter covariance evidence for IEC 60751 `R0` and polynomial calibration fits, distinguishing covariance derived from supplied resistance standard uncertainties from covariance whose common residual scale must be estimated from positive residual degrees of freedom.

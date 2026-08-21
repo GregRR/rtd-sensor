@@ -625,8 +625,14 @@ freedom. A saturated fit with zero residual degrees of freedom can interpolate i
 observations nearly exactly; a small RMS or maximum residual in that case must not be
 interpreted by itself as evidence of predictive quality or freedom from overfitting.
 The weighted RMS is likewise a descriptive weighted residual measure normalized by
-total effective weight, not a reduced-chi-square or degrees-of-freedom-adjusted
-statistic.
+total effective weight. Beginning with the 0.7.0 diagnostics milestone, fits whose
+observations all provide absolute resistance standard uncertainties also retain
+`chi_squared = sum((residual/u_R)^2)` and, when residual degrees of freedom are
+positive, `reduced_chi_squared = chi_squared / dof`. These are residual-consistency
+diagnostics under the stated independent resistance-uncertainty model, not automatic
+fit-acceptance thresholds and not substitutes for a complete calibration uncertainty
+budget. Relative/manual weights have no absolute variance scale, so they do not
+produce these chi-square diagnostics.
 
 The fitted `PolynomialRTDModel` uses the midpoint of the declared fitted validity
 range as its reference temperature. This is a deterministic numerical anchor, not a
@@ -677,6 +683,69 @@ IEC characteristic and resistance-residual model. It does not establish IEC
 tolerance-class conformance, physical sensor accuracy, or calibration validity
 outside what the retained evidence and caller-declared range justify.
 
+#### 0.7.0 custom Callendar–Van Dusen fitting and identifiability
+
+The custom-CVD fitting milestone adds
+`rtd_sensor.fitting.fit_callendar_van_dusen()`. The caller explicitly names the
+subset of `r0_ohms`, `a`, `b`, and `c` to estimate; every parameter not fitted must
+be supplied as a fixed value, except `C` may be absent for a wholly non-negative
+declared range where the CVD `C` term is unused. This explicit parameter-selection
+contract prevents the package from silently fitting an over-parameterized model.
+
+The implementation uses the modern CVD form documented by Pearce et al. (2022),
+Appendix 1:
+
+```text
+R(T) = R0 [1 + A*T + B*T^2 + C*(T-100)*T^3]   for T < 0 °C
+R(T) = R0 [1 + A*T + B*T^2]                    for T >= 0 °C
+```
+
+When `R0` is among the fitted parameters, the least-squares problem is solved in
+the algebraically linearized parameter basis `(R0, R0*A, R0*B, R0*C)` for the
+requested shape coefficients. Fixed shape coefficients are folded into the `R0`
+design column. When `R0` is fixed, the requested shape coefficients are linear
+directly after multiplication by the fixed `R0`. This is an exact algebraic
+reparameterization of the CVD equation; it does not require a generic nonlinear
+optimizer.
+
+Identifiability is enforced from the actual calibration design. The requested
+parameter count may not exceed the number of distinct calibration temperatures,
+fitting `C` requires at least one negative-temperature observation because its
+basis function is identically zero at and above 0 °C, and the resulting design
+matrix must remain full-rank and below the same severe scaled-system condition
+limit used by polynomial fitting. CVD design columns have very different physical
+scales (`1`, `T`, `T²`, and a fourth-order negative-temperature term), so each
+column is scaled by its largest absolute value before Householder QR. The evidence
+retains those scales, the linearized parameter names, and the scaled-system
+condition diagnostic so the identifiability decision is inspectable.
+
+Covariance is calculated first in the solved linearized basis. If `R0` and shape
+coefficients are jointly fit, public `A`, `B`, or `C` are ratios of fitted product
+coefficients to fitted `R0`, so their covariance is transformed with the first-order
+Jacobian of `A=(R0*A)/R0`, and likewise for `B` and `C`. The coefficient values
+themselves are algebraically exact, but this covariance basis transformation is a
+delta-method/first-order propagation. `FitParameterCovariance.parameter_names`
+always match the public fitted parameters, and `parameter_transformation` records
+the first-order ratio transformation when it was required.
+`FitParameterCovariance` also exposes covariance-derived standard uncertainties
+and a parameter correlation matrix as read-only diagnostics. Correlations involving
+a zero-variance parameter are undefined and are reported as `None`. Strong
+parameter correlation is evidence callers can inspect, not a separate acceptance
+threshold.
+
+Range semantics depend on what was estimated. If any shape coefficient (`A`, `B`,
+or `C`) is fitted, the returned model may be narrowed but not extended beyond the
+calibration-observation span because the curve shape itself was inferred from those
+data. If only `R0` is fitted while all shape coefficients are fixed from an
+independent source, an explicitly supplied applicability range may be broader,
+narrower, or disjoint from the observation span, following the characterized-R0
+principle already established for the IEC fitter.
+
+A successful CVD fit returns the existing `CallendarVanDusenRTDModel`; fit evidence
+remains separate from the numerical model and from portable deployment metadata. A
+fitted curve must not acquire IEC, manufacturer, or calibration-laboratory
+provenance merely because it uses the CVD algebraic form.
+
 #### 0.7.0 fitted-parameter covariance
 
 Fitted-parameter covariance is retained as **fit evidence**, never as part of the
@@ -701,9 +770,11 @@ The covariance scale depends on what the observations actually provide:
   redefine the supplied measurement uncertainties.
 
 For the one-parameter IEC fit, the covariance parameterization is simply `R0` in
-ohms. Polynomial fitting solves in its numerically scaled power basis, but the
-retained covariance is linearly transformed to an unnormalized resistance power
-series at the **returned model's reference temperature**:
+ohms. Custom CVD covariance is retained in the actual fitted subset of the public
+`R0`, `A`, `B`, `C` basis after transforming out of the internal linearized product
+parameters. Polynomial fitting solves in its numerically scaled power basis, but
+the retained covariance is linearly transformed to an unnormalized resistance
+power series at the **returned model's reference temperature**:
 
 ```text
 R(T) = a0 + a1*x + a2*x^2 + ...
@@ -749,18 +820,23 @@ where ``J`` contains the resistance sensitivity coefficients with respect to the
 fitted parameters. This is the correlated-input law of propagation from JCGM
 100:2008 sections 5.1-5.2 and NIST Technical Note 1297 Appendix A; covariance
 off-diagonal terms must therefore be retained rather than treating the fitted
-parameters as independent. For the supported IEC-R0 and polynomial fit-space
+parameters as independent. For IEC-R0 and polynomial fit-space
 parameterizations, resistance is linear in the retained fitted parameters, so
 this forward resistance covariance transformation is exact at fixed temperature
-under the fit model; no Taylor truncation is introduced at this step.
+under the fit model. For custom CVD covariance retained in the public
+`R0`, `A`, `B`, `C` basis, joint fitting of `R0` with shape coefficients makes
+the forward relationship nonlinear in that public parameterization; its
+propagation is therefore first-order/local.
 
 For an IEC 60751 `R0` fit, ``R(T) = R0 * rho(T)`` and the sensitivity vector is
-``(rho(T),)``. For a polynomial fit whose covariance is retained in the
-resistance-space basis at the returned model reference temperature,
-``x = T - reference_temperature_c`` and the sensitivity vector is directly
-``(1, x, x², ...)``. The propagation API records that vector alongside the
-covariance object, propagated variance in ohm², and standard uncertainty in
-ohms so the calculation remains auditable.
+``(rho(T),)``. For custom CVD fits the vector follows the fitted parameter subset:
+``dR/dR0 = R/R0``, ``dR/dA = R0*T``, ``dR/dB = R0*T²``, and below 0 °C
+``dR/dC = R0*(T-100)*T³`` (zero at and above 0 °C). For a polynomial fit whose
+covariance is retained in the resistance-space basis at the returned model
+reference temperature, ``x = T - reference_temperature_c`` and the sensitivity
+vector is directly ``(1, x, x², ...)``. The propagation API records that vector
+alongside the covariance object, propagated variance in ohm², and standard
+uncertainty in ohms so the calculation remains auditable.
 
 Propagation is available only when the fit evidence actually contains parameter
 covariance. A fit that succeeded without estimable covariance remains a valid fit,
