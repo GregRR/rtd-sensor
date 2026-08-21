@@ -92,8 +92,8 @@ convention.
 ### 0.7.0 — calibration and statistical foundation
 
 Build on the 0.6.0 polynomial-fitting foundation so later metrology features can
-reason about fitted-model uncertainty rather than only fitted coefficients. Planned
-scope includes:
+reason about fitted-model uncertainty rather than only fitted coefficients. The
+0.7.0 feature scope includes:
 
 - fit a characterized standard-model reference resistance from calibration
   observations;
@@ -106,11 +106,13 @@ scope includes:
   uncertainty where the model and assumptions support it;
 - strengthen fit-quality and conditioning diagnostics needed by later calibration
   planning;
-- define explicit handling and limitations for reference-temperature uncertainty
-  rather than silently treating uncertainty in the independent variable as
-  resistance uncertainty; and
-- extend application-neutral calibration provenance without merging fit evidence
-  into the portable deployable model definition.
+- explicitly represent calibration/reference-temperature standard uncertainty,
+  reject it by default in ordinary least-squares fitting, and require an explicit
+  opt-in to retain it as unmodeled evidence rather than silently treating
+  independent-variable uncertainty as resistance uncertainty; and
+- retain application-neutral calibration provenance with fit evidence without
+  merging that provenance or the fit evidence into the portable deployable model
+  definition.
 
 The 0.7.0 work must preserve the existing separation among calibration
 observations, fit evidence, the accepted numerical model, and any downstream

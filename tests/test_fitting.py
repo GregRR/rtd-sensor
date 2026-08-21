@@ -10,6 +10,7 @@ import pytest
 from rtd_sensor.exceptions import RTDFitError
 from rtd_sensor.fitting import (
     CalibrationObservation,
+    CalibrationProvenance,
     CallendarVanDusenFitEvidence,
     CallendarVanDusenFitResult,
     FitParameterCovariance,
@@ -393,6 +394,16 @@ def test_calibration_observation_normalizes_values_and_is_immutable() -> None:
             "Standard uncertainty must be greater than zero",
         ),
         (
+            {"standard_uncertainty_temperature_c": 0.0},
+            ValueError,
+            "Temperature standard uncertainty must be greater than zero",
+        ),
+        (
+            {"standard_uncertainty_temperature_c": math.inf},
+            ValueError,
+            "Temperature standard uncertainty must be finite",
+        ),
+        (
             {"weight": 1.0, "standard_uncertainty_ohms": 0.1},
             ValueError,
             "either weight or standard uncertainty",
@@ -412,6 +423,247 @@ def test_calibration_observation_rejects_invalid_values(
 
     with pytest.raises(exception, match=message):
         CalibrationObservation(**values)  # type: ignore[arg-type]
+
+
+def test_calibration_provenance_normalizes_text_and_is_immutable() -> None:
+    provenance = CalibrationProvenance(
+        certificate_identifier="  CERT-42  ",
+        calibration_date="  2026-08-20  ",
+        laboratory="  Example Calibration Lab  ",
+        reference_standard="  PRT-17  ",
+        source_document="  Certificate PDF  ",
+        notes="  comparison calibration  ",
+    )
+
+    assert provenance.certificate_identifier == "CERT-42"
+    assert provenance.calibration_date == "2026-08-20"
+    assert provenance.laboratory == "Example Calibration Lab"
+    assert provenance.reference_standard == "PRT-17"
+    assert provenance.source_document == "Certificate PDF"
+    assert provenance.notes == "comparison calibration"
+
+    with pytest.raises(FrozenInstanceError):
+        provenance.laboratory = "Other"  # type: ignore[misc]
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"certificate_identifier": "   "},
+        {"calibration_date": ""},
+        {"laboratory": "   "},
+        {"reference_standard": "   "},
+        {"source_document": "   "},
+        {"notes": "   "},
+    ],
+)
+def test_calibration_provenance_rejects_empty_text(kwargs: dict[str, str]) -> None:
+    with pytest.raises(ValueError, match="must not be empty"):
+        CalibrationProvenance(**kwargs)
+
+
+def _temperature_uncertainty_observations() -> tuple[CalibrationObservation, ...]:
+    source = IEC60751RTDModel(r0_ohms=100.0)
+    return tuple(
+        CalibrationObservation(
+            temperature_c,
+            source.celsius_to_resistance(temperature_c),
+            standard_uncertainty_temperature_c=0.02,
+        )
+        for temperature_c in (0.0, 50.0, 100.0)
+    )
+
+
+def test_fitters_reject_temperature_uncertainty_by_default() -> None:
+    observations = _temperature_uncertainty_observations()
+
+    with pytest.raises(RTDFitError, match="temperature standard uncertainty"):
+        fit_iec60751_r0(observations)
+
+    with pytest.raises(RTDFitError, match="temperature standard uncertainty"):
+        fit_polynomial(observations, degree=1)
+
+    with pytest.raises(RTDFitError, match="temperature standard uncertainty"):
+        fit_callendar_van_dusen(
+            observations,
+            fit_parameters=("r0_ohms",),
+            a=3.9083e-3,
+            b=-5.775e-7,
+        )
+
+
+def test_fitters_can_retain_temperature_uncertainty_without_using_it() -> None:
+    observations = _temperature_uncertainty_observations()
+    plain_observations = tuple(
+        CalibrationObservation(
+            observation.temperature_c,
+            observation.resistance_ohms,
+        )
+        for observation in observations
+    )
+
+    iec = fit_iec60751_r0(
+        observations,
+        temperature_uncertainty_handling="retain_not_used",
+    )
+    iec_plain = fit_iec60751_r0(plain_observations)
+    assert iec.evidence.temperature_uncertainty_treatment == "retained_not_used"
+    assert iec.model == iec_plain.model
+    assert iec.evidence.residuals_ohms == iec_plain.evidence.residuals_ohms
+    assert iec.evidence.parameter_covariance == iec_plain.evidence.parameter_covariance
+    assert iec.evidence.chi_squared == iec_plain.evidence.chi_squared
+    assert iec.evidence.reduced_chi_squared == iec_plain.evidence.reduced_chi_squared
+
+    polynomial = fit_polynomial(
+        observations,
+        degree=1,
+        temperature_uncertainty_handling="retain_not_used",
+    )
+    polynomial_plain = fit_polynomial(plain_observations, degree=1)
+    assert polynomial.evidence.temperature_uncertainty_treatment == "retained_not_used"
+    assert polynomial.model == polynomial_plain.model
+    assert (
+        polynomial.evidence.residuals_ohms == polynomial_plain.evidence.residuals_ohms
+    )
+    assert (
+        polynomial.evidence.parameter_covariance
+        == polynomial_plain.evidence.parameter_covariance
+    )
+    assert polynomial.evidence.chi_squared == polynomial_plain.evidence.chi_squared
+    assert (
+        polynomial.evidence.reduced_chi_squared
+        == polynomial_plain.evidence.reduced_chi_squared
+    )
+    assert (
+        polynomial.evidence.scaled_system_condition_number
+        == polynomial_plain.evidence.scaled_system_condition_number
+    )
+
+    cvd = fit_callendar_van_dusen(
+        observations,
+        fit_parameters=("r0_ohms",),
+        a=3.9083e-3,
+        b=-5.775e-7,
+        temperature_uncertainty_handling="retain_not_used",
+    )
+    cvd_plain = fit_callendar_van_dusen(
+        plain_observations,
+        fit_parameters=("r0_ohms",),
+        a=3.9083e-3,
+        b=-5.775e-7,
+    )
+    assert cvd.evidence.temperature_uncertainty_treatment == "retained_not_used"
+    assert cvd.model == cvd_plain.model
+    assert cvd.evidence.residuals_ohms == cvd_plain.evidence.residuals_ohms
+    assert cvd.evidence.parameter_covariance == cvd_plain.evidence.parameter_covariance
+    assert cvd.evidence.chi_squared == cvd_plain.evidence.chi_squared
+    assert cvd.evidence.reduced_chi_squared == cvd_plain.evidence.reduced_chi_squared
+    assert (
+        cvd.evidence.scaled_system_condition_number
+        == cvd_plain.evidence.scaled_system_condition_number
+    )
+    assert all(
+        observation.standard_uncertainty_temperature_c == 0.02
+        for observation in cvd.evidence.observations
+    )
+
+
+def test_temperature_uncertainty_is_excluded_from_resistance_diagnostics() -> None:
+    source = IEC60751RTDModel(r0_ohms=100.0)
+    temperatures = (0.0, 50.0, 100.0)
+    offsets_ohms = (0.02, -0.01, 0.015)
+    observations = tuple(
+        CalibrationObservation(
+            temperature_c,
+            source.celsius_to_resistance(temperature_c) + offset_ohms,
+            standard_uncertainty_ohms=0.05,
+            standard_uncertainty_temperature_c=0.02,
+        )
+        for temperature_c, offset_ohms in zip(temperatures, offsets_ohms, strict=True)
+    )
+    resistance_only_observations = tuple(
+        CalibrationObservation(
+            observation.temperature_c,
+            observation.resistance_ohms,
+            standard_uncertainty_ohms=observation.standard_uncertainty_ohms,
+        )
+        for observation in observations
+    )
+
+    retained = fit_iec60751_r0(
+        observations,
+        temperature_uncertainty_handling="retain_not_used",
+    )
+    resistance_only = fit_iec60751_r0(resistance_only_observations)
+
+    assert retained.model == resistance_only.model
+    assert retained.evidence.residuals_ohms == resistance_only.evidence.residuals_ohms
+    assert (
+        retained.evidence.parameter_covariance
+        == resistance_only.evidence.parameter_covariance
+    )
+    assert retained.evidence.chi_squared == resistance_only.evidence.chi_squared
+    assert (
+        retained.evidence.reduced_chi_squared
+        == resistance_only.evidence.reduced_chi_squared
+    )
+    assert retained.evidence.chi_squared is not None
+    assert retained.evidence.reduced_chi_squared is not None
+
+
+def test_fitters_retain_application_neutral_calibration_provenance() -> None:
+    observations = _iec_observations(100.0, (0.0, 50.0, 100.0))
+    provenance = CalibrationProvenance(
+        certificate_identifier="CERT-42",
+        calibration_date="2026-08-20",
+        laboratory="Example Calibration Lab",
+        reference_standard="PRT-17",
+    )
+
+    iec = fit_iec60751_r0(observations, provenance=provenance)
+    polynomial = fit_polynomial(observations, degree=1, provenance=provenance)
+    cvd = fit_callendar_van_dusen(
+        observations,
+        fit_parameters=("r0_ohms",),
+        a=3.9083e-3,
+        b=-5.775e-7,
+        provenance=provenance,
+    )
+
+    assert iec.evidence.provenance is provenance
+    assert polynomial.evidence.provenance is provenance
+    assert cvd.evidence.provenance is provenance
+    assert polynomial.model.coefficient_source is None
+    assert cvd.model.coefficient_source is None
+
+
+def test_fit_rejects_invalid_temperature_uncertainty_handling() -> None:
+    observations = _iec_observations(100.0, (0.0, 100.0))
+
+    with pytest.raises(ValueError, match="Temperature uncertainty handling"):
+        fit_iec60751_r0(
+            observations,
+            temperature_uncertainty_handling="unsupported",  # type: ignore[arg-type]
+        )
+
+
+def test_fit_rejects_invalid_provenance_type() -> None:
+    observations = _iec_observations(100.0, (0.0, 100.0))
+
+    with pytest.raises(TypeError, match="CalibrationProvenance"):
+        fit_iec60751_r0(
+            observations,
+            provenance="certificate",  # type: ignore[arg-type]
+        )
+
+
+def test_fit_evidence_marks_temperature_uncertainty_not_supplied() -> None:
+    observations = _iec_observations(100.0, (0.0, 100.0))
+
+    result = fit_iec60751_r0(observations)
+
+    assert result.evidence.temperature_uncertainty_treatment == "not_supplied"
+    assert result.evidence.provenance is None
 
 
 def test_fit_polynomial_recovers_exact_cubic_model() -> None:

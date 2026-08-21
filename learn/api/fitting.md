@@ -17,11 +17,25 @@ CalibrationObservation(
     resistance_ohms: float,
     weight: float | None = None,
     standard_uncertainty_ohms: float | None = None,
+    standard_uncertainty_temperature_c: float | None = None,
 )
 ```
 
 `weight` and `standard_uncertainty_ohms` are mutually exclusive on one
-observation.
+observation. `standard_uncertainty_temperature_c` records uncertainty in the
+calibration/reference temperature coordinate; current fitters do not use it as a
+weight. Fits reject it by default unless the caller explicitly chooses
+`temperature_uncertainty_handling="retain_not_used"`.
+
+## `CalibrationProvenance`
+
+**Planned for:** rtd-sensor 0.7.0
+
+Immutable application-neutral calibration context retained only with fit evidence.
+Optional fields are `certificate_identifier`, `calibration_date`, `laboratory`,
+`reference_standard`, `source_document`, and `notes`. These values do not alter the
+fit or numerical model and are not automatically copied into portable-model
+metadata.
 
 ## `fit_iec60751_r0`
 
@@ -34,6 +48,8 @@ fit_iec60751_r0(
     minimum_temperature_c: float | None = None,
     maximum_temperature_c: float | None = None,
     name: str = "Fitted IEC 60751 RTD",
+    temperature_uncertainty_handling: Literal["reject", "retain_not_used"] = "reject",
+    provenance: CalibrationProvenance | None = None,
 ) -> IEC60751R0FitResult
 ```
 
@@ -66,6 +82,8 @@ fit_callendar_van_dusen(
     maximum_temperature_c: float | None = None,
     name: str = "Fitted Callendar-Van Dusen RTD",
     coefficient_source: str | None = None,
+    temperature_uncertainty_handling: Literal["reject", "retain_not_used"] = "reject",
+    provenance: CalibrationProvenance | None = None,
 ) -> CallendarVanDusenFitResult
 ```
 
@@ -107,9 +125,10 @@ evidence: IEC60751R0FitEvidence
 
 **Planned for:** rtd-sensor 0.7.0
 
-Key fields include observations, resistance residuals, counts/degrees of freedom,
-observation span, declared model range, RMS/max residuals, weighting diagnostics,
-fitted-parameter covariance when available, and the fitting method.
+Key fields include observations, calibration/reference-temperature uncertainty
+treatment, optional `CalibrationProvenance`, resistance residuals, counts/degrees of
+freedom, observation span, declared model range, RMS/max residuals, weighting
+diagnostics, fitted-parameter covariance when available, and the fitting method.
 
 ## `FitParameterCovariance`
 
@@ -169,6 +188,8 @@ fit_polynomial(
     maximum_temperature_c: float | None = None,
     name: str = "Fitted polynomial RTD",
     coefficient_source: str | None = None,
+    temperature_uncertainty_handling: Literal["reject", "retain_not_used"] = "reject",
+    provenance: CalibrationProvenance | None = None,
 ) -> PolynomialFitResult
 ```
 
@@ -190,9 +211,10 @@ evidence: PolynomialFitEvidence
 
 **Introduced in:** rtd-sensor 0.6.0
 
-Key fields include observations, residuals, degree, counts/degrees of freedom,
-fit range, RMS/max residuals, weighting diagnostics, chi-square diagnostics when
-absolute resistance uncertainties are supplied, fitted-parameter covariance when
-available, condition number, solver, and scaling information.
+Key fields include observations, calibration/reference-temperature uncertainty
+treatment, optional `CalibrationProvenance`, residuals, degree, counts/degrees of
+freedom, fit range, RMS/max residuals, weighting diagnostics, chi-square diagnostics
+when absolute resistance uncertainties are supplied, fitted-parameter covariance
+when available, condition number, solver, and scaling information.
 
 See [Calibration fitting](../documentation/custom-models/calibration-fitting.md).

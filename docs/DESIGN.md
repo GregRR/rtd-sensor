@@ -746,14 +746,67 @@ remains separate from the numerical model and from portable deployment metadata.
 fitted curve must not acquire IEC, manufacturer, or calibration-laboratory
 provenance merely because it uses the CVD algebraic form.
 
+#### 0.7.0 reference-temperature uncertainty and calibration provenance
+
+Calibration/reference-temperature uncertainty is uncertainty in the independent
+coordinate of the current resistance-on-temperature regression. It must therefore
+remain distinct from resistance uncertainty. Ordinary weighted least squares may
+use `standard_uncertainty_ohms` as dependent-variable inverse-variance weights, but
+it must not transform a temperature uncertainty into an apparent resistance
+uncertainty merely by multiplying by a local slope and then present that as the
+same statistical model. NIST calibration work on errors-in-variables regression
+(Bartel, Stoudt, & Possolo, 2016) is the implementation/design basis for this
+boundary: when uncertainty in the applied/reference independent variable matters,
+the regression model itself must account for uncertainty in both coordinates.
+
+`CalibrationObservation.standard_uncertainty_temperature_c` therefore records a
+positive standard uncertainty associated with the calibration/reference temperature
+coordinate without asserting an independence or cross-observation correlation model.
+Current `rtd_sensor.fitting` least-squares operations reject observations carrying
+that field by default. A caller that deliberately wants the numerical fit performed
+under the existing exact-temperature assumption may select
+`temperature_uncertainty_handling="retain_not_used"`. In that mode:
+
+* the supplied temperature uncertainty remains in the immutable observations;
+* fit coefficients, residuals, resistance weighting, chi-square diagnostics, and
+  parameter covariance are still conditional on treating the supplied temperature
+  coordinates as exact;
+* the evidence records `temperature_uncertainty_treatment="retained_not_used"`;
+* no equivalent resistance uncertainty is synthesized from `dR/dT`; and
+* the result must not be described as an errors-in-variables, orthogonal-distance,
+  or complete calibration-uncertainty analysis.
+
+This explicit opt-in exists for auditability and transitional workflows, not as a
+recommended substitute for a regression model that includes reference-temperature
+uncertainty. A future errors-in-variables or generalized calibration method may use
+the retained values together with an explicit dependence/correlation model; the
+current observation field alone is intentionally insufficient to claim such a model.
+
+Calibration provenance is likewise retained as evidence rather than numerical model
+state. `CalibrationProvenance` provides application-neutral optional fields for a
+certificate identifier, calibration date, laboratory, reference standard, source
+document, and notes. The package trims and validates those textual fields but does
+not interpret them as scientific authority. Provenance supplied to a fitter is
+retained by the fit evidence and cannot alter coefficients, weights, diagnostics,
+valid range, or model behavior. It is not automatically copied into a model's
+`coefficient_source` and is not automatically inserted into portable-model metadata.
+Callers may separately choose an appropriate portable metadata representation when
+they have a downstream provenance contract that justifies doing so.
+
+This preserves four distinct layers: calibration observations and their stated
+uncertainties, calibration/fit provenance and diagnostics, the accepted numerical
+model, and an optional downstream deployment representation.
+
 #### 0.7.0 fitted-parameter covariance
 
 Fitted-parameter covariance is retained as **fit evidence**, never as part of the
 portable deployable model definition. The covariance contract follows the
 least-squares assumptions already made by the fitting API: resistance is the
 error coordinate being minimized, calibration temperatures are treated as exact
-independent-variable values for this milestone, and observation errors are treated
-as independent unless a later API explicitly represents correlation.
+independent-variable values by the numerical fit, and observation errors are
+treated as independent unless a later API explicitly represents correlation. When
+temperature standard uncertainties are explicitly retained as unmodeled evidence,
+this covariance remains conditional on the exact-temperature assumption.
 
 The covariance scale depends on what the observations actually provide:
 

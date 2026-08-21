@@ -23,6 +23,8 @@ from .models import CallendarVanDusenRTDModel, IEC60751RTDModel, PolynomialRTDMo
 
 __all__ = [
     "CalibrationObservation",
+    "CalibrationProvenance",
+    "CalibrationTemperatureUncertaintyHandling",
     "CallendarVanDusenFitEvidence",
     "CallendarVanDusenFitParameter",
     "CallendarVanDusenFitResult",
@@ -54,6 +56,8 @@ _CovarianceParameterization = Literal[
     "resistance_power_series_at_model_reference_temperature",
 ]
 CallendarVanDusenFitParameter = Literal["r0_ohms", "a", "b", "c"]
+CalibrationTemperatureUncertaintyHandling = Literal["reject", "retain_not_used"]
+_TemperatureUncertaintyEvidenceTreatment = Literal["not_supplied", "retained_not_used"]
 _CVD_PARAMETER_ORDER: tuple[CallendarVanDusenFitParameter, ...] = (
     "r0_ohms",
     "a",
@@ -75,6 +79,53 @@ def _as_float(value: float, *, name: str) -> float:
         raise TypeError(f"{name} must be a real number") from error
 
 
+def _normalized_optional_text(value: str | None, *, name: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be a string or None")
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(f"{name} must not be empty")
+    return normalized
+
+
+@dataclass(frozen=True, slots=True)
+class CalibrationProvenance:
+    """Application-neutral provenance retained with calibration fit evidence.
+
+    These fields describe the calibration record and reference context. They are
+    deliberately non-behavioral: they do not alter fitting, are not copied into
+    the fitted numerical model, and are not automatically serialized into a
+    portable model definition.
+    """
+
+    certificate_identifier: str | None = None
+    calibration_date: str | None = None
+    laboratory: str | None = None
+    reference_standard: str | None = None
+    source_document: str | None = None
+    notes: str | None = None
+
+    def __post_init__(self) -> None:
+        for field_name, display_name in (
+            ("certificate_identifier", "Certificate identifier"),
+            ("calibration_date", "Calibration date"),
+            ("laboratory", "Laboratory"),
+            ("reference_standard", "Reference standard"),
+            ("source_document", "Source document"),
+            ("notes", "Notes"),
+        ):
+            object.__setattr__(
+                self,
+                field_name,
+                _normalized_optional_text(
+                    getattr(self, field_name),
+                    name=display_name,
+                ),
+            )
+
+
 @dataclass(frozen=True, slots=True)
 class CalibrationObservation:
     """One measured calibration point used by a fitting operation.
@@ -83,12 +134,16 @@ class CalibrationObservation:
     a caller-supplied positive relative least-squares weight.
     ``standard_uncertainty_ohms`` is a positive standard uncertainty in resistance;
     it is converted to an inverse-variance weight ``1 / u**2``.
+    ``standard_uncertainty_temperature_c`` records standard uncertainty in the
+    calibration/reference temperature coordinate. Current fitters do not use that
+    value as a resistance weight or perform errors-in-variables regression.
     """
 
     temperature_c: float
     resistance_ohms: float
     weight: float | None = None
     standard_uncertainty_ohms: float | None = None
+    standard_uncertainty_temperature_c: float | None = None
 
     def __post_init__(self) -> None:
         temperature_c = _as_float(self.temperature_c, name="Temperature")
@@ -100,6 +155,14 @@ class CalibrationObservation:
             else _as_float(
                 self.standard_uncertainty_ohms,
                 name="Standard uncertainty",
+            )
+        )
+        temperature_uncertainty = (
+            None
+            if self.standard_uncertainty_temperature_c is None
+            else _as_float(
+                self.standard_uncertainty_temperature_c,
+                name="Temperature standard uncertainty",
             )
         )
 
@@ -119,6 +182,13 @@ class CalibrationObservation:
                 raise ValueError("Standard uncertainty must be finite")
             if uncertainty <= 0.0:
                 raise ValueError("Standard uncertainty must be greater than zero")
+        if temperature_uncertainty is not None:
+            if not math.isfinite(temperature_uncertainty):
+                raise ValueError("Temperature standard uncertainty must be finite")
+            if temperature_uncertainty <= 0.0:
+                raise ValueError(
+                    "Temperature standard uncertainty must be greater than zero"
+                )
         if weight is not None and uncertainty is not None:
             raise ValueError("Specify either weight or standard uncertainty, not both")
 
@@ -126,6 +196,44 @@ class CalibrationObservation:
         object.__setattr__(self, "resistance_ohms", resistance_ohms)
         object.__setattr__(self, "weight", weight)
         object.__setattr__(self, "standard_uncertainty_ohms", uncertainty)
+        object.__setattr__(
+            self,
+            "standard_uncertainty_temperature_c",
+            temperature_uncertainty,
+        )
+
+
+def _temperature_uncertainty_treatment(
+    observations: tuple[CalibrationObservation, ...],
+    handling: CalibrationTemperatureUncertaintyHandling,
+) -> _TemperatureUncertaintyEvidenceTreatment:
+    if handling not in ("reject", "retain_not_used"):
+        raise ValueError(
+            "Temperature uncertainty handling must be 'reject' or 'retain_not_used'"
+        )
+    has_temperature_uncertainty = any(
+        observation.standard_uncertainty_temperature_c is not None
+        for observation in observations
+    )
+    if not has_temperature_uncertainty:
+        return "not_supplied"
+    if handling == "reject":
+        raise RTDFitError(
+            "Calibration observations include temperature standard uncertainty, "
+            "but current least-squares fitting treats temperature as exact. Use "
+            "temperature_uncertainty_handling='retain_not_used' only when you "
+            "intend to retain that uncertainty as evidence without including it "
+            "in the fit."
+        )
+    return "retained_not_used"
+
+
+def _validate_calibration_provenance(
+    provenance: CalibrationProvenance | None,
+) -> CalibrationProvenance | None:
+    if provenance is not None and not isinstance(provenance, CalibrationProvenance):
+        raise TypeError("Provenance must be CalibrationProvenance or None")
+    return provenance
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,10 +315,14 @@ class IEC60751R0FitEvidence:
     zero-DOF fits record why covariance is unavailable; absolute resistance
     standard uncertainties can define covariance even at zero residual DOF. When
     those absolute uncertainties are supplied, chi-square and reduced-chi-square
-    residual-consistency diagnostics are retained as well.
+    residual-consistency diagnostics are retained as well. Calibration/reference
+    temperature uncertainty treatment and optional application-neutral calibration
+    provenance are retained separately from the numerical model.
     """
 
     observations: tuple[CalibrationObservation, ...]
+    temperature_uncertainty_treatment: _TemperatureUncertaintyEvidenceTreatment
+    provenance: CalibrationProvenance | None
     residuals_ohms: tuple[float, ...]
     observation_count: int
     fitted_parameter_count: int
@@ -252,9 +364,13 @@ class CallendarVanDusenFitEvidence:
     scaled estimation problem used to decide whether the requested parameters are
     identifiable from the supplied observations. Absolute-uncertainty fits also
     retain chi-square/reduced-chi-square residual-consistency diagnostics.
+    Calibration/reference temperature uncertainty treatment and optional
+    application-neutral calibration provenance remain evidence only.
     """
 
     observations: tuple[CalibrationObservation, ...]
+    temperature_uncertainty_treatment: _TemperatureUncertaintyEvidenceTreatment
+    provenance: CalibrationProvenance | None
     residuals_ohms: tuple[float, ...]
     fitted_parameter_names: tuple[CallendarVanDusenFitParameter, ...]
     observation_count: int
@@ -309,10 +425,14 @@ class PolynomialFitEvidence:
     require positive residual degrees of freedom; absolute resistance standard
     uncertainties define covariance directly. Absolute-uncertainty fits also
     retain chi-square and, when residual degrees of freedom are positive,
-    reduced-chi-square residual-consistency diagnostics.
+    reduced-chi-square residual-consistency diagnostics. Calibration/reference
+    temperature uncertainty treatment and optional application-neutral calibration
+    provenance remain evidence only.
     """
 
     observations: tuple[CalibrationObservation, ...]
+    temperature_uncertainty_treatment: _TemperatureUncertaintyEvidenceTreatment
+    provenance: CalibrationProvenance | None
     residuals_ohms: tuple[float, ...]
     degree: int
     observation_count: int
@@ -847,6 +967,10 @@ def fit_callendar_van_dusen(
     maximum_temperature_c: float | None = None,
     name: str = "Fitted Callendar-Van Dusen RTD",
     coefficient_source: str | None = None,
+    temperature_uncertainty_handling: CalibrationTemperatureUncertaintyHandling = (
+        "reject"
+    ),
+    provenance: CalibrationProvenance | None = None,
 ) -> CallendarVanDusenFitResult:
     """Fit selected Callendar-Van Dusen parameters to calibration observations.
 
@@ -871,8 +995,12 @@ def fit_callendar_van_dusen(
     as for characterized-standard ``R0`` fitting.
 
     Temperature remains the independent variable. ``standard_uncertainty_ohms``
-    therefore describes resistance uncertainty only; temperature-coordinate
-    uncertainty is not silently converted into resistance weighting.
+    therefore describes resistance uncertainty only. Calibration/reference
+    temperature uncertainty is rejected by default. The explicit
+    ``retain_not_used`` handling mode retains supplied temperature standard
+    uncertainties in the fit evidence while still treating their coordinate values
+    as exact; it does not convert them into resistance weights or perform
+    errors-in-variables regression.
     """
 
     # Source: Pearce et al. (2022), Appendix 1, for the modern CVD form
@@ -888,6 +1016,12 @@ def fit_callendar_van_dusen(
         for observation in observation_tuple
     ):
         raise TypeError("Observations must be CalibrationObservation values")
+
+    temperature_uncertainty_treatment = _temperature_uncertainty_treatment(
+        observation_tuple,
+        temperature_uncertainty_handling,
+    )
+    provenance = _validate_calibration_provenance(provenance)
 
     distinct_temperatures = {
         observation.temperature_c for observation in observation_tuple
@@ -1209,6 +1343,8 @@ def fit_callendar_van_dusen(
 
     evidence = CallendarVanDusenFitEvidence(
         observations=observation_tuple,
+        temperature_uncertainty_treatment=temperature_uncertainty_treatment,
+        provenance=provenance,
         residuals_ohms=residuals,
         fitted_parameter_names=fitted_parameter_names,
         observation_count=len(observation_tuple),
@@ -1244,6 +1380,10 @@ def fit_iec60751_r0(
     minimum_temperature_c: float | None = None,
     maximum_temperature_c: float | None = None,
     name: str = "Fitted IEC 60751 RTD",
+    temperature_uncertainty_handling: CalibrationTemperatureUncertaintyHandling = (
+        "reject"
+    ),
+    provenance: CalibrationProvenance | None = None,
 ) -> IEC60751R0FitResult:
     """Fit only ``R0`` while retaining the IEC 60751 PT-385 characteristic.
 
@@ -1252,6 +1392,9 @@ def fit_iec60751_r0(
     least-squares problem ``R_observed = R0 * rho(T)``. Relative weights and
     resistance standard uncertainties use the same conventions as
     :func:`fit_polynomial`. Temperature is treated as the independent variable.
+    Calibration/reference temperature uncertainty is rejected by default; the
+    explicit ``retain_not_used`` handling mode preserves it as evidence while
+    leaving it outside the least-squares objective.
 
     If no model range is supplied, at least two distinct temperatures are
     required and the returned model uses the observed temperature span. If a
@@ -1283,6 +1426,12 @@ def fit_iec60751_r0(
         for observation in observation_tuple
     ):
         raise TypeError("Observations must be CalibrationObservation values")
+
+    temperature_uncertainty_treatment = _temperature_uncertainty_treatment(
+        observation_tuple,
+        temperature_uncertainty_handling,
+    )
+    provenance = _validate_calibration_provenance(provenance)
 
     distinct_temperatures = {
         observation.temperature_c for observation in observation_tuple
@@ -1418,6 +1567,8 @@ def fit_iec60751_r0(
 
     evidence = IEC60751R0FitEvidence(
         observations=observation_tuple,
+        temperature_uncertainty_treatment=temperature_uncertainty_treatment,
+        provenance=provenance,
         residuals_ohms=residuals,
         observation_count=len(observation_tuple),
         fitted_parameter_count=1,
@@ -1449,6 +1600,10 @@ def fit_polynomial(
     maximum_temperature_c: float | None = None,
     name: str = "Fitted polynomial RTD",
     coefficient_source: str | None = None,
+    temperature_uncertainty_handling: CalibrationTemperatureUncertaintyHandling = (
+        "reject"
+    ),
+    provenance: CalibrationProvenance | None = None,
 ) -> PolynomialFitResult:
     """Fit a validated polynomial RTD model to calibration observations.
 
@@ -1463,8 +1618,10 @@ def fit_polynomial(
     uncertainties. Standard uncertainties are converted to inverse-variance
     weights proportional to ``1 / u**2``. Effective weights are normalized so the
     largest is 1.0 and are retained in the evidence. Temperature is treated as the
-    independent variable; this initial fitter does not implement errors-in-variables
-    regression for temperature uncertainty.
+    independent variable. Calibration/reference temperature uncertainty is rejected
+    by default; the explicit ``retain_not_used`` handling mode preserves it as
+    evidence while leaving it outside the least-squares objective. The fitter does
+    not implement errors-in-variables regression.
 
     Raises:
         TypeError: If the degree or observations use an invalid value category.
@@ -1484,6 +1641,12 @@ def fit_polynomial(
         for observation in observation_tuple
     ):
         raise TypeError("Observations must be CalibrationObservation values")
+
+    temperature_uncertainty_treatment = _temperature_uncertainty_treatment(
+        observation_tuple,
+        temperature_uncertainty_handling,
+    )
+    provenance = _validate_calibration_provenance(provenance)
 
     distinct_temperatures = {
         observation.temperature_c for observation in observation_tuple
@@ -1674,6 +1837,8 @@ def fit_polynomial(
 
     evidence = PolynomialFitEvidence(
         observations=observation_tuple,
+        temperature_uncertainty_treatment=temperature_uncertainty_treatment,
+        provenance=provenance,
         residuals_ohms=residuals,
         degree=degree,
         observation_count=len(observation_tuple),

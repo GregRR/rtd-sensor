@@ -182,7 +182,53 @@ observations = (
 )
 ```
 
-These values are converted to normalized inverse-variance weights. Temperature is treated as the independent variable; the current fitters do not model uncertainty in the temperature coordinate. That limitation is explicit because reference-temperature uncertainty is an errors-in-variables problem, not resistance uncertainty in disguise.
+These values are converted to normalized inverse-variance weights. Temperature is
+treated as the independent variable. If a calibration/reference temperature also
+has a standard uncertainty, record it separately with
+`standard_uncertainty_temperature_c`. Current fitters reject that field by default
+rather than silently translating it into resistance uncertainty.
+
+If you intentionally need to preserve that information while still performing the
+existing exact-temperature least-squares fit, opt in explicitly:
+
+```python
+fit = fitting.fit_polynomial(
+    observations,
+    degree=2,
+    temperature_uncertainty_handling="retain_not_used",
+)
+```
+
+The returned observations retain the temperature uncertainties and the evidence
+reports `temperature_uncertainty_treatment == "retained_not_used"`, but those
+uncertainties did **not** affect the coefficients, weighting, chi-square, or
+parameter covariance. This is not errors-in-variables regression. It is an explicit
+record that the independent-variable uncertainty is known but not modeled. NIST
+calibration literature uses errors-in-variables methods when uncertainty in the
+applied/reference independent variable cannot reasonably be ignored.
+
+## Calibration provenance
+
+Calibration context can be retained with the fit without changing the numerical
+model:
+
+```python
+provenance = fitting.CalibrationProvenance(
+    certificate_identifier="CERT-42",
+    calibration_date="2026-08-20",
+    laboratory="Example Calibration Lab",
+    reference_standard="PRT-17",
+)
+
+fit = fitting.fit_iec60751_r0(
+    observations,
+    provenance=provenance,
+)
+```
+
+This provenance belongs to the fit evidence. It is not automatically copied into
+`coefficient_source` or portable-model metadata, so a calibration record cannot
+silently change model behavior or acquire a downstream deployment meaning.
 
 ## Fitted-parameter covariance
 

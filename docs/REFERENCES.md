@@ -269,6 +269,18 @@ https://doi.org/10.1016/0263-2241(96)00019-X
 design, including point location, point count, repetitions, and fitted-curve
 uncertainty.
 
+Bartel, T. W., Stoudt, S., & Possolo, A. (2016). Force calibrations using
+errors-in-variables regression and Monte Carlo uncertainty evaluations.
+*Metrologia, 53*(3), 965–980. https://doi.org/10.1088/0026-1394/53/3/965
+
+**Project use:** Implementation/design basis for keeping uncertainty in the
+calibration independent variable distinct from dependent-variable weighting. NIST's
+calibration work documents the ordinary-least-squares assumption that the applied
+reference values are effectively known and uses errors-in-variables regression when
+that assumption is not adequate. `rtd-sensor` therefore records temperature-coordinate
+standard uncertainty separately and does not silently convert it into resistance
+uncertainty.
+
 Bureau International des Poids et Mesures, Consultative Committee for
 Thermometry. (2021). *Guide to the realization of the ITS-90: Platinum
 resistance thermometry*.
