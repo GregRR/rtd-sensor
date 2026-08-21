@@ -918,8 +918,10 @@ Implemented fitting capabilities:
 - reject insufficient/rank-deficient observations, severe ill-conditioning, and
   candidate curves that fail positivity, monotonicity, or unique-inverse
   validation over the complete fitted range;
-- prohibit silent extrapolation beyond the observed calibration span in the
-  initial fitting API; and
+- prohibit silent extrapolation for polynomial fits; 0.7.0 shape-coefficient CVD
+  fits are likewise constrained to the observation span, while characterized
+  `R0`-only fits may use an independently justified applicability range as
+  documented in `DESIGN.md`; and
 - support covariance of fitted coefficients through the implemented 0.7.0
   calibration and statistical foundation.
 
@@ -937,8 +939,10 @@ characteristic unless that provenance is actually established.
 - Research nickel/copper tolerance rules per characteristic or product family.
 - Keep tolerance limits distinct from probability distributions and standard
   uncertainties.
-- Later uncertainty work may add covariance-aware propagation, effective
-  degrees of freedom, coefficient covariance, and Monte Carlo methods.
+- Fitted-parameter covariance and covariance-aware fitted-model propagation are
+  implemented in 0.7.0. Later uncertainty work may add covariance between
+  arbitrary budget components, effective degrees of freedom, and Monte Carlo
+  methods.
 
 ## Simulation and model identity
 

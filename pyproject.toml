@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "rtd-sensor"
-version = "0.6.1"
+version = "0.7.0"
 description = "Python RTD conversion and modeling for IEC 60751 platinum and documented nickel RTDs, with calibration fitting, tolerance, uncertainty, portable models, and cross-language conformance."
 readme = "README.md"
 requires-python = ">=3.11"

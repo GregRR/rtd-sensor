@@ -2,10 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.7.0 — 2026-08-21
 
 ### Added
 
+* Added the Learn rtd-sensor GitHub Pages site, built with Zensical, with beginner-oriented lessons, detailed topical documentation, and a public API reference that is now part of the release documentation gate.
 * Added explicit calibration/reference-temperature uncertainty semantics: calibration observations may retain a temperature-coordinate standard uncertainty, current least-squares fitters reject it by default, and an explicit `retain_not_used` mode preserves it as evidence without converting it into resistance weighting or pretending to perform errors-in-variables regression.
 * Added immutable application-neutral `CalibrationProvenance` fit evidence for certificate identifiers, calibration dates/laboratories, reference standards, source documents, and notes without copying that provenance into the numerical or portable model.
 * Added custom Callendar–Van Dusen parameter fitting with explicit fitted-parameter selection, fixed-parameter support, scaled identifiability/conditioning diagnostics, covariance transformed to the public `R0`/`A`/`B`/`C` basis, and fitted-model uncertainty propagation for CVD fit results.

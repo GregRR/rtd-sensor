@@ -5,7 +5,7 @@
   "files": [
     {
       "path": "characteristics.json",
-      "sha256": "62873540e6056929f49e662a361185a0e50058a49860c5c25dd80d5d57c4dd35",
+      "sha256": "960ccced6a51a375dc7f95dfb92b41f6bb29e4efb73ef59ca003c3527891b278",
       "size_bytes": 7230
     },
     {
@@ -15,12 +15,12 @@
     },
     {
       "path": "model-fixtures.json",
-      "sha256": "369fef976d4bd3c8db290442a52de81385c99a9046d1dfea506b0645642d3bf4",
+      "sha256": "0064a82801e8033182a14086fb4135ed47872c8505ed0c6444be13a63e2df56c",
       "size_bytes": 11317
     },
     {
       "path": "models.json",
-      "sha256": "fed41ec6c3478d9d8bfe5bedf805108b3c9bf32695d3172e14dde2a6e142a373",
+      "sha256": "dfb133dd6abc09351616af6bb29aabf184b4114e9325ee60e7dec1187c7dc9b7",
       "size_bytes": 1594
     },
     {
@@ -55,45 +55,45 @@
     },
     {
       "path": "vectors/builtin-resistance-to-temperature-status.json",
-      "sha256": "4fc3480db3f6b0df12d6c33042c16c094306f0232eda4a2603824bb6c4529ab8",
+      "sha256": "fed38ab70829a46ac7944dd89af4ea5a3d488d5f519b9e86d58f8f377a5914f4",
       "size_bytes": 15458
     },
     {
       "path": "vectors/builtin-resistance-to-temperature.json",
-      "sha256": "3b98bd3ac5e28172c89716438fd96113a888a71c3a6acd3208e95f86cfb758c5",
+      "sha256": "c69d1a34efa378a3e5ad75a07c300ae364851e0e9845a8bc38e8e9eaafdf8de1",
       "size_bytes": 52819
     },
     {
       "path": "vectors/builtin-temperature-to-resistance-status.json",
-      "sha256": "74f3a2093b0312bb9fbe1619481902d395e64fbc3dbeaff4d36a0f0b8b6d28a6",
+      "sha256": "17149e5f3df7526a71078db7f864b250db8a0bb162d41b58eb7984e2e9200d8f",
       "size_bytes": 11328
     },
     {
       "path": "vectors/builtin-temperature-to-resistance.json",
-      "sha256": "0c950e53e4b34cee88d36eef8326cdfae6a3af60cce9595e0c6556b7a9c856c9",
+      "sha256": "c77b55ac2d4c5fa4aab7bdca1b303508d9dca734bef49fccac4842b4a2b16131",
       "size_bytes": 52819
     },
     {
       "path": "vectors/custom-resistance-to-temperature-status.json",
-      "sha256": "57a61e9defc0a9a90da198ad689f24cf44bcdd9600c06234048cb0db174c6694",
+      "sha256": "a62976a3123a5d3c1571be4fd98f05e5f9d6f3b2c52ae8b1038ec7c396ae204d",
       "size_bytes": 27438
     },
     {
       "path": "vectors/custom-resistance-to-temperature.json",
-      "sha256": "7daca563de2be802a72742c288c146716eb05b515c3f2a56bff6c4763db61f16",
+      "sha256": "cd8196fbad29ab5c43d15f055bc408930c55868d88ed571ecb5ea7d34432fdfa",
       "size_bytes": 30985
     },
     {
       "path": "vectors/custom-temperature-to-resistance-status.json",
-      "sha256": "e7bb30bf8ed13e44b14707f78b27551e01117b85a72c841bbea94609e45aac00",
+      "sha256": "126fc813cc0848e30af3779f8b2b5159421b69bd1e3fccb129bb644f8f73f0f4",
       "size_bytes": 21004
     },
     {
       "path": "vectors/custom-temperature-to-resistance.json",
-      "sha256": "8edbc4c006546130af194f4b778dd34735c3f65b884a00deffce8be938f059c4",
+      "sha256": "4db2513d4ac505bca723ba1855788eb8370773bfc79cb1e58f4a3c9b5c214651",
       "size_bytes": 30985
     }
   ],
   "format_version": 1,
-  "rtd_sensor_version": "0.6.1"
+  "rtd_sensor_version": "0.7.0"
 }
