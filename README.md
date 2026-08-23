@@ -1,6 +1,10 @@
 # rtd-sensor
 
 [![PyPI version](https://img.shields.io/pypi/v/rtd-sensor.svg)](https://pypi.org/project/rtd-sensor/)
+[![Python versions](https://img.shields.io/pypi/pyversions/rtd-sensor.svg)](https://pypi.org/project/rtd-sensor/)
+[![CI](https://github.com/GregRR/rtd-sensor/actions/workflows/ci.yml/badge.svg)](https://github.com/GregRR/rtd-sensor/actions/workflows/ci.yml)
+[![License](https://img.shields.io/pypi/l/rtd-sensor.svg)](LICENSE)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://gregrr.github.io/rtd-sensor/)
 
 `rtd-sensor` is a platform-independent Python library for resistance-to-temperature
 and temperature-to-resistance conversion and modeling of resistance temperature
