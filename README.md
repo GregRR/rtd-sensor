@@ -1,5 +1,7 @@
 # rtd-sensor
 
+[![PyPI version](https://img.shields.io/pypi/v/rtd-sensor.svg)](https://pypi.org/project/rtd-sensor/)
+
 `rtd-sensor` is a platform-independent Python library for resistance-to-temperature
 and temperature-to-resistance conversion and modeling of resistance temperature
 detectors (RTDs). Its verified built-in characteristics include IEC 60751 PT-385
@@ -73,7 +75,8 @@ Only RTD characteristics whose equations, validity ranges, independent reference
 Hardware acquisition remains separate. For example, if a MAX31865 or another
 acquisition layer has already produced a compensated resistance measurement,
 `rtd-sensor` can handle the RTD conversion and modeling stage; it does not
-communicate with the hardware itself.
+communicate with the hardware itself. For hardware acquisition, see the companion
+[`rtd-acquire`](https://github.com/GregRR/rtd-acquire) project.
 
 ## Installation
 
@@ -82,6 +85,8 @@ python -m pip install rtd-sensor
 ```
 
 **Requires Python 3.11 or later.** The package has no runtime dependencies.
+
+[`rtd-sensor` on PyPI](https://pypi.org/project/rtd-sensor/)
 
 The distribution name uses a hyphen (`rtd-sensor`), while the Python import package uses an underscore (`rtd_sensor`).
 
