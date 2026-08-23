@@ -1,6 +1,6 @@
 ---
-title: Learn rtd-sensor
-description: Learn and use rtd-sensor, from quick Python setup and complete documentation through beginner-friendly RTD experiments, calibration, uncertainty, and embedded interoperability.
+title: rtd-sensor documentation — RTD conversion and modeling
+description: Learn rtd-sensor for Python RTD conversion and modeling, with Pt100/Pt1000 guides, calibration, uncertainty, and embedded interoperability.
 ---
 
 # Learn rtd-sensor
@@ -18,6 +18,13 @@ measurement circuit must first determine the sensor’s resistance, and your har
 acquisition software must pass that resistance to `rtd-sensor`. `rtd-sensor` handles the
 RTD science and calculations; it does not handle wiring, SPI/I²C communication, ADCs, or
 other sensor-interface hardware.
+
+That separation is a benefit: acquisition software such as
+[`rtd-acquire`](https://gregrr.github.io/rtd-acquire/) can handle the hardware and 
+produce a reliable resistance measurement, while `rtd-sensor` focuses only on
+interpreting that resistance. Keeping those jobs separate makes it easier to change
+hardware, reuse the same RTD calculations in different systems, test each layer
+independently, and keep hardware faults distinct from RTD model or calculation errors.
 
 ## Let's Go!
 

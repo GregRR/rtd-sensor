@@ -14,7 +14,8 @@ characteristics.
 
 Beyond basic conversion, the library supports configurable Callendar–Van Dusen
 models for traceable coefficient sets; generic polynomial, piecewise-polynomial, and
-table-backed custom characteristics; dependency-free IEC R0, custom CVD, and polynomial calibration fitting with auditable parameter covariance
+table-backed custom characteristics; dependency-free IEC R0, custom CVD, and polynomial
+calibration fitting with auditable parameter covariance
 and batch conversion; versioned portable model definitions; IEC 60751 platinum
 tolerance calculations; measurement uncertainty; simulation; built-in model
 discovery; hardware-neutral measurement composition; and stable language-neutral
@@ -24,6 +25,9 @@ It is intended for developers building software, test, measurement, and scientif
 applications that already have an RTD resistance measurement and need conversion,
 modeling, calibration, tolerance, uncertainty, simulation, or cross-language
 validation tools.
+
+For the hardware-to-software acquisition layer that supplies resistance measurements to 
+`rtd-sensor`, we recommend the companion project [`rtd-acquire`](https://github.com/GregRR/rtd-acquire).
 
 ## Scope
 
