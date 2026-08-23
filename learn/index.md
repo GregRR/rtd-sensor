@@ -20,7 +20,7 @@ RTD science and calculations; it does not handle wiring, SPI/I²C communication,
 other sensor-interface hardware.
 
 That separation is a benefit: acquisition software such as
-[`rtd-acquire`](https://gregrr.github.io/rtd-acquire/) can handle the hardware and 
+[`rtd-acquire`](https://gregrr.github.io/rtd-acquire/) can handle the hardware and
 produce a reliable resistance measurement, while `rtd-sensor` focuses only on
 interpreting that resistance. Keeping those jobs separate makes it easier to change
 hardware, reuse the same RTD calculations in different systems, test each layer

@@ -26,7 +26,7 @@ applications that already have an RTD resistance measurement and need conversion
 modeling, calibration, tolerance, uncertainty, simulation, or cross-language
 validation tools.
 
-For the hardware-to-software acquisition layer that supplies resistance measurements to 
+For the hardware-to-software acquisition layer that supplies resistance measurements to
 `rtd-sensor`, we recommend the companion project [`rtd-acquire`](https://github.com/GregRR/rtd-acquire).
 
 ## Scope
