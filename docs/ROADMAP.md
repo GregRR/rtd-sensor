@@ -27,9 +27,9 @@ exposes the public model/catalog/measurement contracts, adds the public exceptio
 taxonomy, and adds tabulated RTD characteristics. The target data flow is:
 
 ```text
-hardware / acquisition layer
+resistance-measurement source
         │
-        │ compensated sensor-element resistance in ohms
+        │ trustworthy estimate of sensor-element resistance in ohms
         ▼
 rtd-sensor
         │
@@ -38,11 +38,13 @@ rtd-sensor
 application layer
 ```
 
-An MCU, converter, ADC, or other acquisition layer should know how to obtain
-the best available estimate of sensor-element resistance. `rtd-sensor`
-should remain responsible for interpreting that resistance through an RTD model.
-Application code composes the two layers; neither package should duplicate the
-other layer's responsibilities.
+An MCU, converter, ADC, or other acquisition layer is one way to obtain the best
+available estimate of sensor-element resistance, but it is not a mandatory hop.
+An instrument, RTD interface, DAQ, resistance bridge, multimeter, or recorded data
+source that already provides a trustworthy RTD-element resistance in ohms can feed
+`rtd-sensor` directly. `rtd-sensor` remains responsible for interpreting that
+resistance through an RTD model; acquisition, hardware, and application concerns
+remain outside the scientific model layer.
 
 Items 1 through 7 shipped in version 0.5.0 on 2026-08-16. Version 0.5.1 was a
 corrective documentation/release-process release and did not add roadmap feature
@@ -65,7 +67,7 @@ provenance, independent validation, range, and tests are support-ready.
 - **0.8.0:** industrial measurement effects, including self-heating characterization
   and zero-power correction.
 - **0.9.0:** calibration experiment design, tabulated interoperability completion,
-  and pre-1.0 API review.
+  characteristic-compatibility promotion decision, and pre-1.0 API review.
 - **1.0.0:** stability release for the mature scientific, calibration, uncertainty,
   portability, and interoperability interfaces.
 - **Item 12:** version-independent characteristic expansion; it does not move a
@@ -186,6 +188,54 @@ of the public model, fitting, uncertainty, portable-format, self-heating, and
 calibration-design interfaces. Interfaces found to be provisional should be revised
 or explicitly deferred before the 1.0 compatibility commitment.
 
+#### Characteristic compatibility and identifiability promotion gate
+
+Research and Playground prototyping for characteristic compatibility may proceed
+during 0.8 development. Before the 0.9 feature/API scope is frozen, evaluate whether
+a bounded public capability for comparing observed `(temperature, resistance)` data
+against known RTD characteristics is mature enough to include before 1.0.
+
+Promote a public characteristic-comparison API into 0.9 only if **all five** of the
+following criteria are satisfied:
+
+1. **Scientific validity is demonstrated.** Known-characteristic, noisy, perturbed,
+   and deliberately ambiguous cases produce scientifically defensible outcomes. A
+   lowest residual must never be treated as proof of physical sensor identity.
+2. **Result semantics have stabilized.** The project can state what an observation,
+   candidate, residual/comparison metric, ambiguity result, and retained evidence
+   mean without continuing to redesign those concepts.
+3. **A useful minimal API is apparent.** The capability can be expressed as a small,
+   inspectable comparison operation rather than a collection of hidden heuristics,
+   mode switches, or application-specific rules.
+4. **The capability has value outside the Playground.** At least two or three
+   credible non-tutorial scientific or interoperability workflows can be stated
+   clearly enough to justify a maintained public API.
+5. **The implementation is bounded enough for the pre-1.0 commitment.** It does not
+   require redesigning model identity, fitting, calibration, or uncertainty
+   contracts and does not create unresolved semantics that would have to be frozen
+   prematurely at 1.0.
+
+The promotion review must include a small validation corpus with expected outcomes.
+At minimum it should cover:
+
+- clearly distinguishable candidate cases;
+- deliberately close or ambiguous candidate cases;
+- one-observation cases that are insufficient to distinguish candidates;
+- multiple-observation cases in which added evidence resolves an ambiguity;
+- noisy and perturbed observations;
+- candidate range violations and invalid comparisons; and
+- observations inconsistent with an asserted or expected characteristic.
+
+Uncertainty-aware comparison should be investigated during prototyping, but it need
+not be mandatory for the first public API if a deterministic residual-based subset
+has honest, stable ambiguity semantics. The initial capability must not claim
+automatic sensor identification, silently select or rewrite a user's model, or infer
+identity from resistance alone.
+
+If any promotion criterion remains unsatisfied at the 0.9 scope freeze, explicitly
+defer the public API to post-1.0 while retaining the Playground prototype, validation
+corpus, and research results for later development.
+
 ### 1.0.0 — stable scientific platform
 
 Version 1.0 should primarily be a stability release rather than another large
@@ -198,6 +248,9 @@ feature drop. Its release gate should include:
   conformance surfaces that are advertised as public contracts;
 - complete user/developer documentation for the supported pre-1.0 feature set,
   including retained scientific/industrial sources and reproducible derivations;
+- clear interoperability documentation that `rtd-sensor` consumes trustworthy
+  RTD-element resistance regardless of source and does not require a particular
+  acquisition path when resistance in ohms is already available;
 - examples that exercise the major public workflows from calibration observations
   through validated/deployable models;
 - resolution, redesign, or explicit post-1.0 deferral of provisional APIs; and
@@ -827,6 +880,13 @@ Keep these on the research roadmap even if they do not land in 0.4.x:
 - Other documented Balco/nickel characteristics encountered in industrial or
   building-automation equipment.
 
+### Additional platinum characteristics to investigate
+
+- **JPt100 / approximately 0.00392 platinum** — establish the exact characteristic
+  identity, authoritative equation or table, reference conventions, validity range,
+  historical aliases, and independent validation before considering built-in
+  support. It must remain distinct from the existing IEC 60751 PT-385 identity.
+
 ## Copper RTDs
 
 Copper support remains planned as a later expansion now that the initial nickel
@@ -835,6 +895,10 @@ Candidates include:
 
 - **Cu10**, particularly legacy motor/generator winding and industrial
   monitoring applications.
+- **Cu25**, if authoritative characteristic identity, range, and independent
+  validation establish a support-ready curve.
+- **Cu50**, if provenance research establishes a precise and independently
+  validated industrial characteristic suitable for first-class support.
 - **Cu100**, if research establishes a sufficiently useful and well-defined
   characteristic to justify first-class support.
 
@@ -961,7 +1025,13 @@ contracts, so simulation should not blur them merely to make registration dynami
 ## Hardware boundary
 
 The scientific RTD package continues to consume the best available estimate of
-sensor-element resistance. These concerns remain outside this package:
+sensor-element resistance from any trustworthy source. A separate acquisition layer
+is useful when raw converter or electrical observations still need compensation,
+calibration, diagnostics, or conversion into resistance, but it is not required when
+an instrument, interface, DAQ, bridge, multimeter, or recorded dataset already
+provides the desired RTD-element resistance in ohms.
+
+These concerns remain outside this package:
 
 - ADC and reference-resistor configuration;
 - 2-/3-/4-wire acquisition and lead compensation;
@@ -969,9 +1039,10 @@ sensor-element resistance. These concerns remain outside this package:
 - GPIO/SPI/I²C access;
 - Raspberry Pi, BeagleBone, MCU, or other platform-specific drivers.
 
-A later hardware/acquisition package can feed compensated resistance values to
-`rtd-sensor` without duplicating the characteristic mathematics. The
-language-neutral conformance contract above exists so an embedded implementation
+A hardware/acquisition package can feed compensated resistance values to
+`rtd-sensor` without duplicating the characteristic mathematics, while systems that
+already expose trustworthy resistance may connect directly at the same boundary.
+The language-neutral conformance contract above exists so an embedded implementation
 can reproduce the same conversion behavior without moving hardware concerns into
 this package.
 
@@ -995,6 +1066,21 @@ measurement uncertainty. Potential outputs include:
   them; and
 - retained calibration history without making physical asset identity part of an
   RTD mathematical model.
+
+### Characteristic compatibility and identifiability analysis
+
+If the 0.9 promotion gate does not move a bounded characteristic-comparison API
+into the pre-1.0 release sequence, retain it as an explicit post-1.0 candidate. A
+future capability may compare one or more independent `(temperature, resistance)`
+observations against a caller-visible set of known characteristics and report
+inspectable residuals, range failures, candidate ordering, and whether the supplied
+evidence distinguishes the candidates.
+
+The capability must report compatibility and identifiability rather than claiming
+physical sensor detection. The lowest residual is not proof of identity, ambiguity
+must remain visible, and uncertainty-aware comparison may be added where the
+measurement evidence supports it. Automatic model switching and resistance-only
+identity inference remain out of scope.
 
 ### RTD replacement and interchangeability analysis
 
@@ -1023,11 +1109,26 @@ generalized without evidence.
 ### Embedded and generated deployment ecosystem
 
 Potential additions include generated C headers/C++ `constexpr` definitions,
-compact selected-model data, and lookup tables for constrained systems when real
-profiling justifies them. A maintained production C/C++ embedded sibling project
-may be created if downstream MCU work shows that a dedicated runtime API is useful.
-The Python package should remain free of hardware-driver and embedded-build-system
-concerns.
+compact selected-model data, and lookup tables or other derived approximations for
+constrained systems when real profiling justifies them. A maintained production
+C/C++ embedded sibling project may be created if downstream MCU work shows that a
+dedicated runtime API is useful. The Python package should remain free of
+hardware-driver and embedded-build-system concerns.
+
+Any derived deployment representation must remain subordinate to its authoritative
+RTD model rather than becoming a new characteristic identity. Its contract should
+retain or document, as applicable:
+
+- source model/characteristic identity and source contract/artifact version;
+- supported conversion direction and valid range;
+- numeric representation such as binary32, integer, or fixed point;
+- generation, interpolation, or approximation method;
+- independently measured maximum error and the acceptance/engineering margin;
+- boundary behavior and representative conditioning limits; and
+- the exact conformance or error-envelope claim supported by validation.
+
+A generated table or approximation must never be presented as though it has the
+provenance of an authoritative tabulated RTD characteristic.
 
 ### Rich calibration-certificate and provenance metadata
 
