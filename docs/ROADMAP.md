@@ -50,8 +50,8 @@ Items 1 through 7 shipped in version 0.5.0 on 2026-08-16. Version 0.5.1 was a
 corrective documentation/release-process release and did not add roadmap feature
 scope. Items 8 through 11 shipped in version 0.6.0 on 2026-08-17. Version 0.6.1
 shipped on 2026-08-19 and expanded supported Python versions from Python 3.14
-only to Python 3.11 through 3.14 without adding roadmap feature scope. The 0.7.0
-calibration and statistical foundation is implemented.
+only to Python 3.11 through 3.14 without adding roadmap feature scope. Version
+0.7.0 shipped on 2026-08-21 with the calibration and statistical foundation.
 
 Item 12 remains an ongoing, provenance-dependent built-in expansion track rather
 than a release gate. New characteristics may land whenever their equations, source
@@ -63,9 +63,8 @@ provenance, independent validation, range, and tests are support-ready.
 - **0.5.1:** corrective documentation/release-process release; published 2026-08-16.
 - **0.6.0:** items 8–11; published 2026-08-17.
 - **0.6.1:** Python 3.11–3.14 compatibility release; published 2026-08-19.
-- **0.7.0:** calibration and statistical foundation; implementation complete.
-- **0.8.0:** industrial measurement effects, including self-heating characterization
-  and zero-power correction.
+- **0.7.0:** calibration and statistical foundation; published 2026-08-21.
+- **0.8.0:** self-heating characterization and zero-power correction.
 - **0.9.0:** calibration experiment design, tabulated interoperability completion,
   characteristic-compatibility promotion decision, and pre-1.0 API review.
 - **1.0.0:** stability release for the mature scientific, calibration, uncertainty,
@@ -732,9 +731,8 @@ Implemented `TabulatedRTDModel` and immutable `TabulatedRTDPoint` rows for autho
 Tables must contain at least two finite rows with strictly increasing temperature and strictly increasing positive resistance. Interior-knot sensitivity follows the interval on the right and the final knot follows the last interval, matching the deterministic one-sided convention already used for piecewise characteristics.
 
 Items 1 through 7 shipped in 0.5.0. The 0.5.1 corrective release was limited to
-documentation consistency and release-process hardening. Items 8 through 11 are
-implemented for 0.6.0, so feature development has stopped at the documented
-release boundary and the project is in release preparation.
+documentation consistency and release-process hardening. Items 8 through 11 shipped
+in 0.6.0.
 
 ### 8. Calibration fitting — implemented for 0.6.0
 
