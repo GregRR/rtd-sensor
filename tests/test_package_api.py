@@ -16,6 +16,7 @@ from rtd_sensor import (
     pt100,
     pt500,
     pt1000,
+    self_heating,
     simulation,
     tolerance,
     uncertainty,
@@ -132,6 +133,21 @@ def test_portable_public_api() -> None:
     }
 
 
+def test_package_exports_self_heating_module() -> None:
+    from rtd_sensor import self_heating as imported_self_heating
+
+    assert imported_self_heating is self_heating
+
+
+def test_self_heating_public_api() -> None:
+    assert set(self_heating.__all__) == {
+        "SelfHeatingObservation",
+        "TwoCurrentZeroPowerEvidence",
+        "TwoCurrentZeroPowerResult",
+        "extrapolate_zero_power_resistance",
+    }
+
+
 def test_package_exports_simulation_module() -> None:
     from rtd_sensor import simulation as imported_simulation
 
@@ -155,6 +171,7 @@ def test_package_public_api() -> None:
         "pt500",
         "pt1000",
         "portable",
+        "self_heating",
         "simulation",
         "tolerance",
         "uncertainty",

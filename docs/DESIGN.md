@@ -947,6 +947,42 @@ effects only when their provenance and dependence assumptions justify that
 combination. JCGM 100:2008 sections 5.1-5.2 and NIST Technical Note 1297 Appendix A
 remain the implementation basis for this first-order covariance propagation.
 
+#### 0.8.0 self-heating and two-current zero-power extrapolation
+
+Self-heating remains separate from nominal RTD curve conversion. The public
+``rtd_sensor.self_heating`` analysis layer consumes caller-supplied steady-state
+measurement-current/resistance observations; it does not control excitation
+current, bridges, ADCs, MAX31865 devices, or other acquisition hardware.
+
+The first 0.8.0 implementation uses the BIPM/CCT two-current model
+
+```text
+R(i) = R0 + k * i^2
+```
+
+under the caller's assumption that both observations represent the same stable
+external thermal condition. ``SelfHeatingObservation`` therefore records a
+positive measurement-current magnitude in amperes and a positive measured
+resistance in ohms. Observation-level ``I^2`` and ``I^2 R`` quantities remain
+inspectable, while the standard two-current extrapolation uses resistance versus
+current squared as documented by the retained metrology guidance.
+
+Two distinct current levels exactly determine the line and therefore provide zero
+residual degrees of freedom. ``TwoCurrentZeroPowerResult`` exposes the extrapolated
+zero-power resistance while ``TwoCurrentZeroPowerEvidence`` retains the normalized
+low/high-current observations, current ratio, current-squared span, resistance
+change, slope, method identity, and zero residual degrees of freedom. A zero or
+negative observed resistance change is retained as evidence rather than silently
+reinterpreted as proof of a valid physical self-heating correction. With two
+points alone the package cannot establish experimental stability or test linearity.
+
+This first slice does not automatically alter an RTD model or an uncertainty
+budget. Later 0.8.0 work may compose zero-power resistance with an explicitly
+supplied RTD model to obtain zero-power temperature and self-heating temperature
+rise, propagate uncertainty, analyze larger observation sets with residual and
+consistency diagnostics, and report dissipation/self-heating quantities only when
+the evidence and environmental context justify them.
+
 #### Portable model-definition format decision
 
 The 0.6.0 portable model definition is a **separate artifact type and schema**
@@ -1445,11 +1481,12 @@ R(t) = R0 × [1 + A×t + B×t² + C×(t - 100)×t³]
 
 The built-in Pt100, Pt500, and Pt1000 modules model the ideal standardized curve.
 Public model objects can consume an individually characterized `R0` or a
-traceable custom Callendar–Van Dusen coefficient set. Version 0.6.0 also
-supports polynomial calibration fitting from observations; fitting
-characterized `R0` and custom Callendar–Van Dusen parameters is planned for
-0.7.0. Sensor tolerance, lead-wire resistance, self-heating, and
-measurement-circuit errors remain separate concerns.
+traceable custom Callendar–Van Dusen coefficient set. Version 0.6.0 added
+polynomial calibration fitting from observations, and 0.7.0 added characterized
+`R0` and custom Callendar–Van Dusen parameter fitting. Sensor tolerance,
+lead-wire resistance, self-heating, and measurement-circuit errors remain
+separate concerns; the 0.8.0 self-heating analysis layer does not change nominal
+RTD curve behavior.
 
 ### Test provenance
 

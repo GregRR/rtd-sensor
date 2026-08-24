@@ -286,9 +286,11 @@ Thermometry. (2021). *Guide to the realization of the ITS-90: Platinum
 resistance thermometry*.
 https://www.bipm.org/en/committees/cc/cct/guides-to-thermometry
 
-**Project use:** Research/future source for reference resistance thermometry,
-measurement-current effects, self-heating, and two-current zero-power
-extrapolation. The project does not currently claim ITS-90 realization support.
+**Project use:** Implementation basis for the 0.8.0 two-current zero-power
+resistance extrapolation in `rtd_sensor.self_heating`, especially section 5.3.3
+and Equation 34. It also remains a research source for reference resistance
+thermometry, measurement-current effects, and later self-heating uncertainty work.
+The project does not claim ITS-90 realization support.
 
 Joint Committee for Guides in Metrology. (2008). *Evaluation of measurement
 data—Supplement 1 to the “Guide to the expression of uncertainty in
@@ -334,10 +336,13 @@ platinum resistance thermometers*. Bureau International des Poids et Mesures.
 https://www.nist.gov/publications/guide-secondary-thermometry-industrial-platinum-resistance-thermometers
 
 **Project use:** Implementation and research anchor for industrial PRT calibration.
-Appendix 1 documents the modern Callendar–Van Dusen `R0`, `A`, `B`, `C` form,
-the zero-above-0-°C role of `C`, and the historical determination of CVD
-parameters from calibration measurements. It also remains a research source for
-self-heating, hysteresis, reproducibility, long-term stability, and uncertainty.
+Section 4.1 provides the implementation basis for linear resistance-versus-current-
+squared self-heating extrapolation and the stable-external-temperature requirement.
+Appendix 1 documents the modern Callendar–Van Dusen `R0`, `A`, `B`, `C` form, the
+zero-above-0-°C role of `C`, and the historical determination of CVD parameters
+from calibration measurements. It also remains a research source for later
+self-heating diagnostics and uncertainty, hysteresis, reproducibility, and
+long-term stability.
 
 Strouse, G. F., Mangum, B. W., Vaughn, C. D., & Xu, E. Y. (1998). *A new NIST
 automated calibration system for industrial-grade platinum resistance

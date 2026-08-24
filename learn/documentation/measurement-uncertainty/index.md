@@ -13,6 +13,7 @@ This section keeps those ideas separate:
 
 - [Hardware/acquisition boundary](acquisition-boundary.md)
 - [ResistanceReader composition](resistance-reader.md)
+- [Self-heating and zero-power resistance](self-heating.md)
 - [IEC 60751 tolerance classes](tolerance.md)
 - [Uncertainty fundamentals](uncertainty.md)
 - [Resistance uncertainty propagation](resistance-propagation.md)

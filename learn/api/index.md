@@ -29,6 +29,7 @@ pre-0.4.0 installation.
 - [`measurement`](measurement.md)
 - [`models`](models.md)
 - [`portable`](portable.md)
+- [`self_heating`](self-heating.md)
 - [`simulation`](simulation.md)
 - [`tolerance`](tolerance.md)
 - [`uncertainty`](uncertainty.md)
