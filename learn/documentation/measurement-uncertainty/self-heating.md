@@ -55,6 +55,41 @@ print(result.zero_power_resistance_ohms)       # approximately 100.0
 print(result.low_current_resistance_rise_ohms) # approximately 0.01
 ```
 
+## Convert the result to zero-power temperature
+
+Once the resistance extrapolation is complete, the same result can be interpreted
+through any supplied RTD model:
+
+```python
+from rtd_sensor import catalog, self_heating
+
+model = catalog.get_model("pt100")
+temperatures = self_heating.evaluate_two_current_temperatures(
+    result,
+    model=model,
+)
+
+print(temperatures.zero_power_temperature_c)
+print(temperatures.low_current_temperature_rise_c)
+print(temperatures.high_current_temperature_rise_c)
+```
+
+The function converts three resistance values through the **same** model:
+
+- the extrapolated zero-power resistance;
+- the low-current observed resistance; and
+- the high-current observed resistance.
+
+The reported self-heating temperature rise at each operating point is the
+difference between that observed temperature and the extrapolated zero-power
+temperature. The result also retains the exact supplied model object so the model
+used for those conversions remains inspectable. The calculation does not modify
+the RTD model, and model range or conversion errors propagate normally.
+
+The zero-power temperature is the RTD-model interpretation of the extrapolated
+zero-current resistance under the experiment's stable-condition assumption. It
+should not be described as an independently measured ambient temperature.
+
 ## What the observation retains
 
 Each `SelfHeatingObservation` keeps the two measured quantities used by the
@@ -86,17 +121,16 @@ as experimentally stable.
 
 ## Deliberately deferred within 0.8.0
 
-This first slice does not yet provide:
+The current 0.8.0 implementation does not yet provide:
 
-- zero-power temperature through an RTD model;
-- self-heating temperature rise;
 - uncertainty propagation;
 - multi-observation fitting and residual diagnostics;
 - dissipation/self-heating coefficients; or
 - environmental provenance such as medium, flow, or mounting.
 
-Those remain part of the documented 0.8.0 scope and can build on the retained
-observation/evidence contract rather than changing nominal RTD conversion.
+Those remaining capabilities stay within the documented 0.8.0 scope and can
+build on the retained observation/evidence contract rather than changing nominal
+RTD conversion.
 
 ## Sources
 

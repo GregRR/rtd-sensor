@@ -7,10 +7,13 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
+from rtd_sensor import catalog
 from rtd_sensor.self_heating import (
     SelfHeatingObservation,
+    TwoCurrentSelfHeatingTemperatureResult,
     TwoCurrentZeroPowerEvidence,
     TwoCurrentZeroPowerResult,
+    evaluate_two_current_temperatures,
     extrapolate_zero_power_resistance,
 )
 
@@ -187,3 +190,77 @@ def test_two_current_extrapolation_rejects_nonpositive_intercept() -> None:
 
     with pytest.raises(ValueError, match="greater than zero"):
         extrapolate_zero_power_resistance(low, high)
+
+
+def test_two_current_temperature_evaluation_uses_supplied_model() -> None:
+    low = SelfHeatingObservation(0.001, 100.01)
+    high = SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02)
+    zero_power = extrapolate_zero_power_resistance(low, high)
+    model = catalog.get_model("pt100")
+
+    result = evaluate_two_current_temperatures(zero_power, model=model)
+
+    assert isinstance(result, TwoCurrentSelfHeatingTemperatureResult)
+    assert result.zero_power_result is zero_power
+    assert result.model is model
+    assert result.zero_power_temperature_c == pytest.approx(0.0, abs=1e-12)
+    assert result.low_current_temperature_c == pytest.approx(
+        model.resistance_to_celsius(100.01),
+    )
+    assert result.high_current_temperature_c == pytest.approx(
+        model.resistance_to_celsius(100.02),
+    )
+    assert result.low_current_temperature_rise_c == pytest.approx(
+        result.low_current_temperature_c - result.zero_power_temperature_c
+    )
+    assert result.high_current_temperature_rise_c == pytest.approx(
+        result.high_current_temperature_c - result.zero_power_temperature_c
+    )
+
+
+def test_two_current_temperature_evaluation_preserves_negative_rise() -> None:
+    low = SelfHeatingObservation(0.001, 100.02)
+    high = SelfHeatingObservation(0.002, 100.01)
+    zero_power = extrapolate_zero_power_resistance(low, high)
+
+    result = evaluate_two_current_temperatures(
+        zero_power,
+        model=catalog.get_model("pt100"),
+    )
+
+    assert result.low_current_temperature_rise_c < 0.0
+    assert result.high_current_temperature_rise_c < 0.0
+
+
+def test_two_current_temperature_evaluation_rejects_non_result() -> None:
+    with pytest.raises(TypeError, match="TwoCurrentZeroPowerResult"):
+        evaluate_two_current_temperatures(
+            100.0,  # type: ignore[arg-type]
+            model=catalog.get_model("pt100"),
+        )
+
+
+def test_two_current_temperature_evaluation_propagates_model_error() -> None:
+    class FailingModel:
+        def resistance_to_celsius(self, resistance_ohms: float) -> float:
+            raise RuntimeError("model conversion failed")
+
+        def celsius_to_resistance(self, temperature_c: float) -> float:
+            return 100.0
+
+        def resistance_sensitivity_ohms_per_celsius(
+            self, temperature_c: float
+        ) -> float:
+            return 1.0
+
+        def temperature_sensitivity_celsius_per_ohm(
+            self, temperature_c: float
+        ) -> float:
+            return 1.0
+
+    low = SelfHeatingObservation(0.001, 100.01)
+    high = SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02)
+    zero_power = extrapolate_zero_power_resistance(low, high)
+
+    with pytest.raises(RuntimeError, match="model conversion failed"):
+        evaluate_two_current_temperatures(zero_power, model=FailingModel())

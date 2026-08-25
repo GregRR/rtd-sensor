@@ -2,12 +2,13 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""RTD self-heating observations and two-current zero-power extrapolation.
+"""RTD self-heating analysis and two-current zero-power extrapolation.
 
 The two-current method implemented here follows resistance-thermometry guidance
 that models measured resistance as linear in measurement-current squared under a
-stable thermal condition. It analyzes caller-supplied current/resistance evidence;
-it does not control excitation current or acquisition hardware.
+stable thermal condition. It analyzes caller-supplied current/resistance evidence
+and can interpret the result through an explicitly supplied RTD model; it does not
+control excitation current or acquisition hardware.
 """
 
 from __future__ import annotations
@@ -16,12 +17,15 @@ import math
 from dataclasses import dataclass, field
 from typing import Literal
 
+from ._protocols import RTDModel as _RTDModel
 from ._validation import as_float as _as_float
 
 __all__ = [
     "SelfHeatingObservation",
     "TwoCurrentZeroPowerEvidence",
+    "TwoCurrentSelfHeatingTemperatureResult",
     "TwoCurrentZeroPowerResult",
+    "evaluate_two_current_temperatures",
     "extrapolate_zero_power_resistance",
 ]
 
@@ -156,6 +160,97 @@ class TwoCurrentZeroPowerResult:
             self.evidence.high_current_observation.resistance_ohms
             - self.zero_power_resistance_ohms
         )
+
+
+@dataclass(frozen=True, slots=True)
+class TwoCurrentSelfHeatingTemperatureResult:
+    """Model-based temperatures derived from a two-current zero-power result.
+
+    All three resistance values are converted through the same explicitly supplied
+    RTD model. The temperature-rise properties therefore compare each observed
+    current point with the extrapolated zero-power temperature without changing
+    the underlying RTD model or the retained resistance-domain evidence.
+    """
+
+    zero_power_result: TwoCurrentZeroPowerResult
+    model: _RTDModel = field(repr=False, compare=False)
+    zero_power_temperature_c: float
+    low_current_temperature_c: float
+    high_current_temperature_c: float
+
+    @property
+    def low_current_temperature_rise_c(self) -> float:
+        """Return low-current temperature minus zero-power temperature."""
+        return self.low_current_temperature_c - self.zero_power_temperature_c
+
+    @property
+    def high_current_temperature_rise_c(self) -> float:
+        """Return high-current temperature minus zero-power temperature."""
+        return self.high_current_temperature_c - self.zero_power_temperature_c
+
+
+def evaluate_two_current_temperatures(
+    result: TwoCurrentZeroPowerResult,
+    *,
+    model: _RTDModel,
+) -> TwoCurrentSelfHeatingTemperatureResult:
+    """Convert a two-current zero-power result into RTD temperatures.
+
+    ``model`` is applied to the extrapolated zero-power resistance and to both
+    retained observed resistances. The returned temperature rises are therefore
+    model-based differences between each observed operating point and the inferred
+    zero-current state under the same experimental assumptions as ``result``.
+
+    Model conversion exceptions propagate unchanged. This function does not add
+    uncertainty, prove thermal stability, or infer ambient temperature independently
+    of the two-current extrapolation.
+
+    Raises:
+        TypeError: If ``result`` is not a :class:`TwoCurrentZeroPowerResult`.
+        ValueError: If a model conversion returns a non-finite temperature.
+    """
+    if not isinstance(result, TwoCurrentZeroPowerResult):
+        raise TypeError("result must be a TwoCurrentZeroPowerResult")
+
+    evidence = result.evidence
+    zero_power_temperature = _converted_temperature_c(
+        model,
+        result.zero_power_resistance_ohms,
+        name="Zero-power temperature",
+    )
+    low_current_temperature = _converted_temperature_c(
+        model,
+        evidence.low_current_observation.resistance_ohms,
+        name="Low-current temperature",
+    )
+    high_current_temperature = _converted_temperature_c(
+        model,
+        evidence.high_current_observation.resistance_ohms,
+        name="High-current temperature",
+    )
+
+    return TwoCurrentSelfHeatingTemperatureResult(
+        zero_power_result=result,
+        model=model,
+        zero_power_temperature_c=zero_power_temperature,
+        low_current_temperature_c=low_current_temperature,
+        high_current_temperature_c=high_current_temperature,
+    )
+
+
+def _converted_temperature_c(
+    model: _RTDModel,
+    resistance_ohms: float,
+    *,
+    name: str,
+) -> float:
+    temperature = _as_float(
+        model.resistance_to_celsius(resistance_ohms),
+        name=name,
+    )
+    if not math.isfinite(temperature):
+        raise ValueError(f"{name} must be finite")
+    return temperature
 
 
 def extrapolate_zero_power_resistance(

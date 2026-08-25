@@ -976,12 +976,18 @@ negative observed resistance change is retained as evidence rather than silently
 reinterpreted as proof of a valid physical self-heating correction. With two
 points alone the package cannot establish experimental stability or test linearity.
 
-This first slice does not automatically alter an RTD model or an uncertainty
-budget. Later 0.8.0 work may compose zero-power resistance with an explicitly
-supplied RTD model to obtain zero-power temperature and self-heating temperature
-rise, propagate uncertainty, analyze larger observation sets with residual and
-consistency diagnostics, and report dissipation/self-heating quantities only when
-the evidence and environmental context justify them.
+The temperature-composition step applies one explicitly supplied RTD model to
+the zero-power resistance and both retained observed resistances. It reports the
+corresponding zero-power temperature and each observed temperature rise relative
+to that inferred zero-current state, and retains the exact supplied model object
+with the temperature result. Model conversion and range errors propagate unchanged,
+and the result does not independently establish ambient temperature.
+
+The self-heating layer still does not automatically alter an RTD model or an
+uncertainty budget. Later 0.8.0 work may propagate uncertainty, analyze larger
+observation sets with residual and consistency diagnostics, and report
+dissipation/self-heating quantities only when the evidence and environmental
+context justify them.
 
 #### Portable model-definition format decision
 

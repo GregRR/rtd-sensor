@@ -5,10 +5,10 @@ description: Quick API reference for rtd_sensor.self_heating observations, two-c
 
 # `rtd_sensor.self_heating`
 
-The self-heating API is **introduced in rtd-sensor 0.8.0**. The first public
-slice implements the standard two-current resistance-domain extrapolation to
-zero measurement current while retaining the supplied current/resistance
-evidence.
+The self-heating API is **introduced in rtd-sensor 0.8.0**. It provides the
+standard two-current resistance-domain extrapolation to zero measurement current
+and can then convert the zero-power and observed resistances through an explicitly
+supplied RTD model.
 
 ## `SelfHeatingObservation`
 
@@ -51,9 +51,49 @@ stable external thermal condition. The function normalizes them into increasing
 current order and extrapolates the resistance-vs-current-squared line to zero
 current.
 
-The first 0.8.0 slice deliberately does **not** infer temperature, assess
-multi-point linearity, propagate uncertainty, or prove that the experimental
-thermal condition was stable.
+This resistance-domain function deliberately does **not** assess multi-point
+linearity, propagate uncertainty, or prove that the experimental thermal condition
+was stable. Use `evaluate_two_current_temperatures(...)` when model-based
+temperatures are also wanted.
+
+
+## `evaluate_two_current_temperatures`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+```python
+evaluate_two_current_temperatures(
+    result: TwoCurrentZeroPowerResult,
+    *,
+    model: RTDModel,
+) -> TwoCurrentSelfHeatingTemperatureResult
+```
+
+The supplied model converts the extrapolated zero-power resistance and both
+observed resistances to Celsius. Model conversion errors and range failures
+propagate unchanged.
+
+## `TwoCurrentSelfHeatingTemperatureResult`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+Fields and read-only derived properties:
+
+```text
+zero_power_result: TwoCurrentZeroPowerResult
+model: RTDModel
+zero_power_temperature_c: float
+low_current_temperature_c: float
+high_current_temperature_c: float
+low_current_temperature_rise_c: float
+high_current_temperature_rise_c: float
+```
+
+The exact model object supplied to `evaluate_two_current_temperatures(...)` is
+retained as `model` so the model used for the temperature interpretation remains
+inspectable with the result. The temperature rises are each observed temperature
+minus the extrapolated zero-power temperature. They do not independently establish
+ambient temperature or prove that the experiment was thermally stable.
 
 ## `TwoCurrentZeroPowerResult`
 
