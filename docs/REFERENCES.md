@@ -74,7 +74,8 @@ https://doi.org/10.59161/JCGM100-2008E
 standard uncertainty, first-order propagation, covariance-aware propagation,
 combination of independent components, and expanded uncertainty. Sections 5.1-5.2
 provide the law of propagation used for fitted-parameter covariance propagation
-into both forward resistance and first-order inverse temperature results.
+into both forward resistance and first-order inverse temperature results and for
+the 0.8.0 first-order two-current self-heating uncertainty propagation.
 Appendix H.3 is the implementation basis
 for the least-squares thermometer-calibration treatment used in v0.7.0,
 including fitted-parameter variance/covariance, residual degrees of freedom, and

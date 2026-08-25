@@ -983,11 +983,35 @@ to that inferred zero-current state, and retains the exact supplied model object
 with the temperature result. Model conversion and range errors propagate unchanged,
 and the result does not independently establish ambient temperature.
 
-The self-heating layer still does not automatically alter an RTD model or an
-uncertainty budget. Later 0.8.0 work may propagate uncertainty, analyze larger
-observation sets with residual and consistency diagnostics, and report
-dissipation/self-heating quantities only when the evidence and environmental
-context justify them.
+Two-current measurement uncertainty is propagated from the original four inputs
+(``I_low``, ``R_low``, ``I_high``, ``R_high``) with a first-order local
+linearization. The public result retains the standard uncertainties, fixed input
+order, sensitivity vectors, propagated variances, and standard uncertainties.
+Current uncertainty is included because the extrapolated intercept depends on the
+current-squared coordinates as well as on the measured resistances. As a local
+first-order approximation, this propagation assumes the supplied uncertainties are
+small enough for the linearization to remain meaningful; current uncertainty large
+relative to the separation between the two current levels requires more careful
+treatment.
+
+The temperature-side propagation uses the local ``dT/dR`` sensitivity supplied by
+the exact RTD model retained in the temperature result. Temperature-rise
+uncertainties are propagated directly from the original four inputs rather than by
+combining already-derived observed and zero-power temperatures as if they were
+independent; those quantities share resistance observations by construction.
+
+This first uncertainty implementation assumes the four supplied input standard
+uncertainties are mutually independent. It does not infer covariance for readings
+that share an instrument, calibration, current source, bridge, or other common
+error source. Fitted-model covariance and other uncertainty-budget components also
+remain separate rather than being combined automatically. JCGM 100:2008 sections
+5.1-5.2 remain the implementation basis for the first-order propagation.
+
+The self-heating layer still does not automatically alter an RTD model or a
+general uncertainty budget. Later 0.8.0 work may add covariance-aware handling
+where justified, analyze larger observation sets with residual and consistency
+diagnostics, and report dissipation/self-heating quantities only when the evidence
+and environmental context justify them.
 
 #### Portable model-definition format decision
 

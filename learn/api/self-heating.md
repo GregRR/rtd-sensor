@@ -52,9 +52,11 @@ current order and extrapolates the resistance-vs-current-squared line to zero
 current.
 
 This resistance-domain function deliberately does **not** assess multi-point
-linearity, propagate uncertainty, or prove that the experimental thermal condition
-was stable. Use `evaluate_two_current_temperatures(...)` when model-based
-temperatures are also wanted.
+linearity or prove that the experimental thermal condition was stable. Use
+`propagate_two_current_zero_power_uncertainty(...)` when standard uncertainties for
+the measured currents and resistances are available, and use
+`evaluate_two_current_temperatures(...)` when model-based temperatures are also
+wanted.
 
 
 ## `evaluate_two_current_temperatures`
@@ -94,6 +96,88 @@ retained as `model` so the model used for the temperature interpretation remains
 inspectable with the result. The temperature rises are each observed temperature
 minus the extrapolated zero-power temperature. They do not independently establish
 ambient temperature or prove that the experiment was thermally stable.
+
+## `TwoCurrentInputStandardUncertainties`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+```python
+TwoCurrentInputStandardUncertainties(
+    *,
+    low_current_standard_uncertainty_a: float,
+    low_resistance_standard_uncertainty_ohms: float,
+    high_current_standard_uncertainty_a: float,
+    high_resistance_standard_uncertainty_ohms: float,
+)
+```
+
+All four values must be finite and non-negative. The fields correspond to the
+normalized low- and high-current observations retained by the zero-power result.
+This first uncertainty model treats the four input quantities as independent.
+Because the propagation is a local first-order approximation, the supplied
+uncertainties should also be small enough for that local linearization to be
+meaningful. In particular, a current uncertainty that is large relative to the
+separation between the two current levels needs more careful treatment.
+
+The fixed sensitivity-vector order is:
+
+```text
+low_current_a
+low_resistance_ohms
+high_current_a
+high_resistance_ohms
+```
+
+## `propagate_two_current_zero_power_uncertainty`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+```python
+propagate_two_current_zero_power_uncertainty(
+    result: TwoCurrentZeroPowerResult,
+    *,
+    input_standard_uncertainties: TwoCurrentInputStandardUncertainties,
+) -> TwoCurrentZeroPowerUncertaintyResult
+```
+
+Applies first-order propagation directly to the two measured currents and two
+measured resistances. Both current uncertainty and resistance uncertainty can
+therefore contribute to the zero-power resistance uncertainty.
+
+`TwoCurrentZeroPowerUncertaintyResult` retains the input uncertainties, the
+zero-power-resistance sensitivity vector, propagated variance, standard
+uncertainty, and the method label `first_order_independent_inputs`.
+
+## `propagate_two_current_temperature_uncertainty`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+```python
+propagate_two_current_temperature_uncertainty(
+    result: TwoCurrentSelfHeatingTemperatureResult,
+    *,
+    input_standard_uncertainties: TwoCurrentInputStandardUncertainties,
+) -> TwoCurrentSelfHeatingTemperatureUncertaintyResult
+```
+
+Uses the local `dT/dR` sensitivity supplied by the exact RTD model retained in the
+temperature result. It reports standard uncertainty for:
+
+- zero-power temperature;
+- low- and high-current observed temperatures; and
+- low- and high-current self-heating temperature rises.
+
+The temperature-rise uncertainties are propagated from the original four measured
+inputs. They are **not** calculated by root-sum-squaring an observed-temperature
+uncertainty with the zero-power-temperature uncertainty, because those derived
+quantities share the same resistance observations and are therefore not
+independent.
+
+`TwoCurrentSelfHeatingTemperatureUncertaintyResult` retains the input sensitivity
+vectors, variances, standard uncertainties, the corresponding zero-power
+resistance-uncertainty result, and the method label
+`first_order_independent_inputs`. Fitted-model covariance and other uncertainty
+budget components remain separate.
 
 ## `TwoCurrentZeroPowerResult`
 

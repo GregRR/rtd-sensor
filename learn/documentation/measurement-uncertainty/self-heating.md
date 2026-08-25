@@ -90,6 +90,70 @@ The zero-power temperature is the RTD-model interpretation of the extrapolated
 zero-current resistance under the experiment's stable-condition assumption. It
 should not be described as an independently measured ambient temperature.
 
+## Propagate measurement uncertainty
+
+If standard uncertainties are available for the two measurement currents and two
+measured resistances, they can be propagated through the extrapolation without
+changing the original observations:
+
+```python
+inputs = self_heating.TwoCurrentInputStandardUncertainties(
+    low_current_standard_uncertainty_a=1e-6,
+    low_resistance_standard_uncertainty_ohms=0.002,
+    high_current_standard_uncertainty_a=1e-6,
+    high_resistance_standard_uncertainty_ohms=0.002,
+)
+
+zero_power_uncertainty = (
+    self_heating.propagate_two_current_zero_power_uncertainty(
+        result,
+        input_standard_uncertainties=inputs,
+    )
+)
+print(zero_power_uncertainty.zero_power_resistance_standard_uncertainty_ohms)
+
+temperature_uncertainty = (
+    self_heating.propagate_two_current_temperature_uncertainty(
+        temperatures,
+        input_standard_uncertainties=inputs,
+    )
+)
+print(temperature_uncertainty.zero_power_temperature_standard_uncertainty_c)
+print(temperature_uncertainty.low_current_temperature_rise_standard_uncertainty_c)
+```
+
+The calculation uses first-order propagation from the original four measured
+inputs in this order:
+
+```text
+low current, low resistance, high current, high resistance
+```
+
+The first uncertainty implementation assumes those four standard uncertainties are
+independent. It does **not** infer covariance between readings made with the same
+current source, bridge, meter, or calibration chain. If important common-mode or
+correlated effects are present, they should not be hidden inside an independence
+assumption. Because this is a local first-order propagation, the supplied
+uncertainties should also be small enough for the local linearization to be
+meaningful. A current uncertainty that is large relative to the separation between
+the two current levels needs more careful treatment.
+
+For temperature results, the local `dT/dR` sensitivity comes from the same RTD
+model used for the temperatures. Fitted-model covariance is not added
+automatically; it remains a separate contribution because its dependence on the
+measurement inputs cannot be assumed in general.
+
+### Why temperature-rise uncertainty is propagated directly
+
+The low-current temperature and the zero-power temperature are not independent:
+the low-current resistance is one of the measurements used to calculate the
+zero-power resistance. The same is true at the high-current point.
+
+For that reason, `rtd-sensor` propagates each temperature rise directly from the
+original current/resistance inputs. It does not simply combine the uncertainty of
+`T_observed` and `T_zero_power` by root-sum-square, which would discard the shared
+input dependence and can give the wrong result.
+
 ## What the observation retains
 
 Each `SelfHeatingObservation` keeps the two measured quantities used by the
@@ -123,7 +187,7 @@ as experimentally stable.
 
 The current 0.8.0 implementation does not yet provide:
 
-- uncertainty propagation;
+- covariance-aware propagation for correlated two-current measurement inputs;
 - multi-observation fitting and residual diagnostics;
 - dissipation/self-heating coefficients; or
 - environmental provenance such as medium, flow, or mounting.

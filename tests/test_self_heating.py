@@ -10,11 +10,16 @@ import pytest
 from rtd_sensor import catalog
 from rtd_sensor.self_heating import (
     SelfHeatingObservation,
+    TwoCurrentInputStandardUncertainties,
     TwoCurrentSelfHeatingTemperatureResult,
+    TwoCurrentSelfHeatingTemperatureUncertaintyResult,
     TwoCurrentZeroPowerEvidence,
     TwoCurrentZeroPowerResult,
+    TwoCurrentZeroPowerUncertaintyResult,
     evaluate_two_current_temperatures,
     extrapolate_zero_power_resistance,
+    propagate_two_current_temperature_uncertainty,
+    propagate_two_current_zero_power_uncertainty,
 )
 
 
@@ -264,3 +269,293 @@ def test_two_current_temperature_evaluation_propagates_model_error() -> None:
 
     with pytest.raises(RuntimeError, match="model conversion failed"):
         evaluate_two_current_temperatures(zero_power, model=FailingModel())
+
+
+class _LinearTwoOhmPerCelsiusModel:
+    def resistance_to_celsius(self, resistance_ohms: float) -> float:
+        return (resistance_ohms - 100.0) / 2.0
+
+    def celsius_to_resistance(self, temperature_c: float) -> float:
+        return 100.0 + 2.0 * temperature_c
+
+    def resistance_sensitivity_ohms_per_celsius(self, temperature_c: float) -> float:
+        return 2.0
+
+    def temperature_sensitivity_celsius_per_ohm(self, temperature_c: float) -> float:
+        return 0.5
+
+
+def _sqrt2_uncertainty_case() -> tuple[
+    TwoCurrentZeroPowerResult,
+    TwoCurrentInputStandardUncertainties,
+]:
+    low = SelfHeatingObservation(0.001, 100.01)
+    high = SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02)
+    zero_power = extrapolate_zero_power_resistance(low, high)
+    inputs = TwoCurrentInputStandardUncertainties(
+        low_current_standard_uncertainty_a=0.0,
+        low_resistance_standard_uncertainty_ohms=0.001,
+        high_current_standard_uncertainty_a=0.0,
+        high_resistance_standard_uncertainty_ohms=0.001,
+    )
+    return zero_power, inputs
+
+
+def test_two_current_input_uncertainties_normalize_numeric_values() -> None:
+    inputs = TwoCurrentInputStandardUncertainties(
+        low_current_standard_uncertainty_a=1,
+        low_resistance_standard_uncertainty_ohms=2,
+        high_current_standard_uncertainty_a=3,
+        high_resistance_standard_uncertainty_ohms=4,
+    )
+
+    assert inputs.standard_uncertainty_vector == (1.0, 2.0, 3.0, 4.0)
+    assert inputs.input_parameter_names == (
+        "low_current_a",
+        "low_resistance_ohms",
+        "high_current_a",
+        "high_resistance_ohms",
+    )
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    [
+        "low_current_standard_uncertainty_a",
+        "low_resistance_standard_uncertainty_ohms",
+        "high_current_standard_uncertainty_a",
+        "high_resistance_standard_uncertainty_ohms",
+    ],
+)
+def test_two_current_input_uncertainties_reject_invalid_values(
+    field_name: str,
+) -> None:
+    kwargs: dict[str, object] = {
+        "low_current_standard_uncertainty_a": 0.0,
+        "low_resistance_standard_uncertainty_ohms": 0.0,
+        "high_current_standard_uncertainty_a": 0.0,
+        "high_resistance_standard_uncertainty_ohms": 0.0,
+    }
+    kwargs[field_name] = -1.0
+    with pytest.raises(ValueError, match="non-negative"):
+        TwoCurrentInputStandardUncertainties(**kwargs)  # type: ignore[arg-type]
+
+    kwargs[field_name] = math.inf
+    with pytest.raises(ValueError, match="finite"):
+        TwoCurrentInputStandardUncertainties(**kwargs)  # type: ignore[arg-type]
+
+    kwargs[field_name] = True
+    with pytest.raises(TypeError):
+        TwoCurrentInputStandardUncertainties(**kwargs)  # type: ignore[arg-type]
+
+
+def test_zero_power_uncertainty_matches_sqrt2_resistance_only_case() -> None:
+    zero_power, inputs = _sqrt2_uncertainty_case()
+
+    result = propagate_two_current_zero_power_uncertainty(
+        zero_power,
+        input_standard_uncertainties=inputs,
+    )
+
+    assert isinstance(result, TwoCurrentZeroPowerUncertaintyResult)
+    assert result.zero_power_result is zero_power
+    assert result.input_standard_uncertainties is inputs
+    assert result.propagation_method == "first_order_independent_inputs"
+    assert result.input_parameter_names == inputs.input_parameter_names
+    assert result.zero_power_resistance_input_sensitivity_vector[1] == pytest.approx(
+        2.0
+    )
+    assert result.zero_power_resistance_input_sensitivity_vector[3] == pytest.approx(
+        -1.0
+    )
+    assert result.zero_power_resistance_standard_uncertainty_ohms == pytest.approx(
+        math.sqrt(5.0) * 0.001
+    )
+    assert result.zero_power_resistance_variance_ohms_squared == pytest.approx(5.0e-6)
+
+
+def test_zero_power_uncertainty_includes_current_uncertainty() -> None:
+    low = SelfHeatingObservation(0.001, 100.01)
+    high = SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02)
+    zero_power = extrapolate_zero_power_resistance(low, high)
+    inputs = TwoCurrentInputStandardUncertainties(
+        low_current_standard_uncertainty_a=1.0e-6,
+        low_resistance_standard_uncertainty_ohms=0.0,
+        high_current_standard_uncertainty_a=1.0e-6,
+        high_resistance_standard_uncertainty_ohms=0.0,
+    )
+
+    result = propagate_two_current_zero_power_uncertainty(
+        zero_power,
+        input_standard_uncertainties=inputs,
+    )
+
+    sensitivities = result.zero_power_resistance_input_sensitivity_vector
+    assert sensitivities[0] == pytest.approx(-40.0)
+    assert sensitivities[2] == pytest.approx(20.0 * math.sqrt(2.0))
+    assert result.zero_power_resistance_standard_uncertainty_ohms == pytest.approx(
+        math.sqrt(2400.0) * 1.0e-6
+    )
+
+
+def test_zero_power_uncertainty_current_sensitivity_is_zero_without_resistance_change() -> (
+    None
+):
+    low = SelfHeatingObservation(0.001, 100.0)
+    high = SelfHeatingObservation(0.002, 100.0)
+    zero_power = extrapolate_zero_power_resistance(low, high)
+    inputs = TwoCurrentInputStandardUncertainties(
+        low_current_standard_uncertainty_a=1.0e-6,
+        low_resistance_standard_uncertainty_ohms=0.0,
+        high_current_standard_uncertainty_a=1.0e-6,
+        high_resistance_standard_uncertainty_ohms=0.0,
+    )
+
+    result = propagate_two_current_zero_power_uncertainty(
+        zero_power,
+        input_standard_uncertainties=inputs,
+    )
+
+    assert result.zero_power_resistance_input_sensitivity_vector[0] == 0.0
+    assert result.zero_power_resistance_input_sensitivity_vector[2] == 0.0
+    assert result.zero_power_resistance_standard_uncertainty_ohms == 0.0
+
+
+def test_temperature_uncertainty_propagates_shared_inputs_directly() -> None:
+    zero_power, inputs = _sqrt2_uncertainty_case()
+    temperatures = evaluate_two_current_temperatures(
+        zero_power,
+        model=_LinearTwoOhmPerCelsiusModel(),
+    )
+
+    result = propagate_two_current_temperature_uncertainty(
+        temperatures,
+        input_standard_uncertainties=inputs,
+    )
+
+    assert isinstance(result, TwoCurrentSelfHeatingTemperatureUncertaintyResult)
+    assert result.temperature_result is temperatures
+    assert result.zero_power_uncertainty.zero_power_result is zero_power
+    assert result.propagation_method == "first_order_independent_inputs"
+    assert result.input_parameter_names == inputs.input_parameter_names
+    assert result.zero_power_temperature_standard_uncertainty_c == pytest.approx(
+        0.5 * math.sqrt(5.0) * 0.001
+    )
+    assert result.low_current_temperature_standard_uncertainty_c == pytest.approx(
+        0.0005
+    )
+    assert result.high_current_temperature_standard_uncertainty_c == pytest.approx(
+        0.0005
+    )
+    assert result.low_current_temperature_rise_standard_uncertainty_c == pytest.approx(
+        math.sqrt(0.5) * 0.001
+    )
+    assert result.high_current_temperature_rise_standard_uncertainty_c == pytest.approx(
+        math.sqrt(2.0) * 0.001
+    )
+
+
+def test_temperature_rise_uncertainty_is_not_naive_rss_of_derived_temperatures() -> (
+    None
+):
+    zero_power, inputs = _sqrt2_uncertainty_case()
+    temperatures = evaluate_two_current_temperatures(
+        zero_power,
+        model=_LinearTwoOhmPerCelsiusModel(),
+    )
+
+    result = propagate_two_current_temperature_uncertainty(
+        temperatures,
+        input_standard_uncertainties=inputs,
+    )
+    naive = math.hypot(
+        result.low_current_temperature_standard_uncertainty_c,
+        result.zero_power_temperature_standard_uncertainty_c,
+    )
+
+    assert result.low_current_temperature_rise_standard_uncertainty_c < naive
+    assert (
+        result.low_current_temperature_rise_input_sensitivity_vector
+        == pytest.approx((20.0, -0.5, -10.0 * math.sqrt(2.0), 0.5))
+    )
+
+
+def test_two_current_uncertainty_allows_zero_standard_uncertainties() -> None:
+    low = SelfHeatingObservation(0.001, 100.01)
+    high = SelfHeatingObservation(0.002, 100.04)
+    zero_power = extrapolate_zero_power_resistance(low, high)
+    inputs = TwoCurrentInputStandardUncertainties(
+        low_current_standard_uncertainty_a=0.0,
+        low_resistance_standard_uncertainty_ohms=0.0,
+        high_current_standard_uncertainty_a=0.0,
+        high_resistance_standard_uncertainty_ohms=0.0,
+    )
+    temperatures = evaluate_two_current_temperatures(
+        zero_power,
+        model=_LinearTwoOhmPerCelsiusModel(),
+    )
+
+    resistance_result = propagate_two_current_zero_power_uncertainty(
+        zero_power,
+        input_standard_uncertainties=inputs,
+    )
+    temperature_result = propagate_two_current_temperature_uncertainty(
+        temperatures,
+        input_standard_uncertainties=inputs,
+    )
+
+    assert resistance_result.zero_power_resistance_standard_uncertainty_ohms == 0.0
+    assert temperature_result.zero_power_temperature_standard_uncertainty_c == 0.0
+    assert temperature_result.low_current_temperature_rise_standard_uncertainty_c == 0.0
+    assert (
+        temperature_result.high_current_temperature_rise_standard_uncertainty_c == 0.0
+    )
+
+
+def test_two_current_uncertainty_rejects_wrong_argument_types() -> None:
+    zero_power, inputs = _sqrt2_uncertainty_case()
+    temperatures = evaluate_two_current_temperatures(
+        zero_power,
+        model=_LinearTwoOhmPerCelsiusModel(),
+    )
+
+    with pytest.raises(TypeError, match="TwoCurrentZeroPowerResult"):
+        propagate_two_current_zero_power_uncertainty(
+            100.0,  # type: ignore[arg-type]
+            input_standard_uncertainties=inputs,
+        )
+    with pytest.raises(TypeError, match="TwoCurrentInputStandardUncertainties"):
+        propagate_two_current_zero_power_uncertainty(
+            zero_power,
+            input_standard_uncertainties=100.0,  # type: ignore[arg-type]
+        )
+    with pytest.raises(TypeError, match="TwoCurrentSelfHeatingTemperatureResult"):
+        propagate_two_current_temperature_uncertainty(
+            zero_power,  # type: ignore[arg-type]
+            input_standard_uncertainties=inputs,
+        )
+    with pytest.raises(TypeError, match="TwoCurrentInputStandardUncertainties"):
+        propagate_two_current_temperature_uncertainty(
+            temperatures,
+            input_standard_uncertainties=100.0,  # type: ignore[arg-type]
+        )
+
+
+def test_temperature_uncertainty_propagates_model_sensitivity_error() -> None:
+    class FailingSensitivityModel(_LinearTwoOhmPerCelsiusModel):
+        def temperature_sensitivity_celsius_per_ohm(
+            self, temperature_c: float
+        ) -> float:
+            raise RuntimeError("sensitivity failed")
+
+    zero_power, inputs = _sqrt2_uncertainty_case()
+    temperatures = evaluate_two_current_temperatures(
+        zero_power,
+        model=FailingSensitivityModel(),
+    )
+
+    with pytest.raises(RuntimeError, match="sensitivity failed"):
+        propagate_two_current_temperature_uncertainty(
+            temperatures,
+            input_standard_uncertainties=inputs,
+        )
