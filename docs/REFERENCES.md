@@ -87,12 +87,18 @@ Tobias, P., & Prinz, J. (2002). *Handbook 151: NIST/SEMATECH e-Handbook of
 Statistical Methods*. National Institute of Standards and Technology.
 https://www.nist.gov/publications/handbook-151-nistsematech-e-handbook-statistical-methods
 
-Relevant section: 4.1.4.3, *Weighted least squares regression*.
+Relevant sections: 4.1.4.1, *Linear least squares regression*; 4.1.4.3,
+*Weighted least squares regression*; and 4.4.3.1, *Least squares*.
+https://www.itl.nist.gov/div898/handbook/pmd/section1/pmd141.htm
 https://www.itl.nist.gov/div898/handbook/pmd/section1/pmd143.htm
+https://www.itl.nist.gov/div898/handbook/pmd/section4/pmd431.htm
 
-**Project use:** Corroborating/design source for weighted least squares and
-inverse-variance weighting when observation variances differ. Section 4.1.4.3
-explicitly describes weighting observations inversely to their variances when
+**Project use:** Implementation/corroborating source for the residual-variance-scaled
+ordinary-least-squares parameter covariance used by the 0.8.0 multi-observation
+self-heating fit and for the distinction between that fixed-coordinate/common-variance
+model and later weighted fitting. Section 4.4.3.1 gives the residual standard
+deviation estimate ``sqrt(SSE / (n - p))`` and discusses dependence between fitted
+line parameters; section 4.1.4.3 describes inverse-variance weighting when
 random-error variance is not constant.
 
 Taylor, B. N., & Kuyatt, C. E. (1994). *Guidelines for evaluating and

@@ -18,6 +18,8 @@ from rtd_sensor.self_heating import (
     TwoCurrentZeroPowerUncertaintyResult,
     ZeroPowerResistanceFitEvidence,
     ZeroPowerResistanceFitResult,
+    ZeroPowerResistanceFitUncertaintyResult,
+    estimate_zero_power_fit_uncertainty,
     evaluate_two_current_temperatures,
     extrapolate_zero_power_resistance,
     fit_zero_power_resistance,
@@ -377,6 +379,98 @@ def test_zero_power_fit_allows_repeated_two_current_cycles() -> None:
     assert result.evidence.residual_standard_deviation_ohms == pytest.approx(
         math.sqrt(2.0) * 0.001
     )
+
+
+def test_zero_power_fit_uncertainty_matches_repeated_two_current_case() -> None:
+    low_current = 0.001
+    high_current = math.sqrt(2.0) * 0.001
+    fit = fit_zero_power_resistance(
+        (
+            SelfHeatingObservation(low_current, 100.009),
+            SelfHeatingObservation(high_current, 100.019),
+            SelfHeatingObservation(low_current, 100.011),
+            SelfHeatingObservation(high_current, 100.021),
+        )
+    )
+
+    uncertainty = estimate_zero_power_fit_uncertainty(fit)
+
+    assert isinstance(uncertainty, ZeroPowerResistanceFitUncertaintyResult)
+    assert uncertainty.fit_result is fit
+    assert uncertainty.method == "residual_variance_scaled_least_squares"
+    assert uncertainty.parameter_names == (
+        "zero_power_resistance_ohms",
+        "resistance_slope_ohms_per_a2",
+    )
+    assert uncertainty.residual_variance_ohms_squared == pytest.approx(2.0e-6)
+    assert uncertainty.zero_power_resistance_variance_ohms_squared == pytest.approx(
+        5.0e-6
+    )
+    assert uncertainty.zero_power_resistance_standard_uncertainty_ohms == pytest.approx(
+        math.sqrt(5.0e-6)
+    )
+    assert uncertainty.resistance_slope_variance_ohms_squared_per_a4 == pytest.approx(
+        2.0e6
+    )
+    assert (
+        uncertainty.resistance_slope_standard_uncertainty_ohms_per_a2
+        == pytest.approx(math.sqrt(2.0e6))
+    )
+    assert (
+        uncertainty.zero_power_resistance_slope_covariance_ohms_squared_per_a2
+        == pytest.approx(-3.0)
+    )
+    assert uncertainty.parameter_covariance_matrix[0] == pytest.approx((5.0e-6, -3.0))
+    assert uncertainty.parameter_covariance_matrix[1] == pytest.approx((-3.0, 2.0e6))
+
+
+def test_zero_power_fit_uncertainty_matches_three_distinct_current_levels() -> None:
+    fit = fit_zero_power_resistance(
+        (
+            SelfHeatingObservation(1.0, 102.0),
+            SelfHeatingObservation(2.0, 108.0),
+            SelfHeatingObservation(3.0, 119.0),
+        )
+    )
+
+    uncertainty = estimate_zero_power_fit_uncertainty(fit)
+
+    assert uncertainty.residual_variance_ohms_squared == pytest.approx(9.0 / 98.0)
+    assert uncertainty.zero_power_resistance_variance_ohms_squared == pytest.approx(
+        9.0 / 98.0
+    )
+    assert uncertainty.resistance_slope_variance_ohms_squared_per_a4 == pytest.approx(
+        27.0 / 9604.0
+    )
+    assert (
+        uncertainty.zero_power_resistance_slope_covariance_ohms_squared_per_a2
+        == pytest.approx(-9.0 / 686.0)
+    )
+
+
+def test_zero_power_fit_uncertainty_is_zero_for_exact_line() -> None:
+    fit = fit_zero_power_resistance(
+        (
+            SelfHeatingObservation(1.0, 101.0),
+            SelfHeatingObservation(2.0, 104.0),
+            SelfHeatingObservation(3.0, 109.0),
+        )
+    )
+
+    uncertainty = estimate_zero_power_fit_uncertainty(fit)
+
+    assert uncertainty.residual_variance_ohms_squared == pytest.approx(0.0, abs=1e-20)
+    assert uncertainty.parameter_covariance_matrix[0] == pytest.approx(
+        (0.0, 0.0), abs=1e-20
+    )
+    assert uncertainty.parameter_covariance_matrix[1] == pytest.approx(
+        (0.0, 0.0), abs=1e-20
+    )
+
+
+def test_zero_power_fit_uncertainty_rejects_wrong_result_type() -> None:
+    with pytest.raises(TypeError, match="ZeroPowerResistanceFitResult"):
+        estimate_zero_power_fit_uncertainty(object())  # type: ignore[arg-type]
 
 
 def test_zero_power_fit_preserves_caller_observation_order() -> None:

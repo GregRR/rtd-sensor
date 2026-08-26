@@ -125,6 +125,47 @@ measurement uncertainty, thermometer, and intended use. It also remains unweight
 for now; resistance/current uncertainties and correlated effects are not silently
 inserted into the objective.
 
+### Estimate fit-parameter uncertainty from residual scatter
+
+For an unweighted 3+ observation fit, residual scatter can also provide the usual
+ordinary-least-squares estimate of uncertainty in the fitted zero-power resistance
+and slope:
+
+```python
+fit_uncertainty = self_heating.estimate_zero_power_fit_uncertainty(fit)
+
+print(fit_uncertainty.zero_power_resistance_standard_uncertainty_ohms)
+print(fit_uncertainty.resistance_slope_standard_uncertainty_ohms_per_a2)
+print(fit_uncertainty.parameter_covariance_matrix)
+```
+
+The estimate uses the residual variance
+`SSE / residual_degrees_of_freedom` and the two-parameter ordinary-least-squares
+information matrix. The covariance matrix order is:
+
+```text
+zero_power_resistance_ohms
+resistance_slope_ohms_per_a2
+```
+
+This is a **conditional regression uncertainty estimate**, not a complete
+measurement uncertainty budget. It assumes the sampled `I²` values are effectively
+known, and that the resistance-domain errors about the fitted line are independent
+and zero-mean with a common variance. That unknown variance is estimated from the
+retained residuals. This makes the result useful for repeated-current experiments
+whose scatter reasonably matches those assumptions.
+
+If measurement-current uncertainty is material, however, the independent
+coordinate itself is uncertain. Ordinary least squares does not account for that.
+Likewise, unequal resistance uncertainties, correlation among repeated readings,
+or shared bridge/current-source/calibration effects need an explicit statistical
+model rather than being inferred from the residuals.
+
+A perfectly fitted finite dataset can produce zero residual-based covariance. That
+does **not** prove the experiment has zero physical uncertainty; it only means the
+residual-scatter estimator has no scatter from which to estimate a nonzero common
+resistance variance.
+
 A positive fitted slope is the direction ordinarily expected for self-heating.
 Zero or negative slopes are retained and reported as evidence rather than being
 rejected, because software cannot determine from the sign alone whether the cause

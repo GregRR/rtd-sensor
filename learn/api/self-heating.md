@@ -8,8 +8,8 @@ description: Quick API reference for rtd_sensor.self_heating observations, zero-
 The self-heating API is **introduced in rtd-sensor 0.8.0**. It provides the
 standard two-current resistance-domain extrapolation to zero measurement current,
 a 3+ observation least-squares fit of the same resistance-versus-current-squared
-relationship, and model-based temperature/uncertainty analysis for the two-current
-result.
+relationship, residual-based parameter covariance for that larger fit, and
+model-based temperature/uncertainty analysis for the two-current result.
 
 ## `SelfHeatingObservation`
 
@@ -132,6 +132,58 @@ uses `sqrt(SSE / residual_degrees_of_freedom)`.
 These diagnostics provide evidence about scatter and departures from the fitted
 line, but they do not prove that the external temperature was stable. Interpreting
 a residual magnitude as acceptable still requires an experiment-specific basis.
+
+## `estimate_zero_power_fit_uncertainty`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+```python
+estimate_zero_power_fit_uncertainty(
+    result: ZeroPowerResistanceFitResult,
+) -> ZeroPowerResistanceFitUncertaintyResult
+```
+
+Estimates the fitted-parameter covariance from the unweighted fit's retained
+residual scatter. The calculation uses the residual variance
+`SSE / residual_degrees_of_freedom` and ordinary-least-squares parameter covariance.
+It treats measurement-current-squared coordinates as fixed/exact and assumes the
+resistance-domain errors about the linear model are independent and zero-mean with
+a common variance. That unknown variance is estimated from the retained residuals.
+
+It does not incorporate measurement-current uncertainty, supplied resistance
+standard uncertainties, heteroscedasticity, correlated repeated observations, or
+fitted RTD-model covariance. Those require a different or larger statistical model.
+
+## `ZeroPowerResistanceFitUncertaintyResult`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+Fields and read-only derived properties:
+
+```text
+fit_result: ZeroPowerResistanceFitResult
+residual_variance_ohms_squared: float
+parameter_names: tuple[str, str]
+parameter_covariance_matrix: tuple[tuple[float, float], tuple[float, float]]
+zero_power_resistance_variance_ohms_squared: float
+zero_power_resistance_standard_uncertainty_ohms: float
+resistance_slope_variance_ohms_squared_per_a4: float
+resistance_slope_standard_uncertainty_ohms_per_a2: float
+zero_power_resistance_slope_covariance_ohms_squared_per_a2: float
+method: "residual_variance_scaled_least_squares"
+```
+
+The covariance-matrix parameter order is:
+
+```text
+zero_power_resistance_ohms
+resistance_slope_ohms_per_a2
+```
+
+A zero residual-based covariance from an exact finite fit is not a statement that
+the physical experiment has zero uncertainty. It only means this residual-scatter
+estimator observed no scatter from which to estimate a nonzero common resistance
+variance.
 
 
 ## `evaluate_two_current_temperatures`

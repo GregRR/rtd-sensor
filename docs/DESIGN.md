@@ -1027,6 +1027,24 @@ measurement uncertainties into the objective. Uncertainty-weighted fitting,
 correlated-input treatment, and experiment-specific acceptance rules require an
 explicit statistical basis before they are added.
 
+For an unweighted fit with positive residual degrees of freedom,
+``estimate_zero_power_fit_uncertainty()`` can estimate covariance of the fitted
+zero-power resistance and ``dR/d(I^2)`` slope from the residual variance. This is
+the ordinary-least-squares parameter-covariance model: the sampled current-squared
+coordinates are treated as fixed/exact, resistance-domain errors about the linear
+model are assumed independent and zero-mean with a common variance, and that unknown
+variance is estimated from the fitted residuals as
+``SSE / residual_degrees_of_freedom``. The public result retains the residual
+variance, parameter order, full 2 x 2 covariance matrix, parameter standard
+uncertainties, and intercept/slope covariance.
+
+This covariance is deliberately not described as propagation of measurement-current
+uncertainty. If uncertainty in current is material, the independent coordinate has
+measurement error and ordinary least squares is not an adequate uncertainty model.
+Likewise, heteroscedastic resistance uncertainty, correlated repeated readings, and
+other common-mode effects require an explicit weighted, covariance-aware, or
+errors-in-variables treatment rather than being inferred from residual scatter.
+
 The self-heating layer still does not automatically alter an RTD model or a
 general uncertainty budget. Later 0.8.0 work may add covariance-aware handling
 where justified and report dissipation/self-heating quantities only when the

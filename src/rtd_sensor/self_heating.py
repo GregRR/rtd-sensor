@@ -25,6 +25,7 @@ __all__ = [
     "SelfHeatingObservation",
     "ZeroPowerResistanceFitEvidence",
     "ZeroPowerResistanceFitResult",
+    "ZeroPowerResistanceFitUncertaintyResult",
     "TwoCurrentInputStandardUncertainties",
     "TwoCurrentSelfHeatingTemperatureResult",
     "TwoCurrentSelfHeatingTemperatureUncertaintyResult",
@@ -32,6 +33,7 @@ __all__ = [
     "TwoCurrentZeroPowerResult",
     "TwoCurrentZeroPowerUncertaintyResult",
     "evaluate_two_current_temperatures",
+    "estimate_zero_power_fit_uncertainty",
     "fit_zero_power_resistance",
     "extrapolate_zero_power_resistance",
     "propagate_two_current_temperature_uncertainty",
@@ -40,6 +42,7 @@ __all__ = [
 
 _TwoCurrentMethod = Literal["linear_resistance_vs_current_squared"]
 _ZeroPowerFitMethod = Literal["ordinary_least_squares_resistance_vs_current_squared"]
+_ZeroPowerFitUncertaintyMethod = Literal["residual_variance_scaled_least_squares"]
 _TwoCurrentUncertaintyMethod = Literal["first_order_independent_inputs"]
 _TWO_CURRENT_INPUT_PARAMETER_NAMES = (
     "low_current_a",
@@ -449,6 +452,81 @@ class ZeroPowerResistanceFitResult:
         return "zero"
 
 
+@dataclass(frozen=True, slots=True)
+class ZeroPowerResistanceFitUncertaintyResult:
+    """Residual-scatter parameter uncertainty for one unweighted zero-power fit.
+
+    The estimate is conditional on the ordinary-least-squares assumptions used by
+    :func:`fit_zero_power_resistance`: current-squared coordinates are treated as
+    fixed/exact, and resistance-domain errors about the linear model are assumed
+    independent and zero-mean with a common variance. The unknown common variance
+    is estimated from the retained residuals using the positive residual degrees of
+    freedom.
+
+    This result does not incorporate measurement-current uncertainty, supplied
+    resistance standard uncertainties, heteroscedasticity, correlated effects, or
+    fitted RTD-model covariance.
+    """
+
+    fit_result: ZeroPowerResistanceFitResult
+    residual_variance_ohms_squared: float = field(init=False)
+    parameter_covariance_matrix: tuple[
+        tuple[float, float],
+        tuple[float, float],
+    ] = field(init=False)
+    method: _ZeroPowerFitUncertaintyMethod = field(
+        init=False,
+        default="residual_variance_scaled_least_squares",
+    )
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.fit_result, ZeroPowerResistanceFitResult):
+            raise TypeError("fit_result must be a ZeroPowerResistanceFitResult")
+
+        residual_variance, covariance = _zero_power_fit_parameter_covariance(
+            self.fit_result
+        )
+        object.__setattr__(
+            self,
+            "residual_variance_ohms_squared",
+            residual_variance,
+        )
+        object.__setattr__(self, "parameter_covariance_matrix", covariance)
+
+    @property
+    def parameter_names(self) -> tuple[str, str]:
+        """Return covariance-matrix parameter order."""
+        return (
+            "zero_power_resistance_ohms",
+            "resistance_slope_ohms_per_a2",
+        )
+
+    @property
+    def zero_power_resistance_variance_ohms_squared(self) -> float:
+        """Return fitted zero-power-resistance variance."""
+        return self.parameter_covariance_matrix[0][0]
+
+    @property
+    def zero_power_resistance_standard_uncertainty_ohms(self) -> float:
+        """Return fitted zero-power-resistance standard uncertainty."""
+        return math.sqrt(self.zero_power_resistance_variance_ohms_squared)
+
+    @property
+    def resistance_slope_variance_ohms_squared_per_a4(self) -> float:
+        """Return fitted ``dR/d(I²)`` slope variance."""
+        return self.parameter_covariance_matrix[1][1]
+
+    @property
+    def resistance_slope_standard_uncertainty_ohms_per_a2(self) -> float:
+        """Return fitted ``dR/d(I²)`` slope standard uncertainty."""
+        return math.sqrt(self.resistance_slope_variance_ohms_squared_per_a4)
+
+    @property
+    def zero_power_resistance_slope_covariance_ohms_squared_per_a2(self) -> float:
+        """Return covariance between fitted intercept and slope."""
+        return self.parameter_covariance_matrix[0][1]
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class TwoCurrentInputStandardUncertainties:
     """Independent standard uncertainties for the four two-current inputs.
@@ -810,6 +888,28 @@ def propagate_two_current_temperature_uncertainty(
     )
 
 
+def estimate_zero_power_fit_uncertainty(
+    result: ZeroPowerResistanceFitResult,
+) -> ZeroPowerResistanceFitUncertaintyResult:
+    """Estimate OLS fit-parameter uncertainty from retained resistance residuals.
+
+    The returned covariance uses the fitted residual variance and the ordinary
+    least-squares information matrix. It treats the current-squared coordinates as
+    fixed/exact and assumes resistance-domain errors about the linear model are
+    independent and zero-mean with a common variance. The unknown variance is
+    estimated from retained residual scatter. This is not propagation of
+    measurement-current uncertainty or a substitute for an experiment-specific
+    uncertainty model.
+
+    Raises:
+        TypeError: If ``result`` is not a :class:`ZeroPowerResistanceFitResult`.
+        ValueError: If the resulting covariance cannot be represented finitely.
+    """
+    if not isinstance(result, ZeroPowerResistanceFitResult):
+        raise TypeError("result must be a ZeroPowerResistanceFitResult")
+    return ZeroPowerResistanceFitUncertaintyResult(fit_result=result)
+
+
 def fit_zero_power_resistance(
     observations: Iterable[SelfHeatingObservation],
 ) -> ZeroPowerResistanceFitResult:
@@ -939,6 +1039,91 @@ def _fit_zero_power_line(
     if not all(math.isfinite(value) for value in (*fitted_resistances, *residuals)):
         raise ValueError("Zero-power fit diagnostics must remain finite")
     return zero_power_resistance, slope, residuals
+
+
+def _zero_power_fit_parameter_covariance(
+    result: ZeroPowerResistanceFitResult,
+) -> tuple[
+    float,
+    tuple[tuple[float, float], tuple[float, float]],
+]:
+    evidence = result.evidence
+    residual_standard_deviation = evidence.residual_standard_deviation_ohms
+    if residual_standard_deviation == 0.0:
+        return (0.0, ((0.0, 0.0), (0.0, 0.0)))
+    residual_variance = residual_standard_deviation * residual_standard_deviation
+    if not math.isfinite(residual_variance) or residual_variance <= 0.0:
+        raise ValueError(
+            "Zero-power fit residual variance is not finitely representable"
+        )
+
+    current_squared = tuple(
+        observation.current_squared_a2 for observation in evidence.observations
+    )
+    x_min = min(current_squared)
+    x_span = max(current_squared) - x_min
+    if not math.isfinite(x_span) or x_span <= 0.0:
+        raise ValueError("Zero-power fit current-squared span must be positive")
+
+    scaled_x = tuple((value - x_min) / x_span for value in current_squared)
+    mean_scaled_x = math.fsum(scaled_x) / evidence.observation_count
+    centered_sum_squares = math.fsum((value - mean_scaled_x) ** 2 for value in scaled_x)
+    if not math.isfinite(centered_sum_squares) or centered_sum_squares <= 0.0:
+        raise ValueError("Zero-power fit information matrix must be finite")
+
+    residual_sd = residual_standard_deviation
+    slope_sd_scaled = residual_sd / math.sqrt(centered_sum_squares)
+    slope_sd = slope_sd_scaled / x_span
+    zero_coordinate_scaled = x_min / x_span + mean_scaled_x
+    intercept_sd = residual_sd * math.hypot(
+        1.0 / math.sqrt(evidence.observation_count),
+        zero_coordinate_scaled / math.sqrt(centered_sum_squares),
+    )
+
+    if (
+        not math.isfinite(intercept_sd)
+        or not math.isfinite(slope_sd)
+        or intercept_sd <= 0.0
+        or slope_sd <= 0.0
+    ):
+        raise ValueError(
+            "Zero-power fit parameter standard uncertainties are not finitely "
+            "representable"
+        )
+
+    intercept_variance = intercept_sd * intercept_sd
+    slope_variance = slope_sd * slope_sd
+    correlation_denominator = math.hypot(
+        zero_coordinate_scaled,
+        math.sqrt(centered_sum_squares / evidence.observation_count),
+    )
+    if correlation_denominator == 0.0 or not math.isfinite(correlation_denominator):
+        raise ValueError("Zero-power fit covariance correlation must remain finite")
+    correlation = -zero_coordinate_scaled / correlation_denominator
+    covariance = correlation * intercept_sd * slope_sd
+    values = (
+        intercept_variance,
+        slope_variance,
+        covariance,
+    )
+    if not all(math.isfinite(value) for value in values):
+        raise ValueError("Zero-power fit parameter covariance must remain finite")
+    if intercept_variance <= 0.0 or slope_variance <= 0.0:
+        raise ValueError(
+            "Zero-power fit parameter variances are not finitely representable"
+        )
+    if correlation != 0.0 and covariance == 0.0:
+        raise ValueError(
+            "Zero-power fit parameter covariance is not finitely representable"
+        )
+
+    return (
+        residual_variance,
+        (
+            (intercept_variance, covariance),
+            (covariance, slope_variance),
+        ),
+    )
 
 
 def _zero_power_resistance_input_sensitivities(

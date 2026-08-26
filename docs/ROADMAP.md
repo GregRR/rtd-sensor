@@ -142,12 +142,16 @@ Implemented in the current 0.8.0 development checkpoint:
   zero-power resistance, model-based temperatures, and temperature rises; and
 - unweighted 3+ observation fitting of resistance versus current squared with
   retained residuals, residual degrees of freedom, repeated-current support, and
-  descriptive residual/consistency diagnostics.
+  descriptive residual/consistency diagnostics; and
+- residual-variance-scaled ordinary-least-squares covariance for the 3+ observation
+  fit parameters, conditional on fixed current-squared coordinates and independent,
+  zero-mean resistance-domain errors with a common variance.
 
 Remaining 0.8.0 scope includes:
 
-- uncertainty-weighted/covariance-aware extensions to larger-observation fitting
-  where a defensible statistical model justifies them, plus any experiment-specific
+- uncertainty-weighted or errors-in-variables extensions to larger-observation
+  fitting where supplied resistance/current uncertainties justify them, plus any
+  correlated-observation treatment and experiment-specific
   residual acceptance criteria that can be stated without inventing universal
   thresholds;
 - self-heating coefficient or dissipation constant when the observations and
