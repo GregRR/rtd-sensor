@@ -16,8 +16,11 @@ from rtd_sensor.self_heating import (
     TwoCurrentZeroPowerEvidence,
     TwoCurrentZeroPowerResult,
     TwoCurrentZeroPowerUncertaintyResult,
+    ZeroPowerResistanceFitEvidence,
+    ZeroPowerResistanceFitResult,
     evaluate_two_current_temperatures,
     extrapolate_zero_power_resistance,
+    fit_zero_power_resistance,
     propagate_two_current_temperature_uncertainty,
     propagate_two_current_zero_power_uncertainty,
 )
@@ -321,6 +324,251 @@ def test_two_current_temperature_evaluation_rejects_nonfinite_model_result() -> 
 
     with pytest.raises(ValueError, match="Zero-power temperature must be finite"):
         evaluate_two_current_temperatures(zero_power, model=NonFiniteModel())
+
+
+def test_zero_power_fit_matches_exact_three_point_line() -> None:
+    observations = (
+        SelfHeatingObservation(0.001, 100.01),
+        SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02),
+        SelfHeatingObservation(0.002, 100.04),
+    )
+
+    result = fit_zero_power_resistance(observations)
+
+    assert isinstance(result, ZeroPowerResistanceFitResult)
+    assert isinstance(result.evidence, ZeroPowerResistanceFitEvidence)
+    assert result.zero_power_resistance_ohms == pytest.approx(100.0)
+    assert result.resistance_slope_ohms_per_a2 == pytest.approx(10000.0)
+    assert result.resistance_slope_direction == "positive"
+    assert result.evidence.observations == observations
+    assert result.evidence.observation_count == 3
+    assert result.evidence.fitted_parameter_count == 2
+    assert result.evidence.residual_degrees_of_freedom == 1
+    assert result.evidence.distinct_current_count == 3
+    assert result.evidence.current_squared_span_a2 == pytest.approx(3.0e-6)
+    assert result.evidence.rms_residual_ohms == pytest.approx(0.0, abs=1e-12)
+    assert result.evidence.max_absolute_residual_ohms == pytest.approx(0.0, abs=1e-12)
+    assert result.evidence.residual_standard_deviation_ohms == pytest.approx(
+        0.0, abs=1e-12
+    )
+
+
+def test_zero_power_fit_allows_repeated_two_current_cycles() -> None:
+    low_current = 0.001
+    high_current = math.sqrt(2.0) * 0.001
+    observations = (
+        SelfHeatingObservation(low_current, 100.009),
+        SelfHeatingObservation(high_current, 100.019),
+        SelfHeatingObservation(low_current, 100.011),
+        SelfHeatingObservation(high_current, 100.021),
+    )
+
+    result = fit_zero_power_resistance(observations)
+
+    assert result.zero_power_resistance_ohms == pytest.approx(100.0)
+    assert result.resistance_slope_ohms_per_a2 == pytest.approx(10000.0)
+    assert result.evidence.distinct_current_count == 2
+    assert result.evidence.residual_degrees_of_freedom == 2
+    assert result.evidence.observations == observations
+    assert result.evidence.residuals_ohms == pytest.approx(
+        (-0.001, -0.001, 0.001, 0.001)
+    )
+    assert result.evidence.rms_residual_ohms == pytest.approx(0.001)
+    assert result.evidence.residual_standard_deviation_ohms == pytest.approx(
+        math.sqrt(2.0) * 0.001
+    )
+
+
+def test_zero_power_fit_preserves_caller_observation_order() -> None:
+    observations = (
+        SelfHeatingObservation(0.002, 100.04),
+        SelfHeatingObservation(0.001, 100.01),
+        SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02),
+    )
+
+    result = fit_zero_power_resistance(observations)
+
+    assert result.evidence.observations == observations
+    assert result.evidence.fitted_resistances_ohms == pytest.approx(
+        tuple(observation.resistance_ohms for observation in observations)
+    )
+
+
+def test_zero_power_fit_reports_nonzero_residual_diagnostics() -> None:
+    observations = (
+        SelfHeatingObservation(0.001, 100.01),
+        SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.021),
+        SelfHeatingObservation(0.002, 100.04),
+        SelfHeatingObservation(math.sqrt(5.0) * 0.001, 100.052),
+    )
+
+    result = fit_zero_power_resistance(observations)
+
+    assert result.evidence.residual_degrees_of_freedom == 2
+    assert result.evidence.rms_residual_ohms > 0.0
+    assert result.evidence.max_absolute_residual_ohms > 0.0
+    assert result.evidence.residual_standard_deviation_ohms > 0.0
+    assert len(result.evidence.residuals_ohms) == len(observations)
+    assert math.fsum(result.evidence.residuals_ohms) == pytest.approx(0.0, abs=1e-12)
+
+
+def test_zero_power_fit_retains_negative_slope_as_evidence() -> None:
+    observations = (
+        SelfHeatingObservation(0.001, 100.03),
+        SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02),
+        SelfHeatingObservation(0.002, 100.00),
+    )
+
+    result = fit_zero_power_resistance(observations)
+
+    assert result.zero_power_resistance_ohms == pytest.approx(100.04)
+    assert result.resistance_slope_ohms_per_a2 < 0.0
+    assert result.resistance_slope_direction == "negative"
+
+
+def test_zero_power_fit_retains_zero_slope_as_evidence() -> None:
+    result = fit_zero_power_resistance(
+        (
+            SelfHeatingObservation(0.001, 100.0),
+            SelfHeatingObservation(0.002, 100.0),
+            SelfHeatingObservation(0.003, 100.0),
+        )
+    )
+
+    assert result.zero_power_resistance_ohms == pytest.approx(100.0)
+    assert result.resistance_slope_ohms_per_a2 == pytest.approx(0.0)
+    assert result.resistance_slope_direction == "zero"
+
+
+def test_zero_power_fit_handles_large_resistance_scale_without_sum_overflow() -> None:
+    result = fit_zero_power_resistance(
+        (
+            SelfHeatingObservation(1.0e-154, 1.0e308),
+            SelfHeatingObservation(1.1e-154, 1.0e308),
+            SelfHeatingObservation(1.2e-154, 1.0e308),
+        )
+    )
+
+    assert result.zero_power_resistance_ohms == 1.0e308
+    assert result.resistance_slope_ohms_per_a2 == 0.0
+    assert result.evidence.rms_residual_ohms == 0.0
+
+
+def test_zero_power_fit_accepts_generator() -> None:
+    observations = (
+        SelfHeatingObservation(0.001, 100.01),
+        SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02),
+        SelfHeatingObservation(0.002, 100.04),
+    )
+
+    result = fit_zero_power_resistance(observation for observation in observations)
+
+    assert result.zero_power_resistance_ohms == pytest.approx(100.0)
+
+
+def test_zero_power_fit_requires_three_observations() -> None:
+    with pytest.raises(ValueError, match="at least three"):
+        fit_zero_power_resistance(
+            (
+                SelfHeatingObservation(0.001, 100.01),
+                SelfHeatingObservation(0.002, 100.04),
+            )
+        )
+
+
+def test_zero_power_fit_requires_two_distinct_current_levels() -> None:
+    with pytest.raises(ValueError, match="distinct current levels"):
+        fit_zero_power_resistance(
+            (
+                SelfHeatingObservation(0.001, 100.00),
+                SelfHeatingObservation(0.001, 100.01),
+                SelfHeatingObservation(0.001, 100.02),
+            )
+        )
+
+
+def test_zero_power_fit_rejects_non_observation() -> None:
+    with pytest.raises(TypeError, match="SelfHeatingObservation"):
+        fit_zero_power_resistance(
+            (
+                SelfHeatingObservation(0.001, 100.01),
+                SelfHeatingObservation(0.002, 100.04),
+                100.0,  # type: ignore[arg-type]
+            )
+        )
+
+
+def test_zero_power_fit_rejects_nonpositive_intercept() -> None:
+    with pytest.raises(ValueError, match="greater than zero"):
+        fit_zero_power_resistance(
+            (
+                SelfHeatingObservation(1.0, 3.0),
+                SelfHeatingObservation(2.0, 15.0),
+                SelfHeatingObservation(3.0, 35.0),
+            )
+        )
+
+
+def test_zero_power_fit_result_rejects_inconsistent_intercept() -> None:
+    result = fit_zero_power_resistance(
+        (
+            SelfHeatingObservation(0.001, 100.01),
+            SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02),
+            SelfHeatingObservation(0.002, 100.04),
+        )
+    )
+
+    with pytest.raises(ValueError, match="consistent with retained fit evidence"):
+        ZeroPowerResistanceFitResult(
+            zero_power_resistance_ohms=99.0,
+            resistance_slope_ohms_per_a2=result.resistance_slope_ohms_per_a2,
+            evidence=result.evidence,
+        )
+
+
+def test_zero_power_fit_result_rejects_inconsistent_slope() -> None:
+    result = fit_zero_power_resistance(
+        (
+            SelfHeatingObservation(0.001, 100.01),
+            SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02),
+            SelfHeatingObservation(0.002, 100.04),
+        )
+    )
+
+    with pytest.raises(ValueError, match="consistent with retained fit evidence"):
+        ZeroPowerResistanceFitResult(
+            zero_power_resistance_ohms=result.zero_power_resistance_ohms,
+            resistance_slope_ohms_per_a2=9999.0,
+            evidence=result.evidence,
+        )
+
+
+def test_zero_power_fit_evidence_rejects_residual_count_mismatch() -> None:
+    observations = (
+        SelfHeatingObservation(0.001, 100.01),
+        SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02),
+        SelfHeatingObservation(0.002, 100.04),
+    )
+
+    with pytest.raises(ValueError, match="residual count"):
+        ZeroPowerResistanceFitEvidence(
+            observations=observations,
+            residuals_ohms=(0.0, 0.0),
+        )
+
+
+def test_zero_power_fit_evidence_rejects_inconsistent_residuals() -> None:
+    observations = (
+        SelfHeatingObservation(0.001, 100.01),
+        SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02),
+        SelfHeatingObservation(0.002, 100.04),
+    )
+
+    with pytest.raises(ValueError, match="consistent with retained observations"):
+        ZeroPowerResistanceFitEvidence(
+            observations=observations,
+            residuals_ohms=(1.0, 1.0, 1.0),
+        )
 
 
 class _LinearTwoOhmPerCelsiusModel:

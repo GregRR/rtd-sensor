@@ -142,6 +142,8 @@ def test_package_exports_self_heating_module() -> None:
 def test_self_heating_public_api() -> None:
     assert set(self_heating.__all__) == {
         "SelfHeatingObservation",
+        "ZeroPowerResistanceFitEvidence",
+        "ZeroPowerResistanceFitResult",
         "TwoCurrentInputStandardUncertainties",
         "TwoCurrentSelfHeatingTemperatureResult",
         "TwoCurrentSelfHeatingTemperatureUncertaintyResult",
@@ -149,6 +151,7 @@ def test_self_heating_public_api() -> None:
         "TwoCurrentZeroPowerResult",
         "TwoCurrentZeroPowerUncertaintyResult",
         "evaluate_two_current_temperatures",
+        "fit_zero_power_resistance",
         "extrapolate_zero_power_resistance",
         "propagate_two_current_temperature_uncertainty",
         "propagate_two_current_zero_power_uncertainty",

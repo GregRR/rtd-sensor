@@ -1,14 +1,15 @@
 ---
 title: self_heating API
-description: Quick API reference for rtd_sensor.self_heating observations, two-current evidence, and zero-power resistance extrapolation.
+description: Quick API reference for rtd_sensor.self_heating observations, zero-power extrapolation, multi-observation fitting, and uncertainty propagation.
 ---
 
 # `rtd_sensor.self_heating`
 
 The self-heating API is **introduced in rtd-sensor 0.8.0**. It provides the
-standard two-current resistance-domain extrapolation to zero measurement current
-and can then convert the zero-power and observed resistances through an explicitly
-supplied RTD model.
+standard two-current resistance-domain extrapolation to zero measurement current,
+a 3+ observation least-squares fit of the same resistance-versus-current-squared
+relationship, and model-based temperature/uncertainty analysis for the two-current
+result.
 
 ## `SelfHeatingObservation`
 
@@ -57,6 +58,80 @@ linearity or prove that the experimental thermal condition was stable. Use
 the measured currents and resistances are available, and use
 `evaluate_two_current_temperatures(...)` when model-based temperatures are also
 wanted.
+
+
+## `fit_zero_power_resistance`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+```python
+fit_zero_power_resistance(
+    observations: Iterable[SelfHeatingObservation],
+) -> ZeroPowerResistanceFitResult
+```
+
+Fits the same linear self-heating relation used by the two-current method:
+
+```text
+R(i) = R0 + k*i²
+```
+
+At least three observations and at least two numerically distinct current levels
+are required. Repeated measurements at the same current levels are allowed, so a
+sequence such as low/high/low/high can retain repeated-cycle scatter while still
+providing positive residual degrees of freedom.
+
+The first multi-observation implementation uses **unweighted ordinary least
+squares** in resistance. It does not use `I²R` as the fit coordinate and does not
+yet incorporate current uncertainty, resistance uncertainty, covariance, or an
+automatic residual pass/fail threshold.
+
+## `ZeroPowerResistanceFitResult`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+Fields and read-only diagnostics:
+
+```text
+zero_power_resistance_ohms: float
+resistance_slope_ohms_per_a2: float
+evidence: ZeroPowerResistanceFitEvidence
+resistance_slope_direction: "positive" | "zero" | "negative"
+```
+
+A positive slope is the direction expected for ordinary self-heating under the
+linear model. Zero and negative slopes are retained as evidence instead of being
+rejected or silently relabeled as valid self-heating.
+
+## `ZeroPowerResistanceFitEvidence`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+The evidence preserves the observations in caller-supplied order and retains one
+residual for each observation. Derived diagnostics include:
+
+```text
+observation_count: int
+fitted_parameter_count: int                # always 2
+residual_degrees_of_freedom: int           # observation_count - 2
+distinct_current_count: int
+minimum_measurement_current_a: float
+maximum_measurement_current_a: float
+current_squared_span_a2: float
+rms_residual_ohms: float
+max_absolute_residual_ohms: float
+residual_standard_deviation_ohms: float
+fitted_resistances_ohms: tuple[float, ...]
+method: "ordinary_least_squares_resistance_vs_current_squared"
+```
+
+Residuals are `observed resistance - fitted resistance`. RMS residual is the
+descriptive `sqrt(SSE / observation_count)` quantity; residual standard deviation
+uses `sqrt(SSE / residual_degrees_of_freedom)`.
+
+These diagnostics provide evidence about scatter and departures from the fitted
+line, but they do not prove that the external temperature was stable. Interpreting
+a residual magnitude as acceptable still requires an experiment-specific basis.
 
 
 ## `evaluate_two_current_temperatures`

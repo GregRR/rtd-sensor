@@ -1,6 +1,6 @@
 ---
 title: Self-heating and zero-power resistance
-description: Use two current/resistance observations to extrapolate RTD resistance to zero measurement current without mixing acquisition control into the RTD model.
+description: Extrapolate RTD resistance to zero measurement current from two or more current/resistance observations without mixing acquisition control into the RTD model.
 ---
 
 # Self-heating and zero-power resistance
@@ -54,6 +54,82 @@ result = self_heating.extrapolate_zero_power_resistance(low, high)
 print(result.zero_power_resistance_ohms)       # approximately 100.0
 print(result.low_current_resistance_rise_ohms) # approximately 0.01
 ```
+
+## Fit three or more observations
+
+With three or more observations, `rtd-sensor` can fit the same
+resistance-versus-current-squared relationship instead of forcing an exact line
+through only two points:
+
+```python
+observations = [
+    self_heating.SelfHeatingObservation(0.001, 100.010),
+    self_heating.SelfHeatingObservation(2**0.5 * 0.001, 100.019),
+    self_heating.SelfHeatingObservation(0.001, 100.011),
+    self_heating.SelfHeatingObservation(2**0.5 * 0.001, 100.021),
+]
+
+fit = self_heating.fit_zero_power_resistance(observations)
+
+print(fit.zero_power_resistance_ohms)
+print(fit.resistance_slope_ohms_per_a2)
+print(fit.evidence.residuals_ohms)
+print(fit.evidence.residual_standard_deviation_ohms)
+```
+
+The fit is:
+
+```text
+R(i) = R0 + k*i²
+```
+
+and uses ordinary least squares in resistance. The observation-level `I²R` power
+remains available for inspection, but it is **not** substituted as the independent
+fit coordinate. That keeps the larger-observation analysis on the same model as
+the documented two-current extrapolation and avoids putting measured resistance
+on both sides of the regression.
+
+### Repeated current cycles are allowed
+
+Three observations do not require three different current levels. Repeated
+low/high cycles are useful evidence when the experiment needs multiple readings to
+estimate a stable difference. For example:
+
+```text
+low → high → low → high
+```
+
+provides four observations at two current levels and two residual degrees of
+freedom. `rtd-sensor` preserves the observations and residuals in the order the
+caller supplied them so the sequence remains inspectable.
+
+### What the residuals tell you
+
+The returned evidence reports:
+
+- every resistance residual (`observed - fitted`);
+- descriptive RMS residual;
+- maximum absolute residual;
+- residual standard deviation using the positive residual degrees of freedom;
+- the number of observations and distinct current levels; and
+- the sampled current and current-squared span.
+
+A larger observation set can therefore expose scatter or departures from the
+assumed linear relation that two points cannot reveal. It still cannot prove that
+the external temperature was stable. Drift, incomplete settling, acquisition
+error, and genuine nonlinearity can all appear in the residuals.
+
+The first multi-observation fit deliberately does **not** assign a universal
+"good" or "bad" residual threshold. Such a threshold depends on the experiment,
+measurement uncertainty, thermometer, and intended use. It also remains unweighted
+for now; resistance/current uncertainties and correlated effects are not silently
+inserted into the objective.
+
+A positive fitted slope is the direction ordinarily expected for self-heating.
+Zero or negative slopes are retained and reported as evidence rather than being
+rejected, because software cannot determine from the sign alone whether the cause
+was negligible heating, drift, measurement noise, or an invalid experiment.
+
 
 ## Convert the result to zero-power temperature
 
@@ -165,10 +241,10 @@ analysis:
 It also exposes `current_squared_a2` and the observed electrical power
 `dissipated_power_w = I²R` for inspection and later analysis.
 
-The two-current method intentionally uses the documented **resistance versus
-current-squared** extrapolation rather than substituting `I²R` as the independent
-coordinate. A later 0.8.0 slice may add statistically justified analysis of larger
-observation sets.
+Both the two-current extrapolation and the multi-observation fit intentionally use
+the documented **resistance versus current-squared** relationship rather than
+substituting `I²R` as the independent coordinate. Observation-level power remains
+available for later dissipation/self-heating analysis.
 
 ## Experimental assumptions matter
 
@@ -188,7 +264,8 @@ as experimentally stable.
 The current 0.8.0 implementation does not yet provide:
 
 - covariance-aware propagation for correlated two-current measurement inputs;
-- multi-observation fitting and residual diagnostics;
+- uncertainty-weighted or covariance-aware multi-observation fitting;
+- an automatic experiment-specific residual acceptance threshold;
 - dissipation/self-heating coefficients; or
 - environmental provenance such as medium, flow, or mounting.
 

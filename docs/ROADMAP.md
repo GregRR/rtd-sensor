@@ -137,14 +137,19 @@ Implemented in the current 0.8.0 development checkpoint:
 - explicit `zero_power_resistance_ohms` and corresponding zero-power temperature
   through a supplied RTD model;
 - self-heating temperature rise at both observed current levels;
-- retained two-current evidence and method details; and
+- retained two-current evidence and method details;
 - first-order propagation of independent current/resistance input uncertainties to
-  zero-power resistance, model-based temperatures, and temperature rises.
+  zero-power resistance, model-based temperatures, and temperature rises; and
+- unweighted 3+ observation fitting of resistance versus current squared with
+  retained residuals, residual degrees of freedom, repeated-current support, and
+  descriptive residual/consistency diagnostics.
 
 Remaining 0.8.0 scope includes:
 
-- support for additional observations with statistically justified fitting and
-  residual/consistency diagnostics;
+- uncertainty-weighted/covariance-aware extensions to larger-observation fitting
+  where a defensible statistical model justifies them, plus any experiment-specific
+  residual acceptance criteria that can be stated without inventing universal
+  thresholds;
 - self-heating coefficient or dissipation constant when the observations and
   environmental context justify reporting one;
 - correlated-input uncertainty handling where justified;

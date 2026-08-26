@@ -947,7 +947,7 @@ effects only when their provenance and dependence assumptions justify that
 combination. JCGM 100:2008 sections 5.1-5.2 and NIST Technical Note 1297 Appendix A
 remain the implementation basis for this first-order covariance propagation.
 
-#### 0.8.0 self-heating and two-current zero-power extrapolation
+#### 0.8.0 self-heating and zero-power extrapolation
 
 Self-heating remains separate from nominal RTD curve conversion. The public
 ``rtd_sensor.self_heating`` analysis layer consumes caller-supplied steady-state
@@ -1007,11 +1007,30 @@ error source. Fitted-model covariance and other uncertainty-budget components al
 remain separate rather than being combined automatically. JCGM 100:2008 sections
 5.1-5.2 remain the implementation basis for the first-order propagation.
 
+The larger-observation fit keeps the same scientific model rather than changing
+to a regression on observation-level `I^2 R` power. `fit_zero_power_resistance()`
+requires at least three observations and two numerically distinct current levels,
+then performs unweighted ordinary least squares of resistance versus current
+squared. Repeated measurements at only two current levels are valid, which supports
+low/high measurement cycles while providing positive residual degrees of freedom.
+The evidence preserves caller order and reports every residual, descriptive RMS
+residual, maximum absolute residual, residual standard deviation, observation and
+distinct-current counts, and sampled current span. A zero or negative fitted slope
+is retained as evidence rather than silently converted into a physical
+self-heating claim.
+
+Those residual diagnostics can expose scatter or inconsistency with the fitted
+linear relation, but they cannot by themselves prove thermal stability or identify
+the physical cause of a poor fit. The first implementation therefore does not
+invent a universal residual acceptance threshold and does not silently introduce
+measurement uncertainties into the objective. Uncertainty-weighted fitting,
+correlated-input treatment, and experiment-specific acceptance rules require an
+explicit statistical basis before they are added.
+
 The self-heating layer still does not automatically alter an RTD model or a
 general uncertainty budget. Later 0.8.0 work may add covariance-aware handling
-where justified, analyze larger observation sets with residual and consistency
-diagnostics, and report dissipation/self-heating quantities only when the evidence
-and environmental context justify them.
+where justified and report dissipation/self-heating quantities only when the
+evidence and environmental context justify them.
 
 #### Portable model-definition format decision
 

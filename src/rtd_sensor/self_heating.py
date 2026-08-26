@@ -14,6 +14,7 @@ control excitation current or acquisition hardware.
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -22,6 +23,8 @@ from ._validation import as_float as _as_float
 
 __all__ = [
     "SelfHeatingObservation",
+    "ZeroPowerResistanceFitEvidence",
+    "ZeroPowerResistanceFitResult",
     "TwoCurrentInputStandardUncertainties",
     "TwoCurrentSelfHeatingTemperatureResult",
     "TwoCurrentSelfHeatingTemperatureUncertaintyResult",
@@ -29,12 +32,14 @@ __all__ = [
     "TwoCurrentZeroPowerResult",
     "TwoCurrentZeroPowerUncertaintyResult",
     "evaluate_two_current_temperatures",
+    "fit_zero_power_resistance",
     "extrapolate_zero_power_resistance",
     "propagate_two_current_temperature_uncertainty",
     "propagate_two_current_zero_power_uncertainty",
 ]
 
 _TwoCurrentMethod = Literal["linear_resistance_vs_current_squared"]
+_ZeroPowerFitMethod = Literal["ordinary_least_squares_resistance_vs_current_squared"]
 _TwoCurrentUncertaintyMethod = Literal["first_order_independent_inputs"]
 _TWO_CURRENT_INPUT_PARAMETER_NAMES = (
     "low_current_a",
@@ -213,6 +218,235 @@ class TwoCurrentZeroPowerResult:
             self.evidence.high_current_observation.resistance_ohms
             - self.zero_power_resistance_ohms
         )
+
+
+@dataclass(frozen=True, slots=True)
+class ZeroPowerResistanceFitEvidence:
+    """Observations and residual diagnostics for a 3+ point zero-power fit.
+
+    Observations remain in caller-supplied order so repeated current cycles and
+    residual sequences remain inspectable. At least three observations and two
+    numerically distinct current-squared levels are required. Residuals are
+    ``observed resistance - fitted resistance`` in ohms.
+
+    Residual diagnostics can reveal scatter or departures from the fitted linear
+    ``R``-versus-``I²`` relationship, but they do not by themselves prove that the
+    external temperature was stable or that a physical self-heating correction is
+    valid.
+    """
+
+    observations: tuple[SelfHeatingObservation, ...]
+    residuals_ohms: tuple[float, ...]
+    method: _ZeroPowerFitMethod = field(
+        init=False,
+        default="ordinary_least_squares_resistance_vs_current_squared",
+    )
+
+    def __post_init__(self) -> None:
+        observations = tuple(self.observations)
+        if len(observations) < 3:
+            raise ValueError("Zero-power fitting requires at least three observations")
+        if not all(
+            isinstance(observation, SelfHeatingObservation)
+            for observation in observations
+        ):
+            raise TypeError("Observations must be SelfHeatingObservation values")
+
+        residuals = tuple(
+            _as_float(residual, name="Fit residual") for residual in self.residuals_ohms
+        )
+        if len(residuals) != len(observations):
+            raise ValueError("Fit residual count must match observation count")
+        if not all(math.isfinite(residual) for residual in residuals):
+            raise ValueError("Fit residuals must be finite")
+
+        distinct_current_squared = {
+            observation.current_squared_a2 for observation in observations
+        }
+        if len(distinct_current_squared) < 2:
+            raise ValueError(
+                "Zero-power fitting requires at least two distinct current levels"
+            )
+
+        _, _, expected_residuals = _fit_zero_power_line(observations)
+        for residual, expected_residual in zip(
+            residuals,
+            expected_residuals,
+            strict=True,
+        ):
+            tolerance = 16.0 * max(
+                math.ulp(residual),
+                math.ulp(expected_residual),
+            )
+            if not math.isclose(
+                residual,
+                expected_residual,
+                rel_tol=0.0,
+                abs_tol=tolerance,
+            ):
+                raise ValueError(
+                    "Fit residuals must be consistent with retained observations"
+                )
+
+        object.__setattr__(self, "observations", observations)
+        object.__setattr__(self, "residuals_ohms", residuals)
+
+    @property
+    def observation_count(self) -> int:
+        """Return the number of retained observations."""
+        return len(self.observations)
+
+    @property
+    def fitted_parameter_count(self) -> int:
+        """Return two for the fitted zero-power intercept and current-squared slope."""
+        return 2
+
+    @property
+    def residual_degrees_of_freedom(self) -> int:
+        """Return observation count minus the two fitted line parameters."""
+        return self.observation_count - self.fitted_parameter_count
+
+    @property
+    def distinct_current_count(self) -> int:
+        """Return the number of numerically distinct current-squared levels."""
+        return len(
+            {observation.current_squared_a2 for observation in self.observations}
+        )
+
+    @property
+    def minimum_measurement_current_a(self) -> float:
+        """Return the smallest retained measurement-current magnitude."""
+        return min(
+            observation.measurement_current_a for observation in self.observations
+        )
+
+    @property
+    def maximum_measurement_current_a(self) -> float:
+        """Return the largest retained measurement-current magnitude."""
+        return max(
+            observation.measurement_current_a for observation in self.observations
+        )
+
+    @property
+    def current_squared_span_a2(self) -> float:
+        """Return the retained maximum minus minimum current squared."""
+        values = tuple(
+            observation.current_squared_a2 for observation in self.observations
+        )
+        return max(values) - min(values)
+
+    @property
+    def rms_residual_ohms(self) -> float:
+        """Return descriptive RMS residual using the observation count denominator."""
+        return math.hypot(*self.residuals_ohms) / math.sqrt(self.observation_count)
+
+    @property
+    def max_absolute_residual_ohms(self) -> float:
+        """Return the largest absolute retained residual in ohms."""
+        return max(abs(residual) for residual in self.residuals_ohms)
+
+    @property
+    def residual_standard_deviation_ohms(self) -> float:
+        """Return ``sqrt(SSE / residual_degrees_of_freedom)`` in ohms."""
+        return math.hypot(*self.residuals_ohms) / math.sqrt(
+            self.residual_degrees_of_freedom
+        )
+
+    @property
+    def fitted_resistances_ohms(self) -> tuple[float, ...]:
+        """Return fitted resistance corresponding to each retained observation."""
+        return tuple(
+            observation.resistance_ohms - residual
+            for observation, residual in zip(
+                self.observations,
+                self.residuals_ohms,
+                strict=True,
+            )
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class ZeroPowerResistanceFitResult:
+    """Unweighted 3+ observation zero-power resistance fit and evidence."""
+
+    zero_power_resistance_ohms: float
+    resistance_slope_ohms_per_a2: float
+    evidence: ZeroPowerResistanceFitEvidence
+
+    def __post_init__(self) -> None:
+        resistance = _as_float(
+            self.zero_power_resistance_ohms,
+            name="Zero-power resistance",
+        )
+        slope = _as_float(
+            self.resistance_slope_ohms_per_a2,
+            name="Resistance slope",
+        )
+        if not math.isfinite(resistance):
+            raise ValueError("Zero-power resistance must be finite")
+        if resistance <= 0.0:
+            raise ValueError("Zero-power resistance must be greater than zero")
+        if not math.isfinite(slope):
+            raise ValueError("Resistance slope must be finite")
+        if not isinstance(self.evidence, ZeroPowerResistanceFitEvidence):
+            raise TypeError("evidence must be a ZeroPowerResistanceFitEvidence")
+
+        expected_resistance, expected_slope, expected_residuals = _fit_zero_power_line(
+            self.evidence.observations
+        )
+        resistance_tolerance = 16.0 * max(
+            math.ulp(resistance),
+            math.ulp(expected_resistance),
+        )
+        slope_tolerance = 16.0 * max(math.ulp(slope), math.ulp(expected_slope))
+        if not math.isclose(
+            resistance,
+            expected_resistance,
+            rel_tol=0.0,
+            abs_tol=resistance_tolerance,
+        ):
+            raise ValueError(
+                "Zero-power resistance must be consistent with retained fit evidence"
+            )
+        if not math.isclose(
+            slope,
+            expected_slope,
+            rel_tol=0.0,
+            abs_tol=slope_tolerance,
+        ):
+            raise ValueError(
+                "Resistance slope must be consistent with retained fit evidence"
+            )
+        for residual, expected_residual in zip(
+            self.evidence.residuals_ohms,
+            expected_residuals,
+            strict=True,
+        ):
+            tolerance = 16.0 * max(
+                math.ulp(residual),
+                math.ulp(expected_residual),
+            )
+            if not math.isclose(
+                residual,
+                expected_residual,
+                rel_tol=0.0,
+                abs_tol=tolerance,
+            ):
+                raise ValueError(
+                    "Fit residuals must be consistent with retained observations"
+                )
+
+        object.__setattr__(self, "zero_power_resistance_ohms", resistance)
+        object.__setattr__(self, "resistance_slope_ohms_per_a2", slope)
+
+    @property
+    def resistance_slope_direction(self) -> Literal["positive", "zero", "negative"]:
+        """Return the sign of the fitted resistance-versus-current-squared slope."""
+        if self.resistance_slope_ohms_per_a2 > 0.0:
+            return "positive"
+        if self.resistance_slope_ohms_per_a2 < 0.0:
+            return "negative"
+        return "zero"
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -574,6 +808,137 @@ def propagate_two_current_temperature_uncertainty(
         high_current_temperature_rise_variance_celsius_squared=high_rise_variance,
         high_current_temperature_rise_standard_uncertainty_c=high_rise_uncertainty,
     )
+
+
+def fit_zero_power_resistance(
+    observations: Iterable[SelfHeatingObservation],
+) -> ZeroPowerResistanceFitResult:
+    """Fit ``R = R0 + k*I²`` to at least three current/resistance observations.
+
+    The fit uses ordinary least squares in resistance with measurement-current
+    squared as the independent coordinate. At least three observations provide
+    positive residual degrees of freedom; repeated measurements at only two
+    current levels are allowed and can therefore retain repeated-cycle scatter.
+
+    Observations remain in caller-supplied order in the returned evidence. The
+    residual diagnostics describe consistency with the fitted linear relation but
+    do not prove that the external temperature was stable. A zero or negative
+    slope is retained rather than converted into a claim of valid self-heating.
+
+    This first multi-observation fit is unweighted. Measurement-current uncertainty,
+    resistance uncertainty, correlated effects, and automatic pass/fail thresholds
+    are not included in the least-squares objective.
+
+    Raises:
+        TypeError: If any supplied value is not a :class:`SelfHeatingObservation`.
+        ValueError: If fewer than three observations are supplied, fewer than two
+            distinct current levels are represented, the fit is not finitely
+            representable, or the extrapolated zero-power resistance is not
+            positive and finite.
+    """
+    observation_tuple = tuple(observations)
+    if len(observation_tuple) < 3:
+        raise ValueError("Zero-power fitting requires at least three observations")
+    if not all(
+        isinstance(observation, SelfHeatingObservation)
+        for observation in observation_tuple
+    ):
+        raise TypeError("Observations must be SelfHeatingObservation values")
+
+    zero_power_resistance, slope, residuals = _fit_zero_power_line(observation_tuple)
+    if not math.isfinite(zero_power_resistance):
+        raise ValueError("Zero-power fit must produce finite resistance")
+    if zero_power_resistance <= 0.0:
+        raise ValueError("Zero-power fit must produce resistance greater than zero")
+
+    evidence = ZeroPowerResistanceFitEvidence(
+        observations=observation_tuple,
+        residuals_ohms=residuals,
+    )
+    return ZeroPowerResistanceFitResult(
+        zero_power_resistance_ohms=zero_power_resistance,
+        resistance_slope_ohms_per_a2=slope,
+        evidence=evidence,
+    )
+
+
+def _fit_zero_power_line(
+    observations: tuple[SelfHeatingObservation, ...],
+) -> tuple[float, float, tuple[float, ...]]:
+    if len(observations) < 3:
+        raise ValueError("Zero-power fitting requires at least three observations")
+
+    current_squared = tuple(
+        observation.current_squared_a2 for observation in observations
+    )
+    x_min = min(current_squared)
+    x_max = max(current_squared)
+    x_span = x_max - x_min
+    if not math.isfinite(x_span) or x_span <= 0.0:
+        raise ValueError(
+            "Zero-power fitting requires at least two distinct current levels"
+        )
+
+    scaled_x = tuple((value - x_min) / x_span for value in current_squared)
+    if not all(math.isfinite(value) for value in scaled_x):
+        raise ValueError("Scaled current-squared coordinates must remain finite")
+
+    resistance_scale = max(observation.resistance_ohms for observation in observations)
+    scaled_resistance = tuple(
+        observation.resistance_ohms / resistance_scale for observation in observations
+    )
+
+    count = len(observations)
+    mean_x = math.fsum(scaled_x) / count
+    mean_scaled_resistance = math.fsum(scaled_resistance) / count
+    centered_x = tuple(value - mean_x for value in scaled_x)
+    centered_resistance = tuple(
+        value - mean_scaled_resistance for value in scaled_resistance
+    )
+    denominator = math.fsum(value * value for value in centered_x)
+    numerator = math.fsum(
+        x_value * resistance_value
+        for x_value, resistance_value in zip(
+            centered_x,
+            centered_resistance,
+            strict=True,
+        )
+    )
+    if not math.isfinite(denominator) or denominator <= 0.0:
+        raise ValueError("Zero-power fit is rank deficient")
+    if not math.isfinite(numerator):
+        raise ValueError("Zero-power fit produced a non-finite least-squares system")
+
+    scaled_slope = numerator / denominator
+    scaled_resistance_at_minimum_current_squared = (
+        mean_scaled_resistance - scaled_slope * mean_x
+    )
+    slope = (scaled_slope / x_span) * resistance_scale
+    scaled_zero_power_resistance = (
+        scaled_resistance_at_minimum_current_squared - scaled_slope * (x_min / x_span)
+    )
+    zero_power_resistance = scaled_zero_power_resistance * resistance_scale
+    if not math.isfinite(scaled_slope) or not math.isfinite(slope):
+        raise ValueError("Zero-power fit must produce a finite resistance slope")
+    if not math.isfinite(zero_power_resistance):
+        raise ValueError("Zero-power fit must produce finite resistance")
+
+    fitted_resistances = tuple(
+        (scaled_resistance_at_minimum_current_squared + scaled_slope * value)
+        * resistance_scale
+        for value in scaled_x
+    )
+    residuals = tuple(
+        observation.resistance_ohms - fitted
+        for observation, fitted in zip(
+            observations,
+            fitted_resistances,
+            strict=True,
+        )
+    )
+    if not all(math.isfinite(value) for value in (*fitted_resistances, *residuals)):
+        raise ValueError("Zero-power fit diagnostics must remain finite")
+    return zero_power_resistance, slope, residuals
 
 
 def _zero_power_resistance_input_sensitivities(
