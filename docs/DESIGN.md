@@ -1064,10 +1064,59 @@ preserves the shared fitted intercept and its covariance with slope rather than
 combining derived temperatures as independent quantities. The propagation remains
 first-order/local and treats the RTD model itself as fixed.
 
+For 3+ observation characterization, optional ``SelfHeatingExperimentContext``
+provenance can be retained with the fit evidence. Its ``medium``,
+``flow_condition``, ``mounting``, ``setup``, and ``notes`` fields are deliberately
+non-behavioral: they do not change the least-squares result or RTD model. At least
+one environmental descriptor other than notes is required when a context object is
+created. This keeps the conditions that influence heat transfer attached to the
+measurement evidence without turning them into RTD characteristic identity.
+
+A named self-heating coefficient is intentionally available only from a 3+
+observation temperature result whose fit retained that context and whose resistance-versus-
+current-squared slope is positive. At each numerically distinct sampled current
+level, the implementation uses the fitted temperature rise and fitted ``I²R``
+power. Repeated observations at one current level affect the underlying unweighted
+resistance fit but are represented only once in the secondary coefficient
+calculation, avoiding an extra coefficient weight caused solely by replicate count.
+The scalar coefficient is the through-origin least-squares slope
+
+```text
+ΔT = C_self * P
+```
+
+with ``C_self`` reported in °C/W and °C/mW. Its reciprocal is the dissipation
+constant in W/°C and mW/°C. The result also retains the distinct current-squared
+levels, fitted powers, fitted temperature rises, pointwise ``ΔT/P`` values, and
+coefficient-fit residuals. The residual RMS and maximum absolute residual are
+descriptive shape diagnostics of the fitted ``ΔT``-versus-power relationship, not a
+second statistical residual-variance estimate. No universal residual threshold is
+imposed; those diagnostics remain available so callers can decide whether one scalar
+adequately describes their sampled range and setup. The coefficient is local to the
+fitted zero-power temperature and sampled power/current range as well as the retained
+thermal environment; it is not assumed to transfer unchanged across temperature. A
+zero or negative resistance slope remains
+valid fit evidence but is not promoted into a named positive self-heating
+coefficient. The two-current path remains available for zero-power correction and
+temperature-rise analysis, but its zero residual degrees of freedom are not promoted
+into this named characterization result.
+
+The scalar coefficient is a deterministic function of the retained fitted
+``(R0, k)`` parameters and supplied RTD model. Its first-order uncertainty therefore
+propagates the full residual-scatter intercept/slope covariance through both fitted
+temperature rise and fitted power. The reciprocal dissipation-constant uncertainty
+is propagated from the same parameter sensitivities. This uncertainty describes
+only the retained OLS fit covariance; coefficient-fit residual scatter, RTD-model
+parameter covariance, current-coordinate uncertainty, correlated experimental
+effects, and uncertainty in the environmental description are not silently added.
+An exact resistance fit can therefore still produce zero covariance-derived
+coefficient uncertainty without implying that the physical coefficient is known
+exactly.
+
 The self-heating layer still does not automatically alter an RTD model or a
-general uncertainty budget. Later 0.8.0 work may add covariance-aware handling
-where justified and report a named dissipation/self-heating coefficient only when
-the evidence and environmental context justify it.
+general uncertainty budget. Later 0.8.0 work may add correlated-input or
+errors-in-variables handling and clearer experiment-validity warnings where a
+defensible statistical basis exists.
 
 #### Portable model-definition format decision
 

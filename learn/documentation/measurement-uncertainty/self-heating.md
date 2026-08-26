@@ -69,7 +69,16 @@ observations = [
     self_heating.SelfHeatingObservation(2**0.5 * 0.001, 100.021),
 ]
 
-fit = self_heating.fit_zero_power_resistance(observations)
+context = self_heating.SelfHeatingExperimentContext(
+    medium="flowing water",
+    flow_condition="approximately 0.4 m/s",
+    mounting="fully immersed probe",
+)
+
+fit = self_heating.fit_zero_power_resistance(
+    observations,
+    context=context,
+)
 
 print(fit.zero_power_resistance_ohms)
 print(fit.resistance_slope_ohms_per_a2)
@@ -330,6 +339,69 @@ original current/resistance inputs. It does not simply combine the uncertainty o
 `T_observed` and `T_zero_power` by root-sum-square, which would discard the shared
 input dependence and can give the wrong result.
 
+## Report a context-bound self-heating coefficient
+
+A self-heating coefficient is meaningful only with the thermal environment that
+produced it. For the 3+ observation fit, retain that information when fitting and
+then derive the coefficient from the model-based temperature result:
+
+```python
+coefficient = self_heating.evaluate_self_heating_coefficient(fit_temperatures)
+
+print(coefficient.self_heating_coefficient_c_per_mw)
+print(coefficient.dissipation_constant_mw_per_c)
+print(coefficient.pointwise_self_heating_coefficients_c_per_w)
+print(coefficient.coefficient_fit_residuals_c)
+```
+
+The scalar is a through-origin fit of **fitted temperature rise versus fitted
+``I²R`` power** at the distinct sampled current levels. Repeated measurements at
+one current level still influence the resistance fit, but that level appears only
+once in the coefficient fit so replicate count does not create an extra secondary
+weight.
+
+The result also retains the pointwise ``ΔT/P`` values and coefficient-fit residuals.
+Their RMS and maximum absolute residual are descriptive shape diagnostics of the
+fitted relationship, not a second statistical error model. Use those diagnostics to
+judge whether one scalar describes the sampled range; `rtd-sensor` does not invent a
+universal acceptance threshold. A zero or negative
+resistance slope is retained by the resistance fit but is not promoted into a named
+positive self-heating coefficient. The two-current correction path is intentionally
+not used for this named characterization because two points leave no residual
+degrees of freedom.
+
+The reciprocal is reported as the **dissipation constant**. The convenient unit
+forms follow the metrology guidance:
+
+```text
+self-heating coefficient: °C/mW
+dissipation constant:     mW/°C
+```
+
+Do not transfer a coefficient measured in one medium, flow condition, mounting, or
+setup to another without evidence. Treat it as local to the fitted zero-power
+temperature and sampled power/current range as well. The BIPM/CCT guidance notes
+that self-heating depends on thermal contact with the environment and can also vary
+with temperature; manufacturer coefficients are therefore measured under stated
+conditions.
+
+### Propagate the fit covariance into the coefficient
+
+```python
+coefficient_uncertainty = self_heating.propagate_self_heating_coefficient_uncertainty(
+    coefficient
+)
+
+print(coefficient_uncertainty.self_heating_coefficient_standard_uncertainty_c_per_mw)
+print(coefficient_uncertainty.dissipation_constant_standard_uncertainty_mw_per_c)
+```
+
+This propagates only the residual-scatter covariance of the fitted zero-power
+resistance and slope. It does not add coefficient-fit residual scatter, model
+parameter covariance, current uncertainty, or correlated environmental/acquisition
+effects. An exact resistance fit can therefore produce zero covariance-derived
+coefficient uncertainty without proving that the physical coefficient is exact.
+
 ## What the observation retains
 
 Each `SelfHeatingObservation` keeps the two measured quantities used by the
@@ -365,9 +437,7 @@ The current 0.8.0 implementation does not yet provide:
 
 - covariance-aware propagation for correlated two-current measurement inputs;
 - uncertainty-weighted or covariance-aware multi-observation fitting;
-- an automatic experiment-specific residual acceptance threshold;
-- a named dissipation/self-heating coefficient or dissipation constant; or
-- environmental provenance such as medium, flow, or mounting.
+- an automatic experiment-specific residual acceptance threshold.
 
 Those remaining capabilities stay within the documented 0.8.0 scope and can
 build on the retained observation/evidence contract rather than changing nominal

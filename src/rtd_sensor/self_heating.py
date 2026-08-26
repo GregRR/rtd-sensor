@@ -22,6 +22,9 @@ from ._protocols import RTDModel as _RTDModel
 from ._validation import as_float as _as_float
 
 __all__ = [
+    "SelfHeatingCoefficientResult",
+    "SelfHeatingCoefficientUncertaintyResult",
+    "SelfHeatingExperimentContext",
     "SelfHeatingObservation",
     "ZeroPowerResistanceFitEvidence",
     "ZeroPowerResistanceFitResult",
@@ -34,11 +37,13 @@ __all__ = [
     "TwoCurrentZeroPowerEvidence",
     "TwoCurrentZeroPowerResult",
     "TwoCurrentZeroPowerUncertaintyResult",
-    "evaluate_two_current_temperatures",
     "estimate_zero_power_fit_uncertainty",
+    "evaluate_self_heating_coefficient",
+    "evaluate_two_current_temperatures",
     "evaluate_zero_power_fit_temperatures",
     "fit_zero_power_resistance",
     "extrapolate_zero_power_resistance",
+    "propagate_self_heating_coefficient_uncertainty",
     "propagate_two_current_temperature_uncertainty",
     "propagate_two_current_zero_power_uncertainty",
     "propagate_zero_power_fit_temperature_uncertainty",
@@ -48,6 +53,12 @@ _TwoCurrentMethod = Literal["linear_resistance_vs_current_squared"]
 _ZeroPowerFitMethod = Literal["ordinary_least_squares_resistance_vs_current_squared"]
 _ZeroPowerFitUncertaintyMethod = Literal["residual_variance_scaled_least_squares"]
 _ZeroPowerFitTemperatureUncertaintyMethod = Literal[
+    "first_order_fit_parameter_covariance"
+]
+_SelfHeatingCoefficientMethod = Literal[
+    "least_squares_temperature_rise_vs_fitted_power_through_origin"
+]
+_SelfHeatingCoefficientUncertaintyMethod = Literal[
     "first_order_fit_parameter_covariance"
 ]
 _TwoCurrentUncertaintyMethod = Literal["first_order_independent_inputs"]
@@ -111,6 +122,54 @@ class SelfHeatingObservation:
     def dissipated_power_w(self) -> float:
         """Return observation-level electrical power ``I²R`` in watts."""
         return self.current_squared_a2 * self.resistance_ohms
+
+
+@dataclass(frozen=True, slots=True)
+class SelfHeatingExperimentContext:
+    """Non-behavioral thermal-environment provenance for self-heating evidence.
+
+    The fields describe the conditions under which current/resistance observations
+    were made. They do not alter the resistance fit or RTD model. At least one of
+    ``medium``, ``flow_condition``, ``mounting``, or ``setup`` must be supplied so
+    the context identifies a meaningful thermal environment rather than an empty
+    metadata shell.
+    """
+
+    medium: str | None = None
+    flow_condition: str | None = None
+    mounting: str | None = None
+    setup: str | None = None
+    notes: str | None = None
+
+    def __post_init__(self) -> None:
+        for field_name, display_name in (
+            ("medium", "Medium"),
+            ("flow_condition", "Flow condition"),
+            ("mounting", "Mounting"),
+            ("setup", "Setup"),
+            ("notes", "Notes"),
+        ):
+            object.__setattr__(
+                self,
+                field_name,
+                _normalized_optional_text(
+                    getattr(self, field_name),
+                    name=display_name,
+                ),
+            )
+
+        if not any(
+            (
+                self.medium,
+                self.flow_condition,
+                self.mounting,
+                self.setup,
+            )
+        ):
+            raise ValueError(
+                "Self-heating context requires medium, flow condition, mounting, "
+                "or setup"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -247,6 +306,7 @@ class ZeroPowerResistanceFitEvidence:
 
     observations: tuple[SelfHeatingObservation, ...]
     residuals_ohms: tuple[float, ...]
+    context: SelfHeatingExperimentContext | None = None
     method: _ZeroPowerFitMethod = field(
         init=False,
         default="ordinary_least_squares_resistance_vs_current_squared",
@@ -269,6 +329,10 @@ class ZeroPowerResistanceFitEvidence:
             raise ValueError("Fit residual count must match observation count")
         if not all(math.isfinite(residual) for residual in residuals):
             raise ValueError("Fit residuals must be finite")
+        if self.context is not None and not isinstance(
+            self.context, SelfHeatingExperimentContext
+        ):
+            raise TypeError("context must be a SelfHeatingExperimentContext or None")
 
         distinct_current_squared = {
             observation.current_squared_a2 for observation in observations
@@ -805,6 +869,264 @@ class ZeroPowerResistanceFitTemperatureUncertaintyResult:
         return self.fit_uncertainty.parameter_names
 
 
+@dataclass(frozen=True, slots=True)
+class SelfHeatingCoefficientResult:
+    """Context-bound self-heating coefficient from a multi-observation fit.
+
+    A scalar coefficient is fitted through the origin from fitted temperature rise
+    versus fitted ``I²R`` power at each distinct sampled current level. Repeated
+    observations at the same current level therefore influence the underlying
+    resistance fit but do not receive an additional weight in this secondary
+    coefficient calculation.
+
+    The retained experiment context is part of the result because self-heating is
+    influenced by thermal contact with the environment. The coefficient must not
+    be treated as an intrinsic, setup-independent property of the RTD
+    characteristic.
+    """
+
+    temperature_result: ZeroPowerResistanceFitTemperatureResult
+    context: SelfHeatingExperimentContext = field(init=False)
+    current_squared_levels_a2: tuple[float, ...] = field(init=False)
+    fitted_temperature_rises_c: tuple[float, ...] = field(init=False)
+    fitted_dissipated_powers_w: tuple[float, ...] = field(init=False)
+    coefficient_fit_residuals_c: tuple[float, ...] = field(init=False)
+    self_heating_coefficient_c_per_w: float = field(init=False)
+    dissipation_constant_w_per_c: float = field(init=False)
+    method: _SelfHeatingCoefficientMethod = field(
+        init=False,
+        default="least_squares_temperature_rise_vs_fitted_power_through_origin",
+    )
+
+    def __post_init__(self) -> None:
+        if not isinstance(
+            self.temperature_result, ZeroPowerResistanceFitTemperatureResult
+        ):
+            raise TypeError(
+                "temperature_result must be a ZeroPowerResistanceFitTemperatureResult"
+            )
+
+        fit_result = self.temperature_result.fit_result
+        context = fit_result.evidence.context
+        if context is None:
+            raise ValueError(
+                "Self-heating coefficient requires retained experiment context"
+            )
+        if fit_result.resistance_slope_ohms_per_a2 <= 0.0:
+            raise ValueError(
+                "Self-heating coefficient requires a positive resistance slope"
+            )
+
+        level_data: dict[float, tuple[float, float]] = {}
+        for observation, rise, power in zip(
+            fit_result.evidence.observations,
+            self.temperature_result.fitted_temperature_rises_c,
+            self.temperature_result.fitted_dissipated_powers_w,
+            strict=True,
+        ):
+            level_data.setdefault(
+                observation.current_squared_a2,
+                (rise, power),
+            )
+
+        levels = tuple(sorted(level_data))
+        rises = tuple(level_data[level][0] for level in levels)
+        powers = tuple(level_data[level][1] for level in levels)
+        if not all(math.isfinite(rise) and rise > 0.0 for rise in rises):
+            raise ValueError(
+                "Self-heating coefficient requires positive finite fitted "
+                "temperature rises"
+            )
+        if not all(math.isfinite(power) and power > 0.0 for power in powers):
+            raise ValueError(
+                "Self-heating coefficient requires positive finite fitted powers"
+            )
+
+        coefficient = _through_origin_self_heating_coefficient(
+            powers,
+            rises,
+        )
+        dissipation_constant = 1.0 / coefficient
+        if not math.isfinite(dissipation_constant) or dissipation_constant <= 0.0:
+            raise ValueError("Dissipation constant must be positive and finite")
+
+        residuals = tuple(
+            rise - coefficient * power
+            for rise, power in zip(rises, powers, strict=True)
+        )
+        if not all(math.isfinite(residual) for residual in residuals):
+            raise ValueError("Self-heating coefficient residuals must be finite")
+
+        object.__setattr__(self, "context", context)
+        object.__setattr__(self, "current_squared_levels_a2", levels)
+        object.__setattr__(self, "fitted_temperature_rises_c", rises)
+        object.__setattr__(self, "fitted_dissipated_powers_w", powers)
+        object.__setattr__(self, "coefficient_fit_residuals_c", residuals)
+        object.__setattr__(self, "self_heating_coefficient_c_per_w", coefficient)
+        object.__setattr__(
+            self,
+            "dissipation_constant_w_per_c",
+            dissipation_constant,
+        )
+
+    @property
+    def distinct_current_count(self) -> int:
+        """Return the number of distinct current levels used for the coefficient."""
+        return len(self.current_squared_levels_a2)
+
+    @property
+    def coefficient_rms_residual_c(self) -> float:
+        """Return descriptive RMS residual of the through-origin coefficient fit."""
+        return math.hypot(*self.coefficient_fit_residuals_c) / math.sqrt(
+            self.distinct_current_count
+        )
+
+    @property
+    def coefficient_max_absolute_residual_c(self) -> float:
+        """Return the largest absolute descriptive coefficient-fit residual."""
+        return max(abs(residual) for residual in self.coefficient_fit_residuals_c)
+
+    @property
+    def pointwise_self_heating_coefficients_c_per_w(self) -> tuple[float, ...]:
+        """Return fitted temperature rise divided by fitted power at each level."""
+        return tuple(
+            rise / power
+            for rise, power in zip(
+                self.fitted_temperature_rises_c,
+                self.fitted_dissipated_powers_w,
+                strict=True,
+            )
+        )
+
+    @property
+    def self_heating_coefficient_c_per_mw(self) -> float:
+        """Return the scalar self-heating coefficient in °C/mW."""
+        return self.self_heating_coefficient_c_per_w / 1000.0
+
+    @property
+    def dissipation_constant_mw_per_c(self) -> float:
+        """Return the reciprocal dissipation constant in mW/°C."""
+        return self.dissipation_constant_w_per_c * 1000.0
+
+
+@dataclass(frozen=True, slots=True)
+class SelfHeatingCoefficientUncertaintyResult:
+    """Fit-covariance uncertainty for a context-bound self-heating coefficient.
+
+    The scalar coefficient is treated as a deterministic function of the fitted
+    zero-power resistance and ``dR/d(I²)`` slope. The full retained 2x2 covariance
+    matrix is propagated through the coefficient calculation with first-order
+    local sensitivities. The RTD model and experiment context are treated as fixed.
+    """
+
+    coefficient_result: SelfHeatingCoefficientResult
+    fit_uncertainty: ZeroPowerResistanceFitUncertaintyResult
+    self_heating_coefficient_parameter_sensitivity_vector: tuple[float, float] = field(
+        init=False
+    )
+    self_heating_coefficient_variance_celsius_squared_per_watt_squared: float = field(
+        init=False
+    )
+    self_heating_coefficient_standard_uncertainty_c_per_w: float = field(init=False)
+    dissipation_constant_parameter_sensitivity_vector: tuple[float, float] = field(
+        init=False
+    )
+    dissipation_constant_variance_watt_squared_per_celsius_squared: float = field(
+        init=False
+    )
+    dissipation_constant_standard_uncertainty_w_per_c: float = field(init=False)
+    propagation_method: _SelfHeatingCoefficientUncertaintyMethod = field(
+        init=False,
+        default="first_order_fit_parameter_covariance",
+    )
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.coefficient_result, SelfHeatingCoefficientResult):
+            raise TypeError("coefficient_result must be a SelfHeatingCoefficientResult")
+        if not isinstance(
+            self.fit_uncertainty, ZeroPowerResistanceFitUncertaintyResult
+        ):
+            raise TypeError(
+                "fit_uncertainty must be a ZeroPowerResistanceFitUncertaintyResult"
+            )
+        if (
+            self.fit_uncertainty.fit_result
+            != self.coefficient_result.temperature_result.fit_result
+        ):
+            raise ValueError(
+                "fit_uncertainty must describe the retained zero-power fit"
+            )
+
+        coefficient_vector = _self_heating_coefficient_parameter_sensitivities(
+            self.coefficient_result
+        )
+        coefficient_variance = _two_parameter_covariance_variance(
+            coefficient_vector,
+            self.fit_uncertainty.parameter_covariance_matrix,
+            quantity_name="Self-heating coefficient uncertainty",
+        )
+        coefficient = self.coefficient_result.self_heating_coefficient_c_per_w
+        dissipation_vector = (
+            (-coefficient_vector[0] / coefficient) / coefficient,
+            (-coefficient_vector[1] / coefficient) / coefficient,
+        )
+        if not all(math.isfinite(value) for value in dissipation_vector):
+            raise ValueError(
+                "Dissipation-constant parameter sensitivities must be finite"
+            )
+        dissipation_variance = _two_parameter_covariance_variance(
+            dissipation_vector,
+            self.fit_uncertainty.parameter_covariance_matrix,
+            quantity_name="Dissipation constant uncertainty",
+        )
+
+        object.__setattr__(
+            self,
+            "self_heating_coefficient_parameter_sensitivity_vector",
+            coefficient_vector,
+        )
+        object.__setattr__(
+            self,
+            "self_heating_coefficient_variance_celsius_squared_per_watt_squared",
+            coefficient_variance,
+        )
+        object.__setattr__(
+            self,
+            "self_heating_coefficient_standard_uncertainty_c_per_w",
+            math.sqrt(coefficient_variance),
+        )
+        object.__setattr__(
+            self,
+            "dissipation_constant_parameter_sensitivity_vector",
+            dissipation_vector,
+        )
+        object.__setattr__(
+            self,
+            "dissipation_constant_variance_watt_squared_per_celsius_squared",
+            dissipation_variance,
+        )
+        object.__setattr__(
+            self,
+            "dissipation_constant_standard_uncertainty_w_per_c",
+            math.sqrt(dissipation_variance),
+        )
+
+    @property
+    def parameter_names(self) -> tuple[str, str]:
+        """Return the fitted-parameter order used by both sensitivity vectors."""
+        return self.fit_uncertainty.parameter_names
+
+    @property
+    def self_heating_coefficient_standard_uncertainty_c_per_mw(self) -> float:
+        """Return coefficient standard uncertainty in °C/mW."""
+        return self.self_heating_coefficient_standard_uncertainty_c_per_w / 1000.0
+
+    @property
+    def dissipation_constant_standard_uncertainty_mw_per_c(self) -> float:
+        """Return dissipation-constant standard uncertainty in mW/°C."""
+        return self.dissipation_constant_standard_uncertainty_w_per_c * 1000.0
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class TwoCurrentInputStandardUncertainties:
     """Independent standard uncertainties for the four two-current inputs.
@@ -951,6 +1273,54 @@ class TwoCurrentSelfHeatingTemperatureUncertaintyResult:
     def input_parameter_names(self) -> tuple[str, str, str, str]:
         """Return the input order used by all retained sensitivity vectors."""
         return _TWO_CURRENT_INPUT_PARAMETER_NAMES
+
+
+def evaluate_self_heating_coefficient(
+    result: ZeroPowerResistanceFitTemperatureResult,
+) -> SelfHeatingCoefficientResult:
+    """Derive a context-bound self-heating coefficient from a 3+ observation fit.
+
+    The retained experiment context is required, as is a positive fitted
+    resistance-versus-current-squared slope. The scalar coefficient is a
+    through-origin least-squares description of fitted temperature rise versus
+    fitted dissipated power at the distinct sampled current levels. Residuals and
+    pointwise coefficients remain available for judging how well one scalar
+    describes the retained range; no universal acceptance threshold is imposed.
+
+    Raises:
+        TypeError: If ``result`` is not a
+            :class:`ZeroPowerResistanceFitTemperatureResult`.
+        ValueError: If context is missing, the fitted slope/rises are not positive,
+            or the coefficient cannot be represented finitely.
+    """
+    if not isinstance(result, ZeroPowerResistanceFitTemperatureResult):
+        raise TypeError("result must be a ZeroPowerResistanceFitTemperatureResult")
+    return SelfHeatingCoefficientResult(temperature_result=result)
+
+
+def propagate_self_heating_coefficient_uncertainty(
+    result: SelfHeatingCoefficientResult,
+) -> SelfHeatingCoefficientUncertaintyResult:
+    """Propagate retained fit covariance into coefficient and dissipation constant.
+
+    The full fitted intercept/slope covariance is propagated through the
+    through-origin coefficient calculation. This remains a first-order/local
+    estimate conditional on the same fixed-current, common-resistance-error-variance
+    assumptions as :func:`estimate_zero_power_fit_uncertainty`. The RTD model and
+    thermal-environment context are treated as fixed.
+
+    Raises:
+        TypeError: If ``result`` is not a :class:`SelfHeatingCoefficientResult`.
+        ValueError: If propagated sensitivities or variances are non-finite.
+    """
+    if not isinstance(result, SelfHeatingCoefficientResult):
+        raise TypeError("result must be a SelfHeatingCoefficientResult")
+    return SelfHeatingCoefficientUncertaintyResult(
+        coefficient_result=result,
+        fit_uncertainty=estimate_zero_power_fit_uncertainty(
+            result.temperature_result.fit_result
+        ),
+    )
 
 
 def evaluate_two_current_temperatures(
@@ -1247,6 +1617,8 @@ def propagate_zero_power_fit_temperature_uncertainty(
 
 def fit_zero_power_resistance(
     observations: Iterable[SelfHeatingObservation],
+    *,
+    context: SelfHeatingExperimentContext | None = None,
 ) -> ZeroPowerResistanceFitResult:
     """Fit ``R = R0 + k*I²`` to at least three current/resistance observations.
 
@@ -1262,10 +1634,12 @@ def fit_zero_power_resistance(
 
     This first multi-observation fit is unweighted. Measurement-current uncertainty,
     resistance uncertainty, correlated effects, and automatic pass/fail thresholds
-    are not included in the least-squares objective.
+    are not included in the least-squares objective. Optional ``context`` is retained
+    as non-behavioral experiment provenance and does not alter the fit.
 
     Raises:
-        TypeError: If any supplied value is not a :class:`SelfHeatingObservation`.
+        TypeError: If any supplied value is not a :class:`SelfHeatingObservation`,
+            or ``context`` has the wrong type.
         ValueError: If fewer than three observations are supplied, fewer than two
             distinct current levels are represented, the fit is not finitely
             representable, or the extrapolated zero-power resistance is not
@@ -1279,6 +1653,8 @@ def fit_zero_power_resistance(
         for observation in observation_tuple
     ):
         raise TypeError("Observations must be SelfHeatingObservation values")
+    if context is not None and not isinstance(context, SelfHeatingExperimentContext):
+        raise TypeError("context must be a SelfHeatingExperimentContext or None")
 
     zero_power_resistance, slope, residuals = _fit_zero_power_line(observation_tuple)
     if not math.isfinite(zero_power_resistance):
@@ -1289,12 +1665,133 @@ def fit_zero_power_resistance(
     evidence = ZeroPowerResistanceFitEvidence(
         observations=observation_tuple,
         residuals_ohms=residuals,
+        context=context,
     )
     return ZeroPowerResistanceFitResult(
         zero_power_resistance_ohms=zero_power_resistance,
         resistance_slope_ohms_per_a2=slope,
         evidence=evidence,
     )
+
+
+def _normalized_optional_text(value: str | None, *, name: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise TypeError(f"{name} must be a string or None")
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(f"{name} must not be empty")
+    return normalized
+
+
+def _through_origin_self_heating_coefficient(
+    powers_w: tuple[float, ...],
+    temperature_rises_c: tuple[float, ...],
+) -> float:
+    power_scale = max(powers_w)
+    rise_scale = max(temperature_rises_c)
+    scaled_powers = tuple(power / power_scale for power in powers_w)
+    scaled_rises = tuple(rise / rise_scale for rise in temperature_rises_c)
+    numerator = math.fsum(
+        power * rise for power, rise in zip(scaled_powers, scaled_rises, strict=True)
+    )
+    denominator = math.fsum(power * power for power in scaled_powers)
+    coefficient = (rise_scale / power_scale) * (numerator / denominator)
+    if not math.isfinite(coefficient) or coefficient <= 0.0:
+        raise ValueError("Self-heating coefficient must be positive and finite")
+    return coefficient
+
+
+def _self_heating_coefficient_parameter_sensitivities(
+    result: SelfHeatingCoefficientResult,
+) -> tuple[float, float]:
+    temperature_result = result.temperature_result
+    zero_temperature = temperature_result.zero_power_temperature_c
+    zero_sensitivity = _temperature_sensitivity_celsius_per_ohm(
+        temperature_result.model,
+        zero_temperature,
+        name="Self-heating coefficient zero-power temperature sensitivity",
+    )
+
+    fit_result = temperature_result.fit_result
+    r0 = fit_result.zero_power_resistance_ohms
+    slope = fit_result.resistance_slope_ohms_per_a2
+    power_scale = max(result.fitted_dissipated_powers_w)
+    rise_scale = max(result.fitted_temperature_rises_c)
+
+    scaled_powers: list[float] = []
+    scaled_rises: list[float] = []
+    scaled_power_vectors: list[tuple[float, float]] = []
+    scaled_rise_vectors: list[tuple[float, float]] = []
+
+    for current_squared in result.current_squared_levels_a2:
+        fitted_resistance = r0 + slope * current_squared
+        fitted_temperature = _converted_temperature_c(
+            temperature_result.model,
+            fitted_resistance,
+            name="Self-heating coefficient fitted temperature",
+        )
+        fitted_sensitivity = _temperature_sensitivity_celsius_per_ohm(
+            temperature_result.model,
+            fitted_temperature,
+            name="Self-heating coefficient fitted temperature sensitivity",
+        )
+        power = current_squared * fitted_resistance
+        rise = fitted_temperature - zero_temperature
+        scaled_powers.append(power / power_scale)
+        scaled_rises.append(rise / rise_scale)
+        scaled_power_vectors.append(
+            (
+                current_squared / power_scale,
+                current_squared * current_squared / power_scale,
+            )
+        )
+        scaled_rise_vectors.append(
+            (
+                (fitted_sensitivity - zero_sensitivity) / rise_scale,
+                fitted_sensitivity * current_squared / rise_scale,
+            )
+        )
+
+    numerator = math.fsum(
+        power * rise for power, rise in zip(scaled_powers, scaled_rises, strict=True)
+    )
+    denominator = math.fsum(power * power for power in scaled_powers)
+    scale = rise_scale / power_scale
+
+    sensitivities: list[float] = []
+    for parameter_index in range(2):
+        numerator_derivative = math.fsum(
+            power_vector[parameter_index] * rise + power * rise_vector[parameter_index]
+            for power, rise, power_vector, rise_vector in zip(
+                scaled_powers,
+                scaled_rises,
+                scaled_power_vectors,
+                scaled_rise_vectors,
+                strict=True,
+            )
+        )
+        denominator_derivative = 2.0 * math.fsum(
+            power * power_vector[parameter_index]
+            for power, power_vector in zip(
+                scaled_powers,
+                scaled_power_vectors,
+                strict=True,
+            )
+        )
+        sensitivity = (
+            scale
+            * (numerator_derivative * denominator - numerator * denominator_derivative)
+            / (denominator * denominator)
+        )
+        if not math.isfinite(sensitivity):
+            raise ValueError(
+                "Self-heating coefficient parameter sensitivities must be finite"
+            )
+        sensitivities.append(sensitivity)
+
+    return (sensitivities[0], sensitivities[1])
 
 
 def _fit_zero_power_line(

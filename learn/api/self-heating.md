@@ -10,7 +10,8 @@ standard two-current resistance-domain extrapolation to zero measurement current
 a 3+ observation least-squares fit of the same resistance-versus-current-squared
 relationship, residual-based parameter covariance for that larger fit, and
 model-based temperature/uncertainty analysis for both the two-current and larger-fit
-results.
+results, optional experiment-context provenance, and context-bound self-heating
+coefficient/dissipation-constant reporting.
 
 ## `SelfHeatingObservation`
 
@@ -68,6 +69,8 @@ wanted.
 ```python
 fit_zero_power_resistance(
     observations: Iterable[SelfHeatingObservation],
+    *,
+    context: SelfHeatingExperimentContext | None = None,
 ) -> ZeroPowerResistanceFitResult
 ```
 
@@ -85,7 +88,27 @@ providing positive residual degrees of freedom.
 The first multi-observation implementation uses **unweighted ordinary least
 squares** in resistance. It does not use `I²R` as the fit coordinate and does not
 yet incorporate current uncertainty, resistance uncertainty, covariance, or an
-automatic residual pass/fail threshold.
+automatic residual pass/fail threshold. Optional ``context`` is retained as
+non-behavioral provenance and does not alter the fit.
+
+## `SelfHeatingExperimentContext`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+```python
+SelfHeatingExperimentContext(
+    medium: str | None = None,
+    flow_condition: str | None = None,
+    mounting: str | None = None,
+    setup: str | None = None,
+    notes: str | None = None,
+)
+```
+
+The context records thermal-environment provenance for a 3+ observation fit. At
+least one of ``medium``, ``flow_condition``, ``mounting``, or ``setup`` must be
+supplied. Text is stripped of surrounding whitespace; blank strings are rejected.
+The fields do not change fitting or RTD conversion.
 
 ## `ZeroPowerResistanceFitResult`
 
@@ -123,6 +146,7 @@ rms_residual_ohms: float
 max_absolute_residual_ohms: float
 residual_standard_deviation_ohms: float
 fitted_resistances_ohms: tuple[float, ...]
+context: SelfHeatingExperimentContext | None
 method: "ordinary_least_squares_resistance_vs_current_squared"
 ```
 
@@ -270,6 +294,108 @@ fitted_temperature_variances_celsius_squared: tuple[float, ...]
 fitted_temperature_standard_uncertainties_c: tuple[float, ...]
 fitted_temperature_rise_variances_celsius_squared: tuple[float, ...]
 fitted_temperature_rise_standard_uncertainties_c: tuple[float, ...]
+propagation_method: "first_order_fit_parameter_covariance"
+```
+
+## `evaluate_self_heating_coefficient`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+```python
+evaluate_self_heating_coefficient(
+    result: ZeroPowerResistanceFitTemperatureResult,
+) -> SelfHeatingCoefficientResult
+```
+
+A named coefficient is produced only when the underlying 3+ observation fit retained
+a ``SelfHeatingExperimentContext`` and has a positive resistance-versus-current-
+squared slope. The calculation uses fitted temperature rise and fitted ``I²R`` power
+at each **distinct** sampled current level and fits the proportional relationship
+``ΔT = C_self * P`` through the origin. Repeated observations at one current level
+affect the underlying resistance fit but do not receive a second weight merely by
+being repeated in the coefficient calculation.
+
+No universal coefficient-fit residual threshold is imposed. A zero or negative
+resistance slope remains available as fit evidence but is rejected for named
+positive coefficient reporting.
+
+The two-current correction path is intentionally not accepted here. Its two points
+exactly determine the resistance line, so the named context-bound characterization
+remains on the larger-observation path with residual diagnostics and fit covariance.
+
+## `SelfHeatingCoefficientResult`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+The result retains:
+
+```text
+temperature_result: ZeroPowerResistanceFitTemperatureResult
+context: SelfHeatingExperimentContext
+current_squared_levels_a2: tuple[float, ...]
+fitted_temperature_rises_c: tuple[float, ...]
+fitted_dissipated_powers_w: tuple[float, ...]
+pointwise_self_heating_coefficients_c_per_w: tuple[float, ...]
+coefficient_fit_residuals_c: tuple[float, ...]
+distinct_current_count: int
+coefficient_rms_residual_c: float
+coefficient_max_absolute_residual_c: float
+self_heating_coefficient_c_per_w: float
+self_heating_coefficient_c_per_mw: float
+dissipation_constant_w_per_c: float
+dissipation_constant_mw_per_c: float
+method: "least_squares_temperature_rise_vs_fitted_power_through_origin"
+```
+
+The coefficient is tied to the retained experiment context and to the fitted
+zero-power temperature and sampled power/current range. It must not be treated as
+an intrinsic property of the RTD characteristic or assumed to transfer unchanged
+to another medium, flow condition, mounting, setup, temperature, or substantially
+different power range. The retained coefficient-fit residuals, RMS residual, and
+maximum absolute residual are descriptive shape diagnostics of the fitted
+``ΔT``-versus-power relationship; they are not an additional statistical residual
+variance or uncertainty estimate.
+
+## `propagate_self_heating_coefficient_uncertainty`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+```python
+propagate_self_heating_coefficient_uncertainty(
+    result: SelfHeatingCoefficientResult,
+) -> SelfHeatingCoefficientUncertaintyResult
+```
+
+Propagates the full residual-scatter covariance of the fitted zero-power resistance
+and ``dR/d(I²)`` slope through the context-bound coefficient calculation. The
+through-origin coefficient depends on both fitted temperature rise and fitted power,
+so both dependencies are included in the parameter sensitivities before the 2x2
+covariance matrix is applied. The dissipation-constant uncertainty is propagated
+from the reciprocal relationship.
+
+This remains first-order/local. The supplied RTD model and experiment context are
+treated as fixed. Coefficient-fit residual scatter, RTD-model covariance,
+current-coordinate uncertainty, and correlated experiment effects are not added
+automatically.
+
+## `SelfHeatingCoefficientUncertaintyResult`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+The result retains:
+
+```text
+coefficient_result: SelfHeatingCoefficientResult
+fit_uncertainty: ZeroPowerResistanceFitUncertaintyResult
+parameter_names: tuple[str, str]
+self_heating_coefficient_parameter_sensitivity_vector: tuple[float, float]
+self_heating_coefficient_variance_celsius_squared_per_watt_squared: float
+self_heating_coefficient_standard_uncertainty_c_per_w: float
+self_heating_coefficient_standard_uncertainty_c_per_mw: float
+dissipation_constant_parameter_sensitivity_vector: tuple[float, float]
+dissipation_constant_variance_watt_squared_per_celsius_squared: float
+dissipation_constant_standard_uncertainty_w_per_c: float
+dissipation_constant_standard_uncertainty_mw_per_c: float
 propagation_method: "first_order_fit_parameter_covariance"
 ```
 

@@ -349,8 +349,13 @@ squared self-heating extrapolation, larger observation sets used to inspect that
 linearity, repeated-current cycles when drift makes a single pair unreliable, and
 the stable-external-temperature requirement. Its treatment of self-heating effect
 versus applied power and of setup-specific self-heating coefficients/dissipation
-constants also supports retaining observation/fitted ``I²R`` powers now while
-deferring a named coefficient until environmental context is explicit. Appendix 1
+constants is the basis for retaining experiment context and for reporting a named
+coefficient only from a positive fitted self-heating relationship with that context
+attached. The guide also cautions that self-heating behavior can vary with
+temperature, supporting the API/documentation rule that a derived coefficient is
+local to the experiment's fitted temperature and sampled power range rather than
+universally transferable. The guide's °C/mW coefficient and reciprocal mW/°C
+dissipation-constant forms also define the public unit conventions. Appendix 1
 documents the modern Callendar–Van Dusen `R0`, `A`, `B`, `C` form, the
 zero-above-0-°C role of `C`, and the historical determination of CVD parameters
 from calibration measurements. It also remains a research source for hysteresis,

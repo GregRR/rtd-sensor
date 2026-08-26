@@ -9,6 +9,9 @@ import pytest
 
 from rtd_sensor import catalog
 from rtd_sensor.self_heating import (
+    SelfHeatingCoefficientResult,
+    SelfHeatingCoefficientUncertaintyResult,
+    SelfHeatingExperimentContext,
     SelfHeatingObservation,
     TwoCurrentInputStandardUncertainties,
     TwoCurrentSelfHeatingTemperatureResult,
@@ -22,10 +25,12 @@ from rtd_sensor.self_heating import (
     ZeroPowerResistanceFitTemperatureUncertaintyResult,
     ZeroPowerResistanceFitUncertaintyResult,
     estimate_zero_power_fit_uncertainty,
+    evaluate_self_heating_coefficient,
     evaluate_two_current_temperatures,
     evaluate_zero_power_fit_temperatures,
     extrapolate_zero_power_resistance,
     fit_zero_power_resistance,
+    propagate_self_heating_coefficient_uncertainty,
     propagate_two_current_temperature_uncertainty,
     propagate_two_current_zero_power_uncertainty,
     propagate_zero_power_fit_temperature_uncertainty,
@@ -92,6 +97,46 @@ def test_self_heating_observation_reports_current_squared_and_power() -> None:
 
     assert observation.current_squared_a2 == pytest.approx(1.0e-6)
     assert observation.dissipated_power_w == pytest.approx(100.02e-6)
+
+
+def test_self_heating_experiment_context_normalizes_optional_text() -> None:
+    context = SelfHeatingExperimentContext(
+        medium="  flowing water  ",
+        flow_condition="  approximately 0.4 m/s  ",
+        notes="  calibration bath  ",
+    )
+
+    assert context.medium == "flowing water"
+    assert context.flow_condition == "approximately 0.4 m/s"
+    assert context.notes == "calibration bath"
+    assert context.mounting is None
+    assert context.setup is None
+
+
+def test_self_heating_experiment_context_is_immutable() -> None:
+    context = SelfHeatingExperimentContext(medium="stirred water")
+
+    with pytest.raises(FrozenInstanceError):
+        context.medium = "air"  # type: ignore[misc]
+
+
+def test_self_heating_experiment_context_requires_environment_descriptor() -> None:
+    with pytest.raises(ValueError, match="requires medium"):
+        SelfHeatingExperimentContext(notes="notes alone are not environment context")
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"medium": "   "},
+        {"setup": 123},
+    ],
+)
+def test_self_heating_experiment_context_rejects_invalid_text(
+    kwargs: dict[str, object],
+) -> None:
+    with pytest.raises((TypeError, ValueError)):
+        SelfHeatingExperimentContext(**kwargs)  # type: ignore[arg-type]
 
 
 def test_two_current_evidence_rejects_reversed_current_order() -> None:
@@ -477,7 +522,10 @@ def test_zero_power_fit_uncertainty_rejects_wrong_result_type() -> None:
         estimate_zero_power_fit_uncertainty(object())  # type: ignore[arg-type]
 
 
-def _repeated_two_current_fit() -> ZeroPowerResistanceFitResult:
+def _repeated_two_current_fit(
+    *,
+    context: SelfHeatingExperimentContext | None = None,
+) -> ZeroPowerResistanceFitResult:
     low_current = 0.001
     high_current = math.sqrt(2.0) * 0.001
     return fit_zero_power_resistance(
@@ -486,8 +534,34 @@ def _repeated_two_current_fit() -> ZeroPowerResistanceFitResult:
             SelfHeatingObservation(high_current, 100.019),
             SelfHeatingObservation(low_current, 100.011),
             SelfHeatingObservation(high_current, 100.021),
-        )
+        ),
+        context=context,
     )
+
+
+def test_zero_power_fit_retains_nonbehavioral_experiment_context() -> None:
+    context = SelfHeatingExperimentContext(
+        medium="flowing water",
+        flow_condition="approximately 0.4 m/s",
+    )
+
+    fit = _repeated_two_current_fit(context=context)
+
+    assert fit.evidence.context is context
+    assert fit.zero_power_resistance_ohms == pytest.approx(100.0)
+    assert fit.resistance_slope_ohms_per_a2 == pytest.approx(10000.0)
+
+
+def test_zero_power_fit_rejects_wrong_context_type() -> None:
+    with pytest.raises(TypeError, match="SelfHeatingExperimentContext"):
+        fit_zero_power_resistance(
+            (
+                SelfHeatingObservation(0.001, 100.01),
+                SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02),
+                SelfHeatingObservation(0.002, 100.04),
+            ),
+            context=object(),  # type: ignore[arg-type]
+        )
 
 
 def test_zero_power_fit_temperature_evaluation_reports_observed_and_fitted_values() -> (
@@ -676,6 +750,243 @@ def test_zero_power_fit_temperature_uncertainty_rejects_nonfinite_sensitivity() 
 
     with pytest.raises(ValueError, match="sensitivity must be finite"):
         propagate_zero_power_fit_temperature_uncertainty(temperatures)
+
+
+def _context_bound_temperature_fit() -> ZeroPowerResistanceFitTemperatureResult:
+    fit = _repeated_two_current_fit(
+        context=SelfHeatingExperimentContext(
+            medium="flowing water",
+            flow_condition="approximately 0.4 m/s",
+            mounting="fully immersed probe",
+        )
+    )
+    return evaluate_zero_power_fit_temperatures(
+        fit,
+        model=_LinearTwoOhmPerCelsiusModel(),
+    )
+
+
+def test_self_heating_coefficient_reports_context_bound_power_relationship() -> None:
+    temperatures = _context_bound_temperature_fit()
+
+    result = evaluate_self_heating_coefficient(temperatures)
+
+    assert isinstance(result, SelfHeatingCoefficientResult)
+    assert result.temperature_result is temperatures
+    assert result.context is temperatures.fit_result.evidence.context
+    assert result.method == (
+        "least_squares_temperature_rise_vs_fitted_power_through_origin"
+    )
+    assert result.distinct_current_count == 2
+    assert result.current_squared_levels_a2 == pytest.approx((1.0e-6, 2.0e-6))
+    assert result.fitted_temperature_rises_c == pytest.approx((0.005, 0.01))
+    assert result.fitted_dissipated_powers_w == pytest.approx((100.01e-6, 200.04e-6))
+    pointwise = result.pointwise_self_heating_coefficients_c_per_w
+    assert pointwise == pytest.approx((0.005 / 100.01e-6, 0.01 / 200.04e-6))
+    assert min(pointwise) < result.self_heating_coefficient_c_per_w < max(pointwise)
+    assert result.self_heating_coefficient_c_per_mw == pytest.approx(
+        result.self_heating_coefficient_c_per_w / 1000.0
+    )
+    assert result.dissipation_constant_w_per_c == pytest.approx(
+        1.0 / result.self_heating_coefficient_c_per_w
+    )
+    assert result.dissipation_constant_mw_per_c == pytest.approx(
+        1000.0 / result.self_heating_coefficient_c_per_w
+    )
+    assert len(result.coefficient_fit_residuals_c) == 2
+    assert result.coefficient_rms_residual_c > 0.0
+    assert result.coefficient_max_absolute_residual_c > 0.0
+
+
+def test_self_heating_coefficient_uses_distinct_current_levels_once() -> None:
+    context = SelfHeatingExperimentContext(setup="dry-block calibrator")
+    observations = (
+        SelfHeatingObservation(0.001, 100.009),
+        SelfHeatingObservation(0.001, 100.010),
+        SelfHeatingObservation(0.001, 100.011),
+        SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.019),
+        SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.021),
+    )
+    temperatures = evaluate_zero_power_fit_temperatures(
+        fit_zero_power_resistance(observations, context=context),
+        model=_LinearTwoOhmPerCelsiusModel(),
+    )
+
+    result = evaluate_self_heating_coefficient(temperatures)
+
+    assert result.distinct_current_count == 2
+    assert len(result.fitted_dissipated_powers_w) == 2
+    assert len(result.fitted_temperature_rises_c) == 2
+
+
+def test_self_heating_coefficient_requires_retained_context() -> None:
+    temperatures = evaluate_zero_power_fit_temperatures(
+        _repeated_two_current_fit(),
+        model=_LinearTwoOhmPerCelsiusModel(),
+    )
+
+    with pytest.raises(ValueError, match="experiment context"):
+        evaluate_self_heating_coefficient(temperatures)
+
+
+def test_self_heating_coefficient_rejects_nonpositive_slope() -> None:
+    context = SelfHeatingExperimentContext(medium="still air")
+    fit = fit_zero_power_resistance(
+        (
+            SelfHeatingObservation(0.001, 100.03),
+            SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02),
+            SelfHeatingObservation(0.002, 100.00),
+        ),
+        context=context,
+    )
+    temperatures = evaluate_zero_power_fit_temperatures(
+        fit,
+        model=_LinearTwoOhmPerCelsiusModel(),
+    )
+
+    with pytest.raises(ValueError, match="positive resistance slope"):
+        evaluate_self_heating_coefficient(temperatures)
+
+
+def test_self_heating_coefficient_rejects_wrong_result_type() -> None:
+    with pytest.raises(TypeError, match="ZeroPowerResistanceFitTemperatureResult"):
+        evaluate_self_heating_coefficient(object())  # type: ignore[arg-type]
+
+
+def test_self_heating_coefficient_uncertainty_propagates_fit_covariance() -> None:
+    coefficient = evaluate_self_heating_coefficient(_context_bound_temperature_fit())
+
+    result = propagate_self_heating_coefficient_uncertainty(coefficient)
+
+    assert isinstance(result, SelfHeatingCoefficientUncertaintyResult)
+    assert result.coefficient_result is coefficient
+    assert (
+        result.fit_uncertainty.fit_result is coefficient.temperature_result.fit_result
+    )
+    assert result.parameter_names == (
+        "zero_power_resistance_ohms",
+        "resistance_slope_ohms_per_a2",
+    )
+    assert result.propagation_method == "first_order_fit_parameter_covariance"
+    assert all(
+        math.isfinite(value)
+        for value in result.self_heating_coefficient_parameter_sensitivity_vector
+    )
+    assert result.self_heating_coefficient_standard_uncertainty_c_per_w > 0.0
+    assert result.self_heating_coefficient_standard_uncertainty_c_per_mw == (
+        pytest.approx(
+            result.self_heating_coefficient_standard_uncertainty_c_per_w / 1000.0
+        )
+    )
+    expected_dissipation_uncertainty = (
+        result.self_heating_coefficient_standard_uncertainty_c_per_w
+        / coefficient.self_heating_coefficient_c_per_w**2
+    )
+    assert result.dissipation_constant_standard_uncertainty_w_per_c == pytest.approx(
+        expected_dissipation_uncertainty
+    )
+    assert result.dissipation_constant_standard_uncertainty_mw_per_c == pytest.approx(
+        1000.0 * expected_dissipation_uncertainty
+    )
+
+
+def test_self_heating_coefficient_sensitivity_matches_finite_difference() -> None:
+    context = SelfHeatingExperimentContext(setup="oil bath")
+    current_squared = (1.0, 4.0, 9.0)
+
+    def coefficient_for(r0: float, slope: float) -> float:
+        observations = tuple(
+            SelfHeatingObservation(
+                math.sqrt(value),
+                r0 + slope * value,
+            )
+            for value in current_squared
+        )
+        temperatures = evaluate_zero_power_fit_temperatures(
+            fit_zero_power_resistance(observations, context=context),
+            model=_LinearTwoOhmPerCelsiusModel(),
+        )
+        return evaluate_self_heating_coefficient(
+            temperatures
+        ).self_heating_coefficient_c_per_w
+
+    r0 = 100.0
+    slope = 1.0
+    observations = tuple(
+        SelfHeatingObservation(math.sqrt(value), r0 + slope * value)
+        for value in current_squared
+    )
+    temperatures = evaluate_zero_power_fit_temperatures(
+        fit_zero_power_resistance(observations, context=context),
+        model=_LinearTwoOhmPerCelsiusModel(),
+    )
+    coefficient = evaluate_self_heating_coefficient(temperatures)
+    uncertainty = propagate_self_heating_coefficient_uncertainty(coefficient)
+
+    r0_step = 1.0e-4
+    slope_step = 1.0e-6
+    expected_r0_sensitivity = (
+        coefficient_for(r0 + r0_step, slope) - coefficient_for(r0 - r0_step, slope)
+    ) / (2.0 * r0_step)
+    expected_slope_sensitivity = (
+        coefficient_for(r0, slope + slope_step)
+        - coefficient_for(r0, slope - slope_step)
+    ) / (2.0 * slope_step)
+
+    sensitivities = uncertainty.self_heating_coefficient_parameter_sensitivity_vector
+    assert sensitivities[0] == pytest.approx(expected_r0_sensitivity, rel=1e-6)
+    assert sensitivities[1] == pytest.approx(expected_slope_sensitivity, rel=1e-6)
+
+
+def test_self_heating_coefficient_uncertainty_is_zero_for_exact_fit() -> None:
+    context = SelfHeatingExperimentContext(medium="stirred water")
+    temperatures = evaluate_zero_power_fit_temperatures(
+        fit_zero_power_resistance(
+            (
+                SelfHeatingObservation(1.0, 101.0),
+                SelfHeatingObservation(2.0, 104.0),
+                SelfHeatingObservation(3.0, 109.0),
+            ),
+            context=context,
+        ),
+        model=_LinearTwoOhmPerCelsiusModel(),
+    )
+    coefficient = evaluate_self_heating_coefficient(temperatures)
+
+    result = propagate_self_heating_coefficient_uncertainty(coefficient)
+
+    assert (
+        result.self_heating_coefficient_standard_uncertainty_c_per_w
+        == pytest.approx(0.0, abs=1e-20)
+    )
+    assert result.dissipation_constant_standard_uncertainty_w_per_c == pytest.approx(
+        0.0, abs=1e-20
+    )
+
+
+def test_self_heating_coefficient_uncertainty_rejects_wrong_result_type() -> None:
+    with pytest.raises(TypeError, match="SelfHeatingCoefficientResult"):
+        propagate_self_heating_coefficient_uncertainty(
+            object()  # type: ignore[arg-type]
+        )
+
+
+def test_self_heating_coefficient_uncertainty_rejects_nonfinite_sensitivity() -> None:
+    class NonFiniteSensitivityModel(_LinearTwoOhmPerCelsiusModel):
+        def temperature_sensitivity_celsius_per_ohm(
+            self, temperature_c: float
+        ) -> float:
+            return math.inf
+
+    context = SelfHeatingExperimentContext(setup="dry-block calibrator")
+    temperatures = evaluate_zero_power_fit_temperatures(
+        _repeated_two_current_fit(context=context),
+        model=NonFiniteSensitivityModel(),
+    )
+    coefficient = evaluate_self_heating_coefficient(temperatures)
+
+    with pytest.raises(ValueError, match="sensitivity must be finite"):
+        propagate_self_heating_coefficient_uncertainty(coefficient)
 
 
 def test_zero_power_fit_preserves_caller_observation_order() -> None:

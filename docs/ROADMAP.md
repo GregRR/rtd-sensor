@@ -150,7 +150,15 @@ Implemented in the current 0.8.0 development checkpoint:
   and fitted temperatures together with observed/fitted `I²R` powers; and
 - first-order propagation of the full fitted intercept/slope covariance into the
   zero-power temperature and fitted temperature rises through the supplied RTD
-  model.
+  model;
+- optional non-behavioral experiment context retained with 3+ observation fit
+  evidence, including medium, flow condition, mounting, setup, and notes;
+- context-gated self-heating coefficient and reciprocal dissipation constant derived
+  from fitted temperature rise versus fitted `I²R` power at distinct sampled current
+  levels, with retained pointwise coefficients and descriptive coefficient-fit
+  residual diagnostics; and
+- first-order propagation of the fitted intercept/slope covariance into the derived
+  self-heating coefficient and dissipation constant.
 
 Remaining 0.8.0 scope includes:
 
@@ -159,12 +167,7 @@ Remaining 0.8.0 scope includes:
   correlated-observation treatment and experiment-specific
   residual acceptance criteria that can be stated without inventing universal
   thresholds;
-- self-heating coefficient or dissipation constant when the observations and
-  environmental context justify reporting one;
-- correlated-input uncertainty handling where justified;
-- optional non-behavioral context such as medium, flow condition, mounting, or
-  calibration setup without making those hardware/application details part of the
-  core RTD model identity; and
+- correlated-input uncertainty handling where justified; and
 - clear warnings when observations do not support a stable zero-power
   extrapolation.
 
