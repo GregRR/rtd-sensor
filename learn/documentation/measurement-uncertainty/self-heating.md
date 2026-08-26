@@ -51,8 +51,8 @@ high = self_heating.SelfHeatingObservation(
 
 result = self_heating.extrapolate_zero_power_resistance(low, high)
 
-print(result.zero_power_resistance_ohms)       # approximately 100.0
-print(result.low_current_resistance_rise_ohms) # approximately 0.01
+print(result.zero_power_resistance_ohms)  # approximately 100.0
+print(result.low_current_resistance_rise_ohms)  # approximately 0.01
 ```
 
 ## Fit three or more observations
@@ -221,19 +221,15 @@ inputs = self_heating.TwoCurrentInputStandardUncertainties(
     high_resistance_standard_uncertainty_ohms=0.002,
 )
 
-zero_power_uncertainty = (
-    self_heating.propagate_two_current_zero_power_uncertainty(
-        result,
-        input_standard_uncertainties=inputs,
-    )
+zero_power_uncertainty = self_heating.propagate_two_current_zero_power_uncertainty(
+    result,
+    input_standard_uncertainties=inputs,
 )
 print(zero_power_uncertainty.zero_power_resistance_standard_uncertainty_ohms)
 
-temperature_uncertainty = (
-    self_heating.propagate_two_current_temperature_uncertainty(
-        temperatures,
-        input_standard_uncertainties=inputs,
-    )
+temperature_uncertainty = self_heating.propagate_two_current_temperature_uncertainty(
+    temperatures,
+    input_standard_uncertainties=inputs,
 )
 print(temperature_uncertainty.zero_power_temperature_standard_uncertainty_c)
 print(temperature_uncertainty.low_current_temperature_rise_standard_uncertainty_c)
