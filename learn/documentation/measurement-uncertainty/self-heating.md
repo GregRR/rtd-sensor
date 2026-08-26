@@ -171,6 +171,69 @@ Zero or negative slopes are retained and reported as evidence rather than being
 rejected, because software cannot determine from the sign alone whether the cause
 was negligible heating, drift, measurement noise, or an invalid experiment.
 
+### Interpret the larger fit as temperature and power
+
+The 3+ observation fit can be converted through an RTD model without replacing its
+resistance-domain evidence:
+
+```python
+fit_temperatures = self_heating.evaluate_zero_power_fit_temperatures(
+    fit,
+    model=model,
+)
+
+print(fit_temperatures.zero_power_temperature_c)
+print(fit_temperatures.fitted_temperature_rises_c)
+print(fit_temperatures.observed_dissipated_powers_w)
+print(fit_temperatures.fitted_dissipated_powers_w)
+```
+
+The same model is used for the fitted zero-power resistance, each observed
+resistance, and the fit-predicted resistance at each sampled current. The result
+therefore keeps both views:
+
+- **observed** temperatures and ``I²R_observed`` powers show the measured data;
+- **fitted** temperatures and ``I²R_fitted`` powers show the retained linear
+  resistance-versus-current-squared fit at those same current coordinates.
+
+The difference between observed and fitted temperatures is also retained as a
+temperature-domain residual. Negative fitted temperature rises remain visible when
+the fitted resistance slope is negative; the API does not relabel such a dataset as
+valid physical self-heating.
+
+These temperature-rise-versus-power pairs are useful evidence for later
+dissipation analysis, but they are not automatically called a self-heating
+coefficient or dissipation constant. The BIPM industrial-PRT guidance notes that
+such coefficients depend on the sensor/probe construction and the specific thermal
+environment, and manufacturers commonly specify them for a stated medium and flow
+condition.
+
+### Propagate the larger fit covariance into temperature rises
+
+The retained intercept/slope covariance can be propagated through the same RTD
+model:
+
+```python
+fit_temperature_uncertainty = (
+    self_heating.propagate_zero_power_fit_temperature_uncertainty(fit_temperatures)
+)
+
+print(fit_temperature_uncertainty.zero_power_temperature_standard_uncertainty_c)
+print(fit_temperature_uncertainty.fitted_temperature_rise_standard_uncertainties_c)
+```
+
+At each sampled current-squared coordinate ``x``, the fitted resistance is
+``R0 + k*x``. Its sensitivity to the fitted parameters ``(R0, k)`` is therefore
+``(1, x)``. Multiplying by the model's local ``dT/dR`` gives the fitted-temperature
+sensitivity vector. The zero-power sensitivity is subtracted before propagating a
+temperature rise, so the shared fitted intercept and its covariance with slope are
+not discarded.
+
+This propagation includes only the residual-scatter covariance estimated from the
+unweighted OLS fit. Current coordinates remain fixed/exact, and the RTD model is
+treated as fixed. Model-parameter covariance, measurement-current uncertainty,
+additional resistance uncertainty, heteroscedasticity, and correlated experimental
+effects remain separate.
 
 ## Convert the result to zero-power temperature
 
@@ -303,7 +366,7 @@ The current 0.8.0 implementation does not yet provide:
 - covariance-aware propagation for correlated two-current measurement inputs;
 - uncertainty-weighted or covariance-aware multi-observation fitting;
 - an automatic experiment-specific residual acceptance threshold;
-- dissipation/self-heating coefficients; or
+- a named dissipation/self-heating coefficient or dissipation constant; or
 - environmental provenance such as medium, flow, or mounting.
 
 Those remaining capabilities stay within the documented 0.8.0 scope and can

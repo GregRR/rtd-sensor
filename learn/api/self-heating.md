@@ -9,7 +9,8 @@ The self-heating API is **introduced in rtd-sensor 0.8.0**. It provides the
 standard two-current resistance-domain extrapolation to zero measurement current,
 a 3+ observation least-squares fit of the same resistance-versus-current-squared
 relationship, residual-based parameter covariance for that larger fit, and
-model-based temperature/uncertainty analysis for the two-current result.
+model-based temperature/uncertainty analysis for both the two-current and larger-fit
+results.
 
 ## `SelfHeatingObservation`
 
@@ -185,6 +186,92 @@ the physical experiment has zero uncertainty. It only means this residual-scatte
 estimator observed no scatter from which to estimate a nonzero common resistance
 variance.
 
+## `evaluate_zero_power_fit_temperatures`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+```python
+evaluate_zero_power_fit_temperatures(
+    result: ZeroPowerResistanceFitResult,
+    *,
+    model: RTDModel,
+) -> ZeroPowerResistanceFitTemperatureResult
+```
+
+Applies one explicitly supplied RTD model to the fitted zero-power resistance,
+every observed resistance, and every fitted resistance at the sampled current
+coordinates. Model conversion and range failures propagate unchanged.
+
+## `ZeroPowerResistanceFitTemperatureResult`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+Fields and read-only derived properties:
+
+```text
+fit_result: ZeroPowerResistanceFitResult
+model: RTDModel
+zero_power_temperature_c: float
+observed_temperatures_c: tuple[float, ...]
+fitted_temperatures_c: tuple[float, ...]
+observed_temperature_rises_c: tuple[float, ...]
+fitted_temperature_rises_c: tuple[float, ...]
+temperature_residuals_c: tuple[float, ...]
+observed_dissipated_powers_w: tuple[float, ...]
+fitted_dissipated_powers_w: tuple[float, ...]
+```
+
+Caller observation order is preserved. Observed powers use ``I²R_observed``; fitted
+powers use the fitted resistance at the same sampled current coordinate. These
+temperature-rise/power pairs remain experimental evidence and are not automatically
+reported as a transferable self-heating coefficient or dissipation constant.
+
+## `propagate_zero_power_fit_temperature_uncertainty`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+```python
+propagate_zero_power_fit_temperature_uncertainty(
+    result: ZeroPowerResistanceFitTemperatureResult,
+) -> ZeroPowerResistanceFitTemperatureUncertaintyResult
+```
+
+Propagates the full residual-scatter covariance of the fitted zero-power resistance
+and ``dR/d(I²)`` slope through the supplied RTD model. The result reports fit-
+covariance uncertainty for the zero-power temperature, each fitted temperature,
+and each fitted temperature rise.
+
+At sampled ``x = I²``, fitted resistance depends on the retained parameters as
+``R0 + k*x``. The fitted-temperature sensitivity vector is the local ``dT/dR``
+times ``(1, x)``. Temperature-rise sensitivities subtract the zero-power
+temperature sensitivity first, preserving the shared fitted intercept and the
+intercept/slope covariance.
+
+This is first-order/local propagation. The RTD model is treated as fixed and no
+measurement-current uncertainty, additional resistance uncertainty, model-parameter
+covariance, or correlated experiment effects are inserted automatically.
+
+## `ZeroPowerResistanceFitTemperatureUncertaintyResult`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+The result retains:
+
+```text
+temperature_result: ZeroPowerResistanceFitTemperatureResult
+fit_uncertainty: ZeroPowerResistanceFitUncertaintyResult
+parameter_names: tuple[str, str]
+zero_power_temperature_parameter_sensitivity_vector: tuple[float, float]
+fitted_temperature_parameter_sensitivity_vectors: tuple[tuple[float, float], ...]
+fitted_temperature_rise_parameter_sensitivity_vectors: tuple[tuple[float, float], ...]
+zero_power_temperature_variance_celsius_squared: float
+zero_power_temperature_standard_uncertainty_c: float
+fitted_temperature_variances_celsius_squared: tuple[float, ...]
+fitted_temperature_standard_uncertainties_c: tuple[float, ...]
+fitted_temperature_rise_variances_celsius_squared: tuple[float, ...]
+fitted_temperature_rise_standard_uncertainties_c: tuple[float, ...]
+propagation_method: "first_order_fit_parameter_covariance"
+```
 
 ## `evaluate_two_current_temperatures`
 

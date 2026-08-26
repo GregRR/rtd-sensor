@@ -144,6 +144,8 @@ def test_self_heating_public_api() -> None:
         "SelfHeatingObservation",
         "ZeroPowerResistanceFitEvidence",
         "ZeroPowerResistanceFitResult",
+        "ZeroPowerResistanceFitTemperatureResult",
+        "ZeroPowerResistanceFitTemperatureUncertaintyResult",
         "ZeroPowerResistanceFitUncertaintyResult",
         "TwoCurrentInputStandardUncertainties",
         "TwoCurrentSelfHeatingTemperatureResult",
@@ -153,10 +155,12 @@ def test_self_heating_public_api() -> None:
         "TwoCurrentZeroPowerUncertaintyResult",
         "estimate_zero_power_fit_uncertainty",
         "evaluate_two_current_temperatures",
+        "evaluate_zero_power_fit_temperatures",
         "fit_zero_power_resistance",
         "extrapolate_zero_power_resistance",
         "propagate_two_current_temperature_uncertainty",
         "propagate_two_current_zero_power_uncertainty",
+        "propagate_zero_power_fit_temperature_uncertainty",
     }
 
 

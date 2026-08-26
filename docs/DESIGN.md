@@ -1045,10 +1045,29 @@ Likewise, heteroscedastic resistance uncertainty, correlated repeated readings, 
 other common-mode effects require an explicit weighted, covariance-aware, or
 errors-in-variables treatment rather than being inferred from residual scatter.
 
+The 3+ observation fit can also be interpreted through one explicitly supplied
+RTD model without changing the resistance-domain fit. The result converts the
+fitted zero-power resistance, each observed resistance, and each fitted resistance
+at the sampled current coordinates. It retains observed and fitted temperature
+rises separately and reports both measured ``I²R_observed`` power and fitted
+``I²R_fitted`` power in caller observation order. These power/temperature pairs are
+experimental evidence; they are not automatically labeled as a transferable
+self-heating coefficient or dissipation constant.
+
+The residual-scatter intercept/slope covariance can be propagated through the same
+model into the fitted zero-power temperature and fitted temperature rises. At each
+sampled ``x = I²``, the fitted resistance sensitivity to ``(R0, k)`` is ``(1, x)``.
+The temperature sensitivity vector is therefore the local ``dT/dR`` multiplied by
+``(1, x)``, while the temperature-rise vector subtracts the corresponding
+zero-power sensitivity before applying the full 2 x 2 covariance matrix. This
+preserves the shared fitted intercept and its covariance with slope rather than
+combining derived temperatures as independent quantities. The propagation remains
+first-order/local and treats the RTD model itself as fixed.
+
 The self-heating layer still does not automatically alter an RTD model or a
 general uncertainty budget. Later 0.8.0 work may add covariance-aware handling
-where justified and report dissipation/self-heating quantities only when the
-evidence and environmental context justify them.
+where justified and report a named dissipation/self-heating coefficient only when
+the evidence and environmental context justify it.
 
 #### Portable model-definition format decision
 

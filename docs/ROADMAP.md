@@ -145,7 +145,12 @@ Implemented in the current 0.8.0 development checkpoint:
   descriptive residual/consistency diagnostics; and
 - residual-variance-scaled ordinary-least-squares covariance for the 3+ observation
   fit parameters, conditional on fixed current-squared coordinates and independent,
-  zero-mean resistance-domain errors with a common variance.
+  zero-mean resistance-domain errors with a common variance;
+- model-based interpretation of the 3+ observation fit into zero-power, observed,
+  and fitted temperatures together with observed/fitted `I²R` powers; and
+- first-order propagation of the full fitted intercept/slope covariance into the
+  zero-power temperature and fitted temperature rises through the supplied RTD
+  model.
 
 Remaining 0.8.0 scope includes:
 

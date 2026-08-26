@@ -347,12 +347,15 @@ https://www.nist.gov/publications/guide-secondary-thermometry-industrial-platinu
 Section 4.1 provides the implementation basis for linear resistance-versus-current-
 squared self-heating extrapolation, larger observation sets used to inspect that
 linearity, repeated-current cycles when drift makes a single pair unreliable, and
-the stable-external-temperature requirement. Appendix 1 documents the modern
-Callendar–Van Dusen `R0`, `A`, `B`, `C` form, the zero-above-0-°C role of `C`, and
-the historical determination of CVD parameters from calibration measurements. It
-also remains a research source for hysteresis, reproducibility, and long-term
-stability. JCGM 100:2008 is the implementation basis for the current first-order
-self-heating uncertainty propagation.
+the stable-external-temperature requirement. Its treatment of self-heating effect
+versus applied power and of setup-specific self-heating coefficients/dissipation
+constants also supports retaining observation/fitted ``I²R`` powers now while
+deferring a named coefficient until environmental context is explicit. Appendix 1
+documents the modern Callendar–Van Dusen `R0`, `A`, `B`, `C` form, the
+zero-above-0-°C role of `C`, and the historical determination of CVD parameters
+from calibration measurements. It also remains a research source for hysteresis,
+reproducibility, and long-term stability. JCGM 100:2008 is the implementation basis
+for the current first-order self-heating uncertainty propagation.
 
 Strouse, G. F., Mangum, B. W., Vaughn, C. D., & Xu, E. Y. (1998). *A new NIST
 automated calibration system for industrial-grade platinum resistance

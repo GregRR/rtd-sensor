@@ -18,13 +18,17 @@ from rtd_sensor.self_heating import (
     TwoCurrentZeroPowerUncertaintyResult,
     ZeroPowerResistanceFitEvidence,
     ZeroPowerResistanceFitResult,
+    ZeroPowerResistanceFitTemperatureResult,
+    ZeroPowerResistanceFitTemperatureUncertaintyResult,
     ZeroPowerResistanceFitUncertaintyResult,
     estimate_zero_power_fit_uncertainty,
     evaluate_two_current_temperatures,
+    evaluate_zero_power_fit_temperatures,
     extrapolate_zero_power_resistance,
     fit_zero_power_resistance,
     propagate_two_current_temperature_uncertainty,
     propagate_two_current_zero_power_uncertainty,
+    propagate_zero_power_fit_temperature_uncertainty,
 )
 
 
@@ -471,6 +475,207 @@ def test_zero_power_fit_uncertainty_is_zero_for_exact_line() -> None:
 def test_zero_power_fit_uncertainty_rejects_wrong_result_type() -> None:
     with pytest.raises(TypeError, match="ZeroPowerResistanceFitResult"):
         estimate_zero_power_fit_uncertainty(object())  # type: ignore[arg-type]
+
+
+def _repeated_two_current_fit() -> ZeroPowerResistanceFitResult:
+    low_current = 0.001
+    high_current = math.sqrt(2.0) * 0.001
+    return fit_zero_power_resistance(
+        (
+            SelfHeatingObservation(low_current, 100.009),
+            SelfHeatingObservation(high_current, 100.019),
+            SelfHeatingObservation(low_current, 100.011),
+            SelfHeatingObservation(high_current, 100.021),
+        )
+    )
+
+
+def test_zero_power_fit_temperature_evaluation_reports_observed_and_fitted_values() -> (
+    None
+):
+    fit = _repeated_two_current_fit()
+    model = _LinearTwoOhmPerCelsiusModel()
+
+    result = evaluate_zero_power_fit_temperatures(fit, model=model)
+
+    assert isinstance(result, ZeroPowerResistanceFitTemperatureResult)
+    assert result.fit_result is fit
+    assert result.model is model
+    assert result.zero_power_temperature_c == pytest.approx(0.0)
+    assert result.observed_temperatures_c == pytest.approx(
+        (0.0045, 0.0095, 0.0055, 0.0105)
+    )
+    assert result.fitted_temperatures_c == pytest.approx((0.005, 0.01, 0.005, 0.01))
+    assert result.observed_temperature_rises_c == pytest.approx(
+        result.observed_temperatures_c
+    )
+    assert result.fitted_temperature_rises_c == pytest.approx(
+        result.fitted_temperatures_c
+    )
+    assert result.temperature_residuals_c == pytest.approx(
+        (-0.0005, -0.0005, 0.0005, 0.0005)
+    )
+    assert result.observed_dissipated_powers_w == pytest.approx(
+        (100.009e-6, 200.038e-6, 100.011e-6, 200.042e-6)
+    )
+    assert result.fitted_dissipated_powers_w == pytest.approx(
+        (100.01e-6, 200.04e-6, 100.01e-6, 200.04e-6)
+    )
+
+
+def test_zero_power_fit_temperature_evaluation_retains_negative_fitted_rises() -> None:
+    fit = fit_zero_power_resistance(
+        (
+            SelfHeatingObservation(0.001, 100.03),
+            SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02),
+            SelfHeatingObservation(0.002, 100.00),
+        )
+    )
+
+    result = evaluate_zero_power_fit_temperatures(
+        fit,
+        model=_LinearTwoOhmPerCelsiusModel(),
+    )
+
+    assert fit.resistance_slope_direction == "negative"
+    assert all(rise < 0.0 for rise in result.fitted_temperature_rises_c)
+
+
+def test_zero_power_fit_temperature_uncertainty_preserves_fit_covariance() -> None:
+    temperatures = evaluate_zero_power_fit_temperatures(
+        _repeated_two_current_fit(),
+        model=_LinearTwoOhmPerCelsiusModel(),
+    )
+
+    result = propagate_zero_power_fit_temperature_uncertainty(temperatures)
+
+    assert isinstance(result, ZeroPowerResistanceFitTemperatureUncertaintyResult)
+    assert result.temperature_result is temperatures
+    assert result.fit_uncertainty.fit_result is temperatures.fit_result
+    assert result.propagation_method == "first_order_fit_parameter_covariance"
+    assert result.parameter_names == (
+        "zero_power_resistance_ohms",
+        "resistance_slope_ohms_per_a2",
+    )
+    assert result.zero_power_temperature_parameter_sensitivity_vector == pytest.approx(
+        (0.5, 0.0)
+    )
+    assert result.zero_power_temperature_variance_celsius_squared == pytest.approx(
+        1.25e-6
+    )
+    assert result.zero_power_temperature_standard_uncertainty_c == pytest.approx(
+        math.sqrt(1.25e-6)
+    )
+    expected_vectors = (
+        (0.5, 0.5e-6),
+        (0.5, 1.0e-6),
+        (0.5, 0.5e-6),
+        (0.5, 1.0e-6),
+    )
+    for actual, expected in zip(
+        result.fitted_temperature_parameter_sensitivity_vectors,
+        expected_vectors,
+        strict=True,
+    ):
+        assert actual == pytest.approx(expected)
+    assert result.fitted_temperature_variances_celsius_squared == pytest.approx(
+        (2.5e-7, 2.5e-7, 2.5e-7, 2.5e-7)
+    )
+    assert result.fitted_temperature_rise_variances_celsius_squared == pytest.approx(
+        (5.0e-7, 2.0e-6, 5.0e-7, 2.0e-6)
+    )
+    assert result.fitted_temperature_rise_standard_uncertainties_c == pytest.approx(
+        (math.sqrt(5.0e-7), math.sqrt(2.0e-6)) * 2
+    )
+
+
+def test_zero_power_fit_temperature_uncertainty_is_zero_for_exact_fit() -> None:
+    fit = fit_zero_power_resistance(
+        (
+            SelfHeatingObservation(1.0, 101.0),
+            SelfHeatingObservation(2.0, 104.0),
+            SelfHeatingObservation(3.0, 109.0),
+        )
+    )
+    temperatures = evaluate_zero_power_fit_temperatures(
+        fit,
+        model=_LinearTwoOhmPerCelsiusModel(),
+    )
+
+    result = propagate_zero_power_fit_temperature_uncertainty(temperatures)
+
+    assert result.zero_power_temperature_standard_uncertainty_c == pytest.approx(
+        0.0, abs=1e-20
+    )
+    assert result.fitted_temperature_standard_uncertainties_c == pytest.approx(
+        (0.0, 0.0, 0.0), abs=1e-20
+    )
+    assert result.fitted_temperature_rise_standard_uncertainties_c == pytest.approx(
+        (0.0, 0.0, 0.0), abs=1e-20
+    )
+
+
+def test_zero_power_fit_temperature_evaluation_rejects_wrong_result_type() -> None:
+    with pytest.raises(TypeError, match="ZeroPowerResistanceFitResult"):
+        evaluate_zero_power_fit_temperatures(
+            object(),  # type: ignore[arg-type]
+            model=_LinearTwoOhmPerCelsiusModel(),
+        )
+
+
+def test_zero_power_fit_temperature_uncertainty_rejects_wrong_result_type() -> None:
+    with pytest.raises(TypeError, match="ZeroPowerResistanceFitTemperatureResult"):
+        propagate_zero_power_fit_temperature_uncertainty(
+            object(),  # type: ignore[arg-type]
+        )
+
+
+def test_zero_power_fit_temperature_result_rejects_nonfinite_model_output() -> None:
+    class NonFiniteTemperatureModel(_LinearTwoOhmPerCelsiusModel):
+        def resistance_to_celsius(self, resistance_ohms: float) -> float:
+            return math.inf
+
+    with pytest.raises(ValueError, match="temperature must be finite"):
+        evaluate_zero_power_fit_temperatures(
+            _repeated_two_current_fit(),
+            model=NonFiniteTemperatureModel(),
+        )
+
+
+def test_zero_power_fit_temperature_uncertainty_rejects_mismatched_fit() -> None:
+    temperatures = evaluate_zero_power_fit_temperatures(
+        _repeated_two_current_fit(),
+        model=_LinearTwoOhmPerCelsiusModel(),
+    )
+    other_fit = fit_zero_power_resistance(
+        (
+            SelfHeatingObservation(1.0, 101.0),
+            SelfHeatingObservation(2.0, 104.0),
+            SelfHeatingObservation(3.0, 109.0),
+        )
+    )
+
+    with pytest.raises(ValueError, match="retained zero-power fit"):
+        ZeroPowerResistanceFitTemperatureUncertaintyResult(
+            temperature_result=temperatures,
+            fit_uncertainty=estimate_zero_power_fit_uncertainty(other_fit),
+        )
+
+
+def test_zero_power_fit_temperature_uncertainty_rejects_nonfinite_sensitivity() -> None:
+    class NonFiniteSensitivityModel(_LinearTwoOhmPerCelsiusModel):
+        def temperature_sensitivity_celsius_per_ohm(
+            self, temperature_c: float
+        ) -> float:
+            return math.inf
+
+    temperatures = evaluate_zero_power_fit_temperatures(
+        _repeated_two_current_fit(),
+        model=NonFiniteSensitivityModel(),
+    )
+
+    with pytest.raises(ValueError, match="sensitivity must be finite"):
+        propagate_zero_power_fit_temperature_uncertainty(temperatures)
 
 
 def test_zero_power_fit_preserves_caller_observation_order() -> None:

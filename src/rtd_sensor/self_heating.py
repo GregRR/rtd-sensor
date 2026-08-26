@@ -25,6 +25,8 @@ __all__ = [
     "SelfHeatingObservation",
     "ZeroPowerResistanceFitEvidence",
     "ZeroPowerResistanceFitResult",
+    "ZeroPowerResistanceFitTemperatureResult",
+    "ZeroPowerResistanceFitTemperatureUncertaintyResult",
     "ZeroPowerResistanceFitUncertaintyResult",
     "TwoCurrentInputStandardUncertainties",
     "TwoCurrentSelfHeatingTemperatureResult",
@@ -34,15 +36,20 @@ __all__ = [
     "TwoCurrentZeroPowerUncertaintyResult",
     "evaluate_two_current_temperatures",
     "estimate_zero_power_fit_uncertainty",
+    "evaluate_zero_power_fit_temperatures",
     "fit_zero_power_resistance",
     "extrapolate_zero_power_resistance",
     "propagate_two_current_temperature_uncertainty",
     "propagate_two_current_zero_power_uncertainty",
+    "propagate_zero_power_fit_temperature_uncertainty",
 ]
 
 _TwoCurrentMethod = Literal["linear_resistance_vs_current_squared"]
 _ZeroPowerFitMethod = Literal["ordinary_least_squares_resistance_vs_current_squared"]
 _ZeroPowerFitUncertaintyMethod = Literal["residual_variance_scaled_least_squares"]
+_ZeroPowerFitTemperatureUncertaintyMethod = Literal[
+    "first_order_fit_parameter_covariance"
+]
 _TwoCurrentUncertaintyMethod = Literal["first_order_independent_inputs"]
 _TWO_CURRENT_INPUT_PARAMETER_NAMES = (
     "low_current_a",
@@ -527,6 +534,277 @@ class ZeroPowerResistanceFitUncertaintyResult:
         return self.parameter_covariance_matrix[0][1]
 
 
+@dataclass(frozen=True, slots=True)
+class ZeroPowerResistanceFitTemperatureResult:
+    """Model-based temperatures and powers for one multi-observation zero-power fit.
+
+    The exact supplied RTD model is applied to the fitted zero-power resistance,
+    every observed resistance, and every resistance predicted by the retained
+    ``R = R0 + k*I²`` fit at the sampled current levels. Caller observation order is
+    preserved throughout.
+
+    Observed and fitted dissipated powers are reported separately. The observed
+    values use the measured resistance in ``I²R``; fitted values use the fitted
+    resistance at the same current coordinate. These quantities remain evidence
+    about the experiment and are not, by themselves, a setup-independent
+    self-heating coefficient or dissipation constant.
+    """
+
+    fit_result: ZeroPowerResistanceFitResult
+    model: _RTDModel = field(repr=False, compare=False)
+    zero_power_temperature_c: float = field(init=False)
+    observed_temperatures_c: tuple[float, ...] = field(init=False)
+    fitted_temperatures_c: tuple[float, ...] = field(init=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.fit_result, ZeroPowerResistanceFitResult):
+            raise TypeError("fit_result must be a ZeroPowerResistanceFitResult")
+
+        evidence = self.fit_result.evidence
+        zero_power_temperature = _converted_temperature_c(
+            self.model,
+            self.fit_result.zero_power_resistance_ohms,
+            name="Zero-power fit temperature",
+        )
+        observed_temperatures = tuple(
+            _converted_temperature_c(
+                self.model,
+                observation.resistance_ohms,
+                name="Observed fit temperature",
+            )
+            for observation in evidence.observations
+        )
+        fitted_temperatures = tuple(
+            _converted_temperature_c(
+                self.model,
+                resistance,
+                name="Fitted self-heating temperature",
+            )
+            for resistance in evidence.fitted_resistances_ohms
+        )
+
+        object.__setattr__(self, "zero_power_temperature_c", zero_power_temperature)
+        object.__setattr__(self, "observed_temperatures_c", observed_temperatures)
+        object.__setattr__(self, "fitted_temperatures_c", fitted_temperatures)
+
+    @property
+    def observed_temperature_rises_c(self) -> tuple[float, ...]:
+        """Return observed temperatures minus fitted zero-power temperature."""
+        return tuple(
+            temperature - self.zero_power_temperature_c
+            for temperature in self.observed_temperatures_c
+        )
+
+    @property
+    def fitted_temperature_rises_c(self) -> tuple[float, ...]:
+        """Return fitted temperatures minus fitted zero-power temperature."""
+        return tuple(
+            temperature - self.zero_power_temperature_c
+            for temperature in self.fitted_temperatures_c
+        )
+
+    @property
+    def temperature_residuals_c(self) -> tuple[float, ...]:
+        """Return observed minus fitted temperatures in caller observation order."""
+        return tuple(
+            observed - fitted
+            for observed, fitted in zip(
+                self.observed_temperatures_c,
+                self.fitted_temperatures_c,
+                strict=True,
+            )
+        )
+
+    @property
+    def observed_dissipated_powers_w(self) -> tuple[float, ...]:
+        """Return measured observation powers ``I²R_observed`` in watts."""
+        return tuple(
+            observation.dissipated_power_w
+            for observation in self.fit_result.evidence.observations
+        )
+
+    @property
+    def fitted_dissipated_powers_w(self) -> tuple[float, ...]:
+        """Return fitted powers ``I²R_fitted`` at each sampled current."""
+        powers = tuple(
+            observation.current_squared_a2 * resistance
+            for observation, resistance in zip(
+                self.fit_result.evidence.observations,
+                self.fit_result.evidence.fitted_resistances_ohms,
+                strict=True,
+            )
+        )
+        if not all(math.isfinite(power) and power > 0.0 for power in powers):
+            raise ValueError("Fitted dissipated powers must be positive and finite")
+        return powers
+
+
+@dataclass(frozen=True, slots=True)
+class ZeroPowerResistanceFitTemperatureUncertaintyResult:
+    """Fit-covariance uncertainty for multi-observation temperatures and rises.
+
+    The propagation uses the fitted-parameter order
+    ``(zero_power_resistance_ohms, resistance_slope_ohms_per_a2)`` and the full
+    retained 2x2 covariance matrix. Current-squared coordinates are treated as
+    fixed/exact, matching the underlying ordinary-least-squares covariance model.
+
+    Only uncertainty from the residual-scatter fit covariance is included. The
+    supplied RTD model is treated as fixed; model-parameter covariance, current
+    uncertainty, resistance measurement uncertainty beyond the residual model, and
+    correlated experimental effects remain separate.
+    """
+
+    temperature_result: ZeroPowerResistanceFitTemperatureResult
+    fit_uncertainty: ZeroPowerResistanceFitUncertaintyResult
+    zero_power_temperature_parameter_sensitivity_vector: tuple[float, float] = field(
+        init=False
+    )
+    fitted_temperature_parameter_sensitivity_vectors: tuple[
+        tuple[float, float], ...
+    ] = field(init=False)
+    fitted_temperature_rise_parameter_sensitivity_vectors: tuple[
+        tuple[float, float], ...
+    ] = field(init=False)
+    zero_power_temperature_variance_celsius_squared: float = field(init=False)
+    zero_power_temperature_standard_uncertainty_c: float = field(init=False)
+    fitted_temperature_variances_celsius_squared: tuple[float, ...] = field(init=False)
+    fitted_temperature_standard_uncertainties_c: tuple[float, ...] = field(init=False)
+    fitted_temperature_rise_variances_celsius_squared: tuple[float, ...] = field(
+        init=False
+    )
+    fitted_temperature_rise_standard_uncertainties_c: tuple[float, ...] = field(
+        init=False
+    )
+    propagation_method: _ZeroPowerFitTemperatureUncertaintyMethod = field(
+        init=False,
+        default="first_order_fit_parameter_covariance",
+    )
+
+    def __post_init__(self) -> None:
+        if not isinstance(
+            self.temperature_result,
+            ZeroPowerResistanceFitTemperatureResult,
+        ):
+            raise TypeError(
+                "temperature_result must be a ZeroPowerResistanceFitTemperatureResult"
+            )
+        if not isinstance(
+            self.fit_uncertainty,
+            ZeroPowerResistanceFitUncertaintyResult,
+        ):
+            raise TypeError(
+                "fit_uncertainty must be a ZeroPowerResistanceFitUncertaintyResult"
+            )
+        if self.fit_uncertainty.fit_result != self.temperature_result.fit_result:
+            raise ValueError(
+                "fit_uncertainty must describe the retained zero-power fit"
+            )
+
+        covariance = self.fit_uncertainty.parameter_covariance_matrix
+        zero_sensitivity = _temperature_sensitivity_celsius_per_ohm(
+            self.temperature_result.model,
+            self.temperature_result.zero_power_temperature_c,
+            name="Zero-power fit temperature sensitivity",
+        )
+        zero_vector = (zero_sensitivity, 0.0)
+        zero_variance = _two_parameter_covariance_variance(
+            zero_vector,
+            covariance,
+            quantity_name="Zero-power fit temperature uncertainty",
+        )
+
+        fitted_vectors: list[tuple[float, float]] = []
+        rise_vectors: list[tuple[float, float]] = []
+        fitted_variances: list[float] = []
+        rise_variances: list[float] = []
+
+        for observation, temperature in zip(
+            self.temperature_result.fit_result.evidence.observations,
+            self.temperature_result.fitted_temperatures_c,
+            strict=True,
+        ):
+            local_sensitivity = _temperature_sensitivity_celsius_per_ohm(
+                self.temperature_result.model,
+                temperature,
+                name="Fitted self-heating temperature sensitivity",
+            )
+            fitted_vector = (
+                local_sensitivity,
+                observation.current_squared_a2 * local_sensitivity,
+            )
+            rise_vector = (
+                fitted_vector[0] - zero_vector[0],
+                fitted_vector[1],
+            )
+            fitted_vectors.append(fitted_vector)
+            rise_vectors.append(rise_vector)
+            fitted_variances.append(
+                _two_parameter_covariance_variance(
+                    fitted_vector,
+                    covariance,
+                    quantity_name="Fitted self-heating temperature uncertainty",
+                )
+            )
+            rise_variances.append(
+                _two_parameter_covariance_variance(
+                    rise_vector,
+                    covariance,
+                    quantity_name=("Fitted self-heating temperature-rise uncertainty"),
+                )
+            )
+
+        object.__setattr__(
+            self,
+            "zero_power_temperature_parameter_sensitivity_vector",
+            zero_vector,
+        )
+        object.__setattr__(
+            self,
+            "fitted_temperature_parameter_sensitivity_vectors",
+            tuple(fitted_vectors),
+        )
+        object.__setattr__(
+            self,
+            "fitted_temperature_rise_parameter_sensitivity_vectors",
+            tuple(rise_vectors),
+        )
+        object.__setattr__(
+            self,
+            "zero_power_temperature_variance_celsius_squared",
+            zero_variance,
+        )
+        object.__setattr__(
+            self,
+            "zero_power_temperature_standard_uncertainty_c",
+            math.sqrt(zero_variance),
+        )
+        object.__setattr__(
+            self,
+            "fitted_temperature_variances_celsius_squared",
+            tuple(fitted_variances),
+        )
+        object.__setattr__(
+            self,
+            "fitted_temperature_standard_uncertainties_c",
+            tuple(math.sqrt(value) for value in fitted_variances),
+        )
+        object.__setattr__(
+            self,
+            "fitted_temperature_rise_variances_celsius_squared",
+            tuple(rise_variances),
+        )
+        object.__setattr__(
+            self,
+            "fitted_temperature_rise_standard_uncertainties_c",
+            tuple(math.sqrt(value) for value in rise_variances),
+        )
+
+    @property
+    def parameter_names(self) -> tuple[str, str]:
+        """Return the fitted-parameter order used by all sensitivity vectors."""
+        return self.fit_uncertainty.parameter_names
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class TwoCurrentInputStandardUncertainties:
     """Independent standard uncertainties for the four two-current inputs.
@@ -910,6 +1188,63 @@ def estimate_zero_power_fit_uncertainty(
     return ZeroPowerResistanceFitUncertaintyResult(fit_result=result)
 
 
+def evaluate_zero_power_fit_temperatures(
+    result: ZeroPowerResistanceFitResult,
+    *,
+    model: _RTDModel,
+) -> ZeroPowerResistanceFitTemperatureResult:
+    """Interpret a multi-observation zero-power fit through one RTD model.
+
+    The same model converts the fitted zero-power resistance, every observed
+    resistance, and every fitted resistance at the sampled current coordinates.
+    The result therefore exposes observed and fitted temperature rises together
+    with measured and fitted ``I²R`` powers without changing the resistance-domain
+    fit or claiming that a setup-independent dissipation constant has been
+    established.
+
+    Model conversion exceptions and range failures propagate unchanged.
+
+    Raises:
+        TypeError: If ``result`` is not a :class:`ZeroPowerResistanceFitResult`.
+        ValueError: If a model conversion returns a non-finite temperature.
+    """
+    if not isinstance(result, ZeroPowerResistanceFitResult):
+        raise TypeError("result must be a ZeroPowerResistanceFitResult")
+    return ZeroPowerResistanceFitTemperatureResult(
+        fit_result=result,
+        model=model,
+    )
+
+
+def propagate_zero_power_fit_temperature_uncertainty(
+    result: ZeroPowerResistanceFitTemperatureResult,
+) -> ZeroPowerResistanceFitTemperatureUncertaintyResult:
+    """Propagate multi-observation fit covariance into temperatures and rises.
+
+    The residual-scatter covariance of the fitted zero-power resistance and
+    ``dR/d(I²)`` slope is propagated with the full covariance matrix. At each
+    sampled current coordinate ``x = I²``, fitted resistance is ``R0 + k*x``.
+    Temperature-rise sensitivities are formed directly as the difference between
+    the fitted-temperature and zero-power-temperature sensitivity vectors, so the
+    shared fitted intercept is not treated as independent.
+
+    This remains first-order/local because RTD resistance-to-temperature conversion
+    is generally nonlinear. The RTD model itself is treated as fixed.
+
+    Raises:
+        TypeError: If ``result`` is not a
+            :class:`ZeroPowerResistanceFitTemperatureResult`.
+        ValueError: If model sensitivities or propagated variances are non-finite.
+    """
+    if not isinstance(result, ZeroPowerResistanceFitTemperatureResult):
+        raise TypeError("result must be a ZeroPowerResistanceFitTemperatureResult")
+
+    return ZeroPowerResistanceFitTemperatureUncertaintyResult(
+        temperature_result=result,
+        fit_uncertainty=estimate_zero_power_fit_uncertainty(result.fit_result),
+    )
+
+
 def fit_zero_power_resistance(
     observations: Iterable[SelfHeatingObservation],
 ) -> ZeroPowerResistanceFitResult:
@@ -1124,6 +1459,34 @@ def _zero_power_fit_parameter_covariance(
             (covariance, slope_variance),
         ),
     )
+
+
+def _two_parameter_covariance_variance(
+    sensitivities: tuple[float, float],
+    covariance: tuple[tuple[float, float], tuple[float, float]],
+    *,
+    quantity_name: str,
+) -> float:
+    first, second = sensitivities
+    terms = (
+        first * first * covariance[0][0],
+        2.0 * first * second * covariance[0][1],
+        second * second * covariance[1][1],
+    )
+    if not all(math.isfinite(term) for term in terms):
+        raise ValueError(f"{quantity_name} variance must remain finite")
+    variance = math.fsum(terms)
+    if not math.isfinite(variance):
+        raise ValueError(f"{quantity_name} variance must remain finite")
+
+    # Small negative values can arise from roundoff in an otherwise
+    # positive-semidefinite covariance quadratic form. Do not hide material
+    # negative variance.
+    scale = math.fsum(abs(term) for term in terms)
+    tolerance = 32.0 * math.ulp(scale) if scale > 0.0 else 0.0
+    if variance < -tolerance:
+        raise ValueError(f"{quantity_name} variance must be non-negative")
+    return max(0.0, variance)
 
 
 def _zero_power_resistance_input_sensitivities(
