@@ -85,6 +85,32 @@ def test_self_heating_observation_reports_current_squared_and_power() -> None:
     assert observation.dissipated_power_w == pytest.approx(100.02e-6)
 
 
+def test_two_current_evidence_rejects_reversed_current_order() -> None:
+    low = SelfHeatingObservation(0.001, 100.01)
+    high = SelfHeatingObservation(0.002, 100.04)
+
+    with pytest.raises(ValueError, match="high current"):
+        TwoCurrentZeroPowerEvidence(
+            low_current_observation=high,
+            high_current_observation=low,
+        )
+
+
+def test_two_current_result_rejects_resistance_inconsistent_with_evidence() -> None:
+    low = SelfHeatingObservation(0.001, 100.01)
+    high = SelfHeatingObservation(0.002, 100.04)
+    evidence = TwoCurrentZeroPowerEvidence(
+        low_current_observation=low,
+        high_current_observation=high,
+    )
+
+    with pytest.raises(ValueError, match="consistent with retained evidence"):
+        TwoCurrentZeroPowerResult(
+            zero_power_resistance_ohms=99.0,
+            evidence=evidence,
+        )
+
+
 def test_two_current_extrapolation_matches_sqrt2_current_case() -> None:
     low = SelfHeatingObservation(0.001, 100.01)
     high = SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02)
@@ -271,6 +297,32 @@ def test_two_current_temperature_evaluation_propagates_model_error() -> None:
         evaluate_two_current_temperatures(zero_power, model=FailingModel())
 
 
+def test_two_current_temperature_evaluation_rejects_nonfinite_model_result() -> None:
+    class NonFiniteModel:
+        def resistance_to_celsius(self, resistance_ohms: float) -> float:
+            return math.nan
+
+        def celsius_to_resistance(self, temperature_c: float) -> float:
+            return 100.0
+
+        def resistance_sensitivity_ohms_per_celsius(
+            self, temperature_c: float
+        ) -> float:
+            return 1.0
+
+        def temperature_sensitivity_celsius_per_ohm(
+            self, temperature_c: float
+        ) -> float:
+            return 1.0
+
+    low = SelfHeatingObservation(0.001, 100.01)
+    high = SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02)
+    zero_power = extrapolate_zero_power_resistance(low, high)
+
+    with pytest.raises(ValueError, match="Zero-power temperature must be finite"):
+        evaluate_two_current_temperatures(zero_power, model=NonFiniteModel())
+
+
 class _LinearTwoOhmPerCelsiusModel:
     def resistance_to_celsius(self, resistance_ohms: float) -> float:
         return (resistance_ohms - 100.0) / 2.0
@@ -398,9 +450,7 @@ def test_zero_power_uncertainty_includes_current_uncertainty() -> None:
     )
 
 
-def test_zero_power_uncertainty_current_sensitivity_is_zero_without_resistance_change() -> (
-    None
-):
+def test_zero_power_current_sensitivity_is_zero_without_resistance_change() -> None:
     low = SelfHeatingObservation(0.001, 100.0)
     high = SelfHeatingObservation(0.002, 100.0)
     zero_power = extrapolate_zero_power_resistance(low, high)
@@ -512,6 +562,36 @@ def test_two_current_uncertainty_allows_zero_standard_uncertainties() -> None:
     )
 
 
+def test_zero_power_uncertainty_grows_as_current_levels_get_close() -> None:
+    low = SelfHeatingObservation(0.001, 100.01)
+    far_high = SelfHeatingObservation(0.002, 100.04)
+    close_current = 0.001001
+    close_high = SelfHeatingObservation(
+        close_current,
+        100.0 + 10000.0 * close_current**2,
+    )
+    inputs = TwoCurrentInputStandardUncertainties(
+        low_current_standard_uncertainty_a=0.0,
+        low_resistance_standard_uncertainty_ohms=1.0e-4,
+        high_current_standard_uncertainty_a=0.0,
+        high_resistance_standard_uncertainty_ohms=1.0e-4,
+    )
+
+    far = propagate_two_current_zero_power_uncertainty(
+        extrapolate_zero_power_resistance(low, far_high),
+        input_standard_uncertainties=inputs,
+    )
+    close = propagate_two_current_zero_power_uncertainty(
+        extrapolate_zero_power_resistance(low, close_high),
+        input_standard_uncertainties=inputs,
+    )
+
+    assert (
+        close.zero_power_resistance_standard_uncertainty_ohms
+        > 100.0 * far.zero_power_resistance_standard_uncertainty_ohms
+    )
+
+
 def test_two_current_uncertainty_rejects_wrong_argument_types() -> None:
     zero_power, inputs = _sqrt2_uncertainty_case()
     temperatures = evaluate_two_current_temperatures(
@@ -555,6 +635,26 @@ def test_temperature_uncertainty_propagates_model_sensitivity_error() -> None:
     )
 
     with pytest.raises(RuntimeError, match="sensitivity failed"):
+        propagate_two_current_temperature_uncertainty(
+            temperatures,
+            input_standard_uncertainties=inputs,
+        )
+
+
+def test_temperature_uncertainty_rejects_nonfinite_model_sensitivity() -> None:
+    class NonFiniteSensitivityModel(_LinearTwoOhmPerCelsiusModel):
+        def temperature_sensitivity_celsius_per_ohm(
+            self, temperature_c: float
+        ) -> float:
+            return math.inf
+
+    zero_power, inputs = _sqrt2_uncertainty_case()
+    temperatures = evaluate_two_current_temperatures(
+        zero_power,
+        model=NonFiniteSensitivityModel(),
+    )
+
+    with pytest.raises(ValueError, match="sensitivity must be finite"):
         propagate_two_current_temperature_uncertainty(
             temperatures,
             input_standard_uncertainties=inputs,

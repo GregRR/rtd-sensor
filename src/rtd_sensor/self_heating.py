@@ -115,6 +115,27 @@ class TwoCurrentZeroPowerEvidence:
         default="linear_resistance_vs_current_squared",
     )
 
+    def __post_init__(self) -> None:
+        if not isinstance(self.low_current_observation, SelfHeatingObservation):
+            raise TypeError("low_current_observation must be a SelfHeatingObservation")
+        if not isinstance(self.high_current_observation, SelfHeatingObservation):
+            raise TypeError("high_current_observation must be a SelfHeatingObservation")
+        if (
+            self.high_current_observation.measurement_current_a
+            <= self.low_current_observation.measurement_current_a
+        ):
+            raise ValueError(
+                "Two-current evidence requires high current to be greater "
+                "than low current"
+            )
+        if self.current_squared_change_a2 <= 0.0:
+            raise ValueError(
+                "Two-current evidence requires numerically distinct "
+                "current-squared levels"
+            )
+        if not math.isfinite(self.resistance_slope_ohms_per_a2):
+            raise ValueError("Two-current evidence requires a finite resistance slope")
+
     @property
     def current_ratio(self) -> float:
         """Return high-current magnitude divided by low-current magnitude."""
@@ -156,6 +177,26 @@ class TwoCurrentZeroPowerResult:
 
     zero_power_resistance_ohms: float
     evidence: TwoCurrentZeroPowerEvidence
+
+    def __post_init__(self) -> None:
+        resistance = _as_float(
+            self.zero_power_resistance_ohms,
+            name="Zero-power resistance",
+        )
+        if not math.isfinite(resistance):
+            raise ValueError("Zero-power resistance must be finite")
+        if resistance <= 0.0:
+            raise ValueError("Zero-power resistance must be greater than zero")
+        if not isinstance(self.evidence, TwoCurrentZeroPowerEvidence):
+            raise TypeError("evidence must be a TwoCurrentZeroPowerEvidence")
+
+        expected = _zero_power_resistance_from_evidence(self.evidence)
+        tolerance = 8.0 * max(math.ulp(resistance), math.ulp(expected))
+        if not math.isclose(resistance, expected, rel_tol=0.0, abs_tol=tolerance):
+            raise ValueError(
+                "Zero-power resistance must be consistent with retained evidence"
+            )
+        object.__setattr__(self, "zero_power_resistance_ohms", resistance)
 
     @property
     def low_current_resistance_rise_ohms(self) -> float:
@@ -626,6 +667,14 @@ def _converted_temperature_c(
     return temperature
 
 
+def _zero_power_resistance_from_evidence(
+    evidence: TwoCurrentZeroPowerEvidence,
+) -> float:
+    low = evidence.low_current_observation
+    slope = evidence.resistance_slope_ohms_per_a2
+    return low.resistance_ohms - slope * low.current_squared_a2
+
+
 def extrapolate_zero_power_resistance(
     observation_1: SelfHeatingObservation,
     observation_2: SelfHeatingObservation,
@@ -666,13 +715,7 @@ def extrapolate_zero_power_resistance(
         low_current_observation=low,
         high_current_observation=high,
     )
-    if evidence.current_squared_change_a2 <= 0.0:
-        raise ValueError(
-            "Two-current extrapolation requires numerically distinct "
-            "current-squared levels"
-        )
-    slope = evidence.resistance_slope_ohms_per_a2
-    zero_power_resistance = low.resistance_ohms - slope * low.current_squared_a2
+    zero_power_resistance = _zero_power_resistance_from_evidence(evidence)
 
     if not math.isfinite(zero_power_resistance):
         raise ValueError("Zero-power extrapolation must produce finite resistance")

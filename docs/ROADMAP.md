@@ -129,18 +129,25 @@ the sensing element warmer than the environment being measured. The effect depen
 on both thermometer construction and the thermal environment, so it must not be
 modeled as an immutable property of an RTD characteristic alone.
 
-Planned scope includes:
+Implemented in the current 0.8.0 development checkpoint:
 
-- observations containing measurement current and measured resistance under a
-  stable thermal condition;
-- two-current zero-power extrapolation, with support for additional observations
-  where a statistically justified fit versus dissipated power is useful;
+- immutable observations containing measurement current and measured resistance;
+- two-current zero-power resistance extrapolation using resistance versus current
+  squared;
 - explicit `zero_power_resistance_ohms` and corresponding zero-power temperature
   through a supplied RTD model;
-- self-heating temperature rise at an observed/current operating point;
+- self-heating temperature rise at both observed current levels;
+- retained two-current evidence and method details; and
+- first-order propagation of independent current/resistance input uncertainties to
+  zero-power resistance, model-based temperatures, and temperature rises.
+
+Remaining 0.8.0 scope includes:
+
+- support for additional observations with statistically justified fitting and
+  residual/consistency diagnostics;
 - self-heating coefficient or dissipation constant when the observations and
   environmental context justify reporting one;
-- auditable evidence, residuals/consistency checks, and uncertainty propagation;
+- correlated-input uncertainty handling where justified;
 - optional non-behavioral context such as medium, flow condition, mounting, or
   calibration setup without making those hardware/application details part of the
   core RTD model identity; and
