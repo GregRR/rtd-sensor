@@ -86,6 +86,7 @@ Temporary Items
 
 # Project Specific
 notes/
+.claudeignore
 .rtdsensor-local/
 
 # Generated documentation site
