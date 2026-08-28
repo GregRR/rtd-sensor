@@ -358,7 +358,13 @@ universally transferable. The guide's °C/mW coefficient and reciprocal mW/°C
 dissipation-constant forms also define the public unit conventions. The guide does
 not prescribe `rtd-sensor`'s specific finite-range through-origin regression policy;
 that estimator and its equal weighting of distinct sampled current levels are
-project design choices whose range dependence is documented explicitly. Appendix 1
+project design choices whose range dependence is documented explicitly. The same
+section supports the zero-power extrapolation assessment's evidence-language
+boundary: external temperature should remain constant, readings should become
+steady, and repeated current cycles may be needed when drift is present. The
+project therefore reports structural evidence limitations without claiming that
+current/resistance data alone prove thermal stability or without inventing a
+universal residual/conditioning threshold. Appendix 1
 documents the modern Callendar–Van Dusen `R0`, `A`, `B`, `C` form, the
 zero-above-0-°C role of `C`, and the historical determination of CVD parameters
 from calibration measurements. It also remains a research source for hysteresis,

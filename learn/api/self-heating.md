@@ -10,8 +10,9 @@ standard two-current resistance-domain extrapolation to zero measurement current
 a 3+ observation least-squares fit of the same resistance-versus-current-squared
 relationship, residual-based parameter covariance for that larger fit, and
 model-based temperature/uncertainty analysis for both the two-current and larger-fit
-results, optional experiment-context provenance, and context-bound self-heating
-coefficient/dissipation-constant reporting.
+results, optional experiment-context provenance, context-bound self-heating
+coefficient/dissipation-constant reporting, and threshold-free extrapolation-support
+diagnostics.
 
 ## `SelfHeatingObservation`
 
@@ -90,6 +91,68 @@ squares** in resistance. It does not use `I²R` as the fit coordinate and does n
 yet incorporate current uncertainty, resistance uncertainty, covariance, or an
 automatic residual pass/fail threshold. Optional ``context`` is retained as
 non-behavioral provenance and does not alter the fit.
+
+## `assess_zero_power_extrapolation`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+```python
+assess_zero_power_extrapolation(
+    result: TwoCurrentZeroPowerResult | ZeroPowerResistanceFitResult,
+) -> ZeroPowerExtrapolationAssessment
+```
+
+Returns a threshold-free assessment of what the retained observations can and
+cannot support. The function does not emit Python runtime warnings and does not
+label an experiment as globally stable or unstable. Instead, the assessment exposes
+structured `ZeroPowerExtrapolationWarning` objects with stable codes when the
+evidence has an objective limitation:
+
+```text
+two_current_exact_line_no_residual_test
+only_two_distinct_current_levels
+no_repeated_current_levels
+nonpositive_resistance_slope
+```
+
+The assessment also reports:
+
+```text
+observation_count
+distinct_current_count
+repeated_current_level_count
+residual_degrees_of_freedom
+minimum_measurement_current_a
+maximum_measurement_current_a
+minimum_to_maximum_current_ratio
+zero_power_extrapolation_distance_in_current_squared_spans
+resistance_slope_direction
+supports_residual_consistency_assessment
+supports_linearity_assessment
+supports_repeated_level_assessment
+warning_codes
+warnings
+has_warnings
+```
+
+`zero_power_extrapolation_distance_in_current_squared_spans` is
+`min(I²) / (max(I²) - min(I²))`: the distance from the lowest sampled `I²` point
+to zero expressed in units of the observed `I²` span. It is a descriptive
+geometry/conditioning metric, not a pass/fail score. Likewise, the API deliberately
+defines no universal acceptable current ratio or residual magnitude.
+
+A warning means that the retained data lack a particular internal check; it does
+**not** prove that the physical experiment failed. Conversely, an assessment with
+no structural warnings does not prove stable external temperature. The experimental
+requirement for constant external temperature and steady readings remains outside
+what current/resistance values alone can establish.
+
+## `ZeroPowerExtrapolationAssessment` and `ZeroPowerExtrapolationWarning`
+
+`ZeroPowerExtrapolationAssessment` retains the source zero-power result and derives
+all counts, geometry metrics, support flags, and warnings from that retained state.
+`ZeroPowerExtrapolationWarning` retains only its stable `code`; its human-readable
+`message` is derived from that code so the two cannot disagree.
 
 ## `SelfHeatingExperimentContext`
 

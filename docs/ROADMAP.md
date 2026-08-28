@@ -158,7 +158,11 @@ Implemented in the current 0.8.0 development checkpoint:
   levels, with retained pointwise coefficients and descriptive coefficient-fit
   residual diagnostics; and
 - first-order propagation of the fitted intercept/slope covariance into the derived
-  self-heating coefficient and dissipation constant.
+  self-heating coefficient and dissipation constant; and
+- threshold-free zero-power extrapolation assessment with structured warnings for
+  objective evidence limitations, including exact two-point lines, only two distinct
+  current levels, missing repeated-current evidence, and nonpositive fitted slopes,
+  together with descriptive current-ratio and extrapolation-geometry metrics.
 
 Remaining 0.8.0 scope includes:
 
@@ -166,10 +170,8 @@ Remaining 0.8.0 scope includes:
   fitting where supplied resistance/current uncertainties justify them, plus any
   correlated-observation treatment and experiment-specific
   residual acceptance criteria that can be stated without inventing universal
-  thresholds;
-- correlated-input uncertainty handling where justified; and
-- clear warnings when observations do not support a stable zero-power
-  extrapolation.
+  thresholds; and
+- correlated-input uncertainty handling where justified.
 
 The package will analyze supplied current/resistance observations. It will not
 control excitation current, ADCs, bridges, MAX31865 devices, or other acquisition

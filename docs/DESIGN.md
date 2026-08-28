@@ -1119,10 +1119,29 @@ are also not silently added. An exact resistance fit can therefore still produce
 zero covariance-derived coefficient uncertainty without implying that the physical
 self-heating behavior is known exactly or is range-independent.
 
+`assess_zero_power_extrapolation()` adds a threshold-free evidence assessment to
+both the two-current and 3+ observation result paths. It does not declare an
+experiment "stable" or "unstable" and does not emit Python runtime warnings.
+Instead, it reports structured warning codes for objective limitations that follow
+directly from the retained evidence: two points have no residual check; a larger fit
+with only two distinct current levels cannot test line shape across three or more
+levels; a fit with no repeated current level cannot assess within-level
+repeatability; and a zero or negative resistance slope does not show the positive
+resistance rise expected for ordinary self-heating.
+
+The same assessment exposes the minimum/maximum current ratio and the distance from
+the lowest sampled `I²` point to zero current measured in units of the sampled `I²`
+span, `min(I²) / (max(I²) - min(I²))`. These are descriptive geometry/conditioning
+metrics only. No universal acceptable current ratio, extrapolation distance, or
+residual magnitude is imposed. The BIPM/CCT guidance requires stable external
+temperature and steady readings and notes that repeated cycles may be needed when
+drift is present; current/resistance observations alone cannot prove those physical
+conditions. Experiment-specific acceptance criteria therefore remain a caller or
+future statistically justified API concern.
+
 The self-heating layer still does not automatically alter an RTD model or a
 general uncertainty budget. Later 0.8.0 work may add correlated-input or
-errors-in-variables handling and clearer experiment-validity warnings where a
-defensible statistical basis exists.
+errors-in-variables handling where a defensible statistical basis exists.
 
 #### Portable model-definition format decision
 

@@ -26,6 +26,8 @@ __all__ = [
     "SelfHeatingCoefficientUncertaintyResult",
     "SelfHeatingExperimentContext",
     "SelfHeatingObservation",
+    "ZeroPowerExtrapolationAssessment",
+    "ZeroPowerExtrapolationWarning",
     "ZeroPowerResistanceFitEvidence",
     "ZeroPowerResistanceFitResult",
     "ZeroPowerResistanceFitTemperatureResult",
@@ -37,6 +39,7 @@ __all__ = [
     "TwoCurrentZeroPowerEvidence",
     "TwoCurrentZeroPowerResult",
     "TwoCurrentZeroPowerUncertaintyResult",
+    "assess_zero_power_extrapolation",
     "estimate_zero_power_fit_uncertainty",
     "evaluate_self_heating_coefficient",
     "evaluate_two_current_temperatures",
@@ -62,6 +65,35 @@ _SelfHeatingCoefficientUncertaintyMethod = Literal[
     "first_order_fit_parameter_covariance"
 ]
 _TwoCurrentUncertaintyMethod = Literal["first_order_independent_inputs"]
+_ZeroPowerExtrapolationWarningCode = Literal[
+    "two_current_exact_line_no_residual_test",
+    "only_two_distinct_current_levels",
+    "no_repeated_current_levels",
+    "nonpositive_resistance_slope",
+]
+_ZERO_POWER_EXTRAPOLATION_WARNING_MESSAGES: dict[
+    _ZeroPowerExtrapolationWarningCode, str
+] = {
+    "two_current_exact_line_no_residual_test": (
+        "Two observations exactly determine the zero-power line, so residual scatter "
+        "or departures from linearity cannot be assessed from this result alone."
+    ),
+    "only_two_distinct_current_levels": (
+        "The fit contains only two distinct current levels. Repeated observations can "
+        "show scatter at those levels, but cannot test departure from a straight line "
+        "across three or more current levels."
+    ),
+    "no_repeated_current_levels": (
+        "No current level is repeated, so the retained observations cannot assess "
+        "within-level repeatability. Repeated cycles are particularly useful when "
+        "thermal drift is suspected."
+    ),
+    "nonpositive_resistance_slope": (
+        "The retained resistance-versus-current-squared slope is zero or negative, "
+        "so the observations do not show the positive resistance rise expected for "
+        "ordinary self-heating."
+    ),
+}
 _TWO_CURRENT_INPUT_PARAMETER_NAMES = (
     "low_current_a",
     "low_resistance_ohms",
@@ -521,6 +553,176 @@ class ZeroPowerResistanceFitResult:
         if self.resistance_slope_ohms_per_a2 < 0.0:
             return "negative"
         return "zero"
+
+
+@dataclass(frozen=True, slots=True)
+class ZeroPowerExtrapolationWarning:
+    """One structured warning about support for a zero-power extrapolation.
+
+    Warning codes describe objective limitations of the supplied evidence. They do
+    not apply experiment-independent residual or conditioning thresholds.
+    """
+
+    code: _ZeroPowerExtrapolationWarningCode
+
+    def __post_init__(self) -> None:
+        if self.code not in _ZERO_POWER_EXTRAPOLATION_WARNING_MESSAGES:
+            raise ValueError(
+                f"Unknown zero-power extrapolation warning code: {self.code!r}"
+            )
+
+    @property
+    def message(self) -> str:
+        """Return the human-readable explanation for this warning code."""
+        return _ZERO_POWER_EXTRAPOLATION_WARNING_MESSAGES[self.code]
+
+
+@dataclass(frozen=True, slots=True)
+class ZeroPowerExtrapolationAssessment:
+    """Threshold-free evidence assessment for one zero-power extrapolation.
+
+    The assessment reports structural evidence limitations and useful current-geometry
+    metrics. It does not prove that the external temperature was stable, infer thermal
+    drift, or apply universal residual/conditioning acceptance thresholds.
+    """
+
+    result: TwoCurrentZeroPowerResult | ZeroPowerResistanceFitResult
+
+    def __post_init__(self) -> None:
+        if not isinstance(
+            self.result,
+            (TwoCurrentZeroPowerResult, ZeroPowerResistanceFitResult),
+        ):
+            raise TypeError(
+                "result must be a TwoCurrentZeroPowerResult or "
+                "ZeroPowerResistanceFitResult"
+            )
+
+    @property
+    def observations(self) -> tuple[SelfHeatingObservation, ...]:
+        """Return the retained observations in their evidence order."""
+        if isinstance(self.result, TwoCurrentZeroPowerResult):
+            return (
+                self.result.evidence.low_current_observation,
+                self.result.evidence.high_current_observation,
+            )
+        return self.result.evidence.observations
+
+    @property
+    def observation_count(self) -> int:
+        """Return the number of retained current/resistance observations."""
+        return len(self.observations)
+
+    @property
+    def distinct_current_count(self) -> int:
+        """Return the number of numerically distinct current-squared levels."""
+        return len(
+            {observation.current_squared_a2 for observation in self.observations}
+        )
+
+    @property
+    def repeated_current_level_count(self) -> int:
+        """Return how many distinct current levels occur more than once."""
+        counts: dict[float, int] = {}
+        for observation in self.observations:
+            current_squared = observation.current_squared_a2
+            counts[current_squared] = counts.get(current_squared, 0) + 1
+        return sum(count > 1 for count in counts.values())
+
+    @property
+    def residual_degrees_of_freedom(self) -> int:
+        """Return residual degrees of freedom available to the retained fit."""
+        if isinstance(self.result, TwoCurrentZeroPowerResult):
+            return self.result.evidence.residual_degrees_of_freedom
+        return self.result.evidence.residual_degrees_of_freedom
+
+    @property
+    def minimum_measurement_current_a(self) -> float:
+        """Return the smallest retained measurement-current magnitude."""
+        return min(
+            observation.measurement_current_a for observation in self.observations
+        )
+
+    @property
+    def maximum_measurement_current_a(self) -> float:
+        """Return the largest retained measurement-current magnitude."""
+        return max(
+            observation.measurement_current_a for observation in self.observations
+        )
+
+    @property
+    def minimum_to_maximum_current_ratio(self) -> float:
+        """Return minimum divided by maximum retained measurement current."""
+        return self.minimum_measurement_current_a / self.maximum_measurement_current_a
+
+    @property
+    def zero_power_extrapolation_distance_in_current_squared_spans(self) -> float:
+        """Return zero-current extrapolation distance in observed I²-span units.
+
+        The value is ``min(I²) / (max(I²) - min(I²))``. It is a descriptive
+        geometry/conditioning metric only; the API intentionally defines no universal
+        acceptable maximum.
+        """
+        current_squared_values = tuple(
+            observation.current_squared_a2 for observation in self.observations
+        )
+        minimum = min(current_squared_values)
+        span = max(current_squared_values) - minimum
+        return minimum / span
+
+    @property
+    def resistance_slope_direction(self) -> Literal["positive", "zero", "negative"]:
+        """Return the sign of the retained R-versus-I² slope."""
+        if isinstance(self.result, TwoCurrentZeroPowerResult):
+            slope = self.result.evidence.resistance_slope_ohms_per_a2
+        else:
+            slope = self.result.resistance_slope_ohms_per_a2
+        if slope > 0.0:
+            return "positive"
+        if slope < 0.0:
+            return "negative"
+        return "zero"
+
+    @property
+    def supports_residual_consistency_assessment(self) -> bool:
+        """Return whether residual scatter is available for inspection."""
+        return self.residual_degrees_of_freedom > 0
+
+    @property
+    def supports_linearity_assessment(self) -> bool:
+        """Return whether at least three distinct current levels test line shape."""
+        return self.distinct_current_count >= 3
+
+    @property
+    def supports_repeated_level_assessment(self) -> bool:
+        """Return whether at least one current level has repeated observations."""
+        return self.repeated_current_level_count > 0
+
+    @property
+    def warnings(self) -> tuple[ZeroPowerExtrapolationWarning, ...]:
+        """Return structured evidence-limit warnings in deterministic order."""
+        warning_codes: list[_ZeroPowerExtrapolationWarningCode] = []
+        if isinstance(self.result, TwoCurrentZeroPowerResult):
+            warning_codes.append("two_current_exact_line_no_residual_test")
+        elif self.distinct_current_count == 2:
+            warning_codes.append("only_two_distinct_current_levels")
+        elif self.repeated_current_level_count == 0:
+            warning_codes.append("no_repeated_current_levels")
+
+        if self.resistance_slope_direction != "positive":
+            warning_codes.append("nonpositive_resistance_slope")
+
+        return tuple(ZeroPowerExtrapolationWarning(code) for code in warning_codes)
+
+    @property
+    def warning_codes(self) -> tuple[_ZeroPowerExtrapolationWarningCode, ...]:
+        """Return stable warning codes without the explanatory text."""
+        return tuple(warning.code for warning in self.warnings)
+
+    @property
+    def has_warnings(self) -> bool:
+        """Return whether this assessment contains any structural warning."""
+        return bool(self.warnings)
 
 
 @dataclass(frozen=True, slots=True)
@@ -1676,6 +1878,24 @@ def propagate_two_current_temperature_uncertainty(
         temperature_result=result,
         zero_power_uncertainty=zero_power_uncertainty,
     )
+
+
+def assess_zero_power_extrapolation(
+    result: TwoCurrentZeroPowerResult | ZeroPowerResistanceFitResult,
+) -> ZeroPowerExtrapolationAssessment:
+    """Assess structural evidence support for one zero-power extrapolation.
+
+    This function does not emit :mod:`warnings` or decide whether an experiment is
+    acceptable. It returns stable warning codes for objective evidence limitations
+    and descriptive current-geometry metrics so callers can apply criteria justified
+    for their own experiment. No result can by itself prove that the external thermal
+    environment was constant; that requires experimental control/provenance beyond
+    current/resistance values.
+
+    Raises:
+        TypeError: If ``result`` is not a supported zero-power result type.
+    """
+    return ZeroPowerExtrapolationAssessment(result=result)
 
 
 def estimate_zero_power_fit_uncertainty(

@@ -19,11 +19,14 @@ from rtd_sensor.self_heating import (
     TwoCurrentZeroPowerEvidence,
     TwoCurrentZeroPowerResult,
     TwoCurrentZeroPowerUncertaintyResult,
+    ZeroPowerExtrapolationAssessment,
+    ZeroPowerExtrapolationWarning,
     ZeroPowerResistanceFitEvidence,
     ZeroPowerResistanceFitResult,
     ZeroPowerResistanceFitTemperatureResult,
     ZeroPowerResistanceFitTemperatureUncertaintyResult,
     ZeroPowerResistanceFitUncertaintyResult,
+    assess_zero_power_extrapolation,
     estimate_zero_power_fit_uncertainty,
     evaluate_self_heating_coefficient,
     evaluate_two_current_temperatures,
@@ -1718,3 +1721,129 @@ def test_temperature_uncertainty_rejects_nonfinite_model_sensitivity() -> None:
             temperatures,
             input_standard_uncertainties=inputs,
         )
+
+
+def test_zero_power_extrapolation_assessment_reports_two_current_limitations() -> None:
+    result = extrapolate_zero_power_resistance(
+        SelfHeatingObservation(0.001, 100.01),
+        SelfHeatingObservation(0.002, 100.04),
+    )
+
+    assessment = assess_zero_power_extrapolation(result)
+
+    assert isinstance(assessment, ZeroPowerExtrapolationAssessment)
+    assert assessment.observation_count == 2
+    assert assessment.distinct_current_count == 2
+    assert assessment.repeated_current_level_count == 0
+    assert assessment.residual_degrees_of_freedom == 0
+    assert assessment.minimum_measurement_current_a == pytest.approx(0.001)
+    assert assessment.maximum_measurement_current_a == pytest.approx(0.002)
+    assert assessment.minimum_to_maximum_current_ratio == pytest.approx(0.5)
+    assert assessment.zero_power_extrapolation_distance_in_current_squared_spans == (
+        pytest.approx(1.0 / 3.0)
+    )
+    assert assessment.resistance_slope_direction == "positive"
+    assert not assessment.supports_residual_consistency_assessment
+    assert not assessment.supports_linearity_assessment
+    assert not assessment.supports_repeated_level_assessment
+    assert assessment.warning_codes == ("two_current_exact_line_no_residual_test",)
+    assert assessment.has_warnings
+    assert "exactly determine" in assessment.warnings[0].message
+
+
+def test_zero_power_extrapolation_assessment_reports_two_level_fit_limit() -> None:
+    result = fit_zero_power_resistance(
+        [
+            SelfHeatingObservation(0.001, 100.01),
+            SelfHeatingObservation(0.002, 100.04),
+            SelfHeatingObservation(0.001, 100.011),
+            SelfHeatingObservation(0.002, 100.039),
+        ]
+    )
+
+    assessment = assess_zero_power_extrapolation(result)
+
+    assert assessment.observation_count == 4
+    assert assessment.distinct_current_count == 2
+    assert assessment.repeated_current_level_count == 2
+    assert assessment.residual_degrees_of_freedom == 2
+    assert assessment.supports_residual_consistency_assessment
+    assert not assessment.supports_linearity_assessment
+    assert assessment.supports_repeated_level_assessment
+    assert assessment.warning_codes == ("only_two_distinct_current_levels",)
+
+
+def test_zero_power_extrapolation_assessment_reports_missing_repeats() -> None:
+    result = fit_zero_power_resistance(
+        [
+            SelfHeatingObservation(0.001, 100.01),
+            SelfHeatingObservation(0.002, 100.04),
+            SelfHeatingObservation(0.003, 100.09),
+        ]
+    )
+
+    assessment = assess_zero_power_extrapolation(result)
+
+    assert assessment.supports_residual_consistency_assessment
+    assert assessment.supports_linearity_assessment
+    assert not assessment.supports_repeated_level_assessment
+    assert assessment.warning_codes == ("no_repeated_current_levels",)
+
+
+def test_zero_power_extrapolation_assessment_can_have_no_structural_warnings() -> None:
+    result = fit_zero_power_resistance(
+        [
+            SelfHeatingObservation(0.001, 100.01),
+            SelfHeatingObservation(0.002, 100.04),
+            SelfHeatingObservation(0.003, 100.09),
+            SelfHeatingObservation(0.001, 100.01),
+        ]
+    )
+
+    assessment = assess_zero_power_extrapolation(result)
+
+    assert assessment.distinct_current_count == 3
+    assert assessment.repeated_current_level_count == 1
+    assert assessment.supports_linearity_assessment
+    assert assessment.supports_repeated_level_assessment
+    assert assessment.warning_codes == ()
+    assert assessment.warnings == ()
+    assert not assessment.has_warnings
+
+
+def test_zero_power_extrapolation_assessment_warns_on_nonpositive_slope() -> None:
+    result = extrapolate_zero_power_resistance(
+        SelfHeatingObservation(0.001, 100.02),
+        SelfHeatingObservation(0.002, 100.01),
+    )
+
+    assessment = assess_zero_power_extrapolation(result)
+
+    assert assessment.resistance_slope_direction == "negative"
+    assert assessment.warning_codes == (
+        "two_current_exact_line_no_residual_test",
+        "nonpositive_resistance_slope",
+    )
+
+
+def test_zero_power_extrapolation_assessment_exposes_close_current_geometry() -> None:
+    result = extrapolate_zero_power_resistance(
+        SelfHeatingObservation(0.001, 100.01),
+        SelfHeatingObservation(0.001001, 100.01002001),
+    )
+
+    assessment = assess_zero_power_extrapolation(result)
+
+    assert assessment.minimum_to_maximum_current_ratio == pytest.approx(1.0 / 1.001)
+    assert assessment.zero_power_extrapolation_distance_in_current_squared_spans > 499.0
+    assert assessment.warning_codes == ("two_current_exact_line_no_residual_test",)
+
+
+def test_zero_power_extrapolation_assessment_rejects_wrong_result_type() -> None:
+    with pytest.raises(TypeError, match="TwoCurrentZeroPowerResult"):
+        ZeroPowerExtrapolationAssessment(result=object())  # type: ignore[arg-type]
+
+
+def test_zero_power_extrapolation_warning_rejects_unknown_code() -> None:
+    with pytest.raises(ValueError, match="Unknown zero-power extrapolation warning"):
+        ZeroPowerExtrapolationWarning("unknown")  # type: ignore[arg-type]

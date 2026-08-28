@@ -134,6 +134,47 @@ measurement uncertainty, thermometer, and intended use. It also remains unweight
 for now; resistance/current uncertainties and correlated effects are not silently
 inserted into the objective.
 
+### Ask what the observations can actually support
+
+**Introduced in rtd-sensor 0.8.0.**
+
+After either a two-current extrapolation or a larger fit, you can ask for a
+threshold-free evidence assessment:
+
+```python
+assessment = self_heating.assess_zero_power_extrapolation(fit)
+
+print(assessment.warning_codes)
+print(assessment.minimum_to_maximum_current_ratio)
+print(assessment.zero_power_extrapolation_distance_in_current_squared_spans)
+```
+
+This does not turn residuals into an arbitrary green/red score. It reports
+structural limitations that can be stated without knowing the experiment's required
+uncertainty or acceptance tolerance. For example:
+
+- two observations exactly define a two-parameter line, so they have no residual
+  check;
+- repeated observations at only two current levels can show scatter at those levels
+  but cannot test line shape across a third level;
+- three or more distinct current levels without repeats can test line shape but do
+  not show within-level repeatability; and
+- a zero or negative `R`-versus-`I²` slope does not show the positive resistance
+  rise expected for ordinary self-heating.
+
+The assessment also exposes geometry rather than silently choosing a threshold.
+`minimum_to_maximum_current_ratio` shows how separated the sampled currents are.
+`zero_power_extrapolation_distance_in_current_squared_spans` reports how far zero
+current lies beyond the lowest sampled `I²` point relative to the sampled `I²`
+span. A larger value means zero lies farther outside the observed span, but
+`rtd-sensor` intentionally does not define a universally acceptable maximum.
+
+These diagnostics are evidence checks, not proof of thermal stability. BIPM/CCT
+guidance still requires the external temperature to remain constant and readings to
+become steady; when drift is present, repeated current cycles may be needed. The
+software has no external-temperature or time-history evidence unless the experiment
+records it separately.
+
 ### Estimate fit-parameter uncertainty from residual scatter
 
 For an unweighted 3+ observation fit, residual scatter can also provide the usual
