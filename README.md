@@ -14,20 +14,25 @@ characteristics.
 
 Beyond basic conversion, the library supports configurable Callendar–Van Dusen
 models for traceable coefficient sets; generic polynomial, piecewise-polynomial, and
-table-backed custom characteristics; dependency-free IEC R0, custom CVD, and polynomial
-calibration fitting with auditable parameter covariance
-and batch conversion; versioned portable model definitions; IEC 60751 platinum
-tolerance calculations; measurement uncertainty; simulation; built-in model
-discovery; hardware-neutral measurement composition; and stable language-neutral
-conformance artifacts with independent C11/binary32 verification.
+table-backed custom characteristics; dependency-free IEC R0, custom CVD, and
+polynomial calibration fitting with auditable parameter covariance; self-heating
+characterization and zero-power extrapolation; batch conversion; versioned portable
+model definitions; IEC 60751 platinum tolerance calculations; measurement
+uncertainty; simulation; built-in model discovery; hardware-neutral measurement
+composition; and stable language-neutral conformance artifacts with independent
+C11/binary32 verification.
 
 It is intended for developers building software, test, measurement, and scientific
 applications that already have an RTD resistance measurement and need conversion,
-modeling, calibration, tolerance, uncertainty, simulation, or cross-language
-validation tools.
+modeling, calibration, self-heating analysis, tolerance, uncertainty, simulation, or
+cross-language validation tools.
 
-For the hardware-to-software acquisition layer that supplies resistance measurements to
-`rtd-sensor`, we recommend the companion project [`rtd-acquire`](https://github.com/GregRR/rtd-acquire).
+`rtd-sensor` starts once a trustworthy estimate of RTD element resistance in ohms is
+available. Use the companion [`rtd-acquire`](https://github.com/GregRR/rtd-acquire)
+project when raw hardware still needs acquisition, compensation, calibration, or
+diagnostics. If an instrument, RTD interface, DAQ, bridge, multimeter, or recorded
+data source already provides the desired resistance in ohms, it can feed
+`rtd-sensor` directly.
 
 ## Scope
 
@@ -76,15 +81,16 @@ Only RTD characteristics whose equations, validity ranges, independent reference
 - compose a hardware-neutral resistance reader with any structural RTD model;
 - evaluate IEC 60751 platinum tolerance limits;
 - propagate fitted-model parameter covariance into predicted resistance or inferred temperature uncertainty;
+- characterize RTD self-heating with two-current or multi-observation zero-power extrapolation, uncertainty propagation, and context-bound coefficient/dissipation estimates;
 - propagate resistance-measurement uncertainty into temperature uncertainty;
 - generate RTD measurements for software testing and simulation; or
 - validate independent implementations against the stable conformance-v1 artifacts.
 
-Hardware acquisition remains separate. For example, if a MAX31865 or another
-acquisition layer has already produced a compensated resistance measurement,
-`rtd-sensor` can handle the RTD conversion and modeling stage; it does not
-communicate with the hardware itself. For hardware acquisition, see the companion
-[`rtd-acquire`](https://github.com/GregRR/rtd-acquire) project.
+Hardware acquisition remains separate. A MAX31865 or another raw converter may use
+[`rtd-acquire`](https://github.com/GregRR/rtd-acquire) to produce a compensated
+resistance measurement before `rtd-sensor` handles the RTD conversion and modeling
+stage. Hardware that already reports a trustworthy RTD resistance in ohms can connect
+directly instead; `rtd-sensor` does not communicate with the hardware itself.
 
 ## Installation
 
@@ -475,7 +481,7 @@ The catalog contains only verified package built-ins. Canonical IDs are exact an
 
 ## Hardware-neutral resistance readers
 
-Acquisition layers that already produce the best available estimate of sensor-element resistance in ohms can type against the hardware-neutral `ResistanceReader` protocol:
+Any integration that can provide the best available estimate of sensor-element resistance in ohms can type against the hardware-neutral `ResistanceReader` protocol:
 
 ```python
 from rtd_sensor.measurement import ResistanceReader
@@ -514,6 +520,37 @@ temperature_c = measurement.read_temperature_celsius(
 The built-in `rtd_type="pt1000"` convenience and historical untyped-reader Pt100 default remain available for compatibility. `model` and `rtd_type` are mutually exclusive. A reader that itself declares `rtd_type` cannot be combined with an explicit model object because the structural `RTDModel` protocol intentionally carries no identity metadata with which to prove the two declarations agree.
 
 Existing `rtd_sensor.simulation.ResistanceReader` and `simulation.read_temperature_celsius` imports continue to work as compatibility re-exports of the neutral measurement API. Simulation readers and future physical acquisition readers are therefore peers at the compensated-resistance boundary.
+
+## Self-heating and zero-power extrapolation
+
+The public `rtd_sensor.self_heating` module analyzes current/resistance observations
+without taking control of acquisition hardware. A two-current measurement can be
+extrapolated to zero measurement current under the documented linear
+resistance-versus-current-squared model:
+
+```python
+import math
+
+from rtd_sensor import self_heating
+
+low = self_heating.SelfHeatingObservation(0.001, 100.01)
+high = self_heating.SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02)
+
+result = self_heating.extrapolate_zero_power_resistance(low, high)
+print(result.zero_power_resistance_ohms)  # approximately 100.0
+```
+
+With three or more observations, `fit_zero_power_resistance()` supports ordinary
+least squares, resistance-only weighted least squares, York errors-in-variables
+regression when current uncertainty is supplied, and generalized least squares for
+an explicit positive-definite resistance covariance matrix. The retained evidence
+includes residual and uncertainty diagnostics rather than imposing a universal
+pass/fail threshold. Model-based temperature interpretation, first-order uncertainty
+propagation, threshold-free extrapolation assessment, and context-bound
+self-heating coefficient/dissipation estimates are available separately.
+
+See the [self-heating and zero-power guide](https://gregrr.github.io/rtd-sensor/documentation/measurement-uncertainty/self-heating/)
+and [`self_heating` API reference](https://gregrr.github.io/rtd-sensor/api/self-heating/).
 
 ## Public exceptions
 

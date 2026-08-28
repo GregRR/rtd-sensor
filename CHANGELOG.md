@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.8.0 — 2026-08-28
+
+### Added
+
+* Added the public `rtd_sensor.self_heating` analysis layer with immutable current/resistance observations, two-current zero-power resistance extrapolation, model-based temperature interpretation, and retained experimental evidence.
+* Added three-or-more-observation zero-power fitting with ordinary least squares, repeated-current support, residual diagnostics, extrapolation geometry, and residual-variance-scaled parameter covariance when current coordinates are treated as exact.
+* Added inverse-variance weighted least squares when independent absolute resistance standard uncertainties are supplied, with normalized weights, chi-square/reduced-chi-square diagnostics, and covariance determined directly from the supplied uncertainties.
+* Added York errors-in-variables fitting when every observation has both measurement-current and resistance standard uncertainty, including first-order current-to-`I²` uncertainty propagation and optional within-observation current/resistance error correlation.
+* Added generalized least squares for exact-current fits with an explicit positive-definite cross-observation resistance covariance matrix, including full-covariance chi-square diagnostics and fitted-parameter covariance.
+* Added first-order uncertainty propagation for the two-current extrapolation and for fitted zero-power/temperature results, retaining the full supported input or fitted-parameter covariance rather than discarding correlation terms.
+* Added context-bound self-heating coefficient and reciprocal dissipation-constant calculations from fitted temperature rise versus fitted `I²R` power, together with first-order uncertainty propagation and descriptive coefficient-fit diagnostics.
+* Added threshold-free zero-power extrapolation assessment with structured warnings for objective evidence limitations such as exact two-point lines, only two distinct current levels, missing repeated-current evidence, and nonpositive fitted slopes.
+
+### Changed
+
+* Clarified the hardware boundary throughout the public documentation: `rtd-acquire` is the companion layer when raw hardware still needs acquisition work, while a trustworthy RTD-element resistance already available from a DMM, bridge, DAQ, RTD interface, or recorded data can feed `rtd-sensor` directly.
+* Extended release smoke testing to exercise the installed `rtd_sensor.self_heating` API in addition to the existing conversion, catalog, fitting, batch, and portable-model checks.
+
 ## 0.7.0 — 2026-08-21
 
 ### Added

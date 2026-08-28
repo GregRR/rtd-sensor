@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "rtd-sensor"
-version = "0.7.0"
-description = "Python RTD conversion and modeling for IEC 60751 platinum and documented nickel RTDs, with calibration fitting, tolerance, uncertainty, portable models, and cross-language conformance."
+version = "0.8.0"
+description = "Python RTD conversion and modeling for IEC 60751 platinum and documented nickel RTDs, with calibration fitting, self-heating analysis, tolerance, uncertainty, portable models, and cross-language conformance."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MPL-2.0"
@@ -34,6 +34,7 @@ keywords = [
 "resistance-temperature-detector",
 "temperature-sensor",
 "measurement-uncertainty",
+"self-heating",
 "pt-385",
 "sensor-calibration",
 "interoperability",

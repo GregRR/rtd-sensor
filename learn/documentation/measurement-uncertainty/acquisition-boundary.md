@@ -5,19 +5,27 @@ description: Understand what rtd-sensor expects from RTD acquisition hardware an
 
 # The hardware/acquisition boundary
 
-`rtd-sensor` starts **after** the acquisition layer has produced the best
-available estimate of the RTD sensing element's resistance in ohms.
+`rtd-sensor` starts once the best available estimate of the RTD sensing element's
+resistance in ohms is available. Sometimes a separate acquisition layer must produce
+that estimate; sometimes an instrument or RTD interface already provides it.
 
 ```text
 physical RTD
     ↓
-acquisition hardware + corrections
-    ↓
-compensated resistance in ohms
-    ↓
-rtd-sensor model
-    ↓
-temperature in °C
+resistance-measurement source
+    ├── raw converter / ADC / electrical interface
+    │       ↓
+    │   acquisition handling and corrections
+    │       ↓
+    │   resistance in ohms
+    │
+    └── DMM / bridge / DAQ / RTD interface with resistance output
+            ↓
+        resistance in ohms
+            ↓
+        rtd-sensor model
+            ↓
+        temperature in °C
 ```
 
 ## What belongs in the acquisition layer
@@ -35,7 +43,9 @@ Depending on the hardware, that may include:
 
 For example, a MAX31865 integration should first use the converter's information
 and circuit configuration to obtain an RTD resistance estimate. That resistance
-can then be passed to `rtd-sensor`.
+can then be passed to `rtd-sensor`. If a laboratory DMM, bridge, DAQ, or RTD
+interface already provides the desired element-resistance estimate in ohms, no
+additional acquisition layer is required before passing it to `rtd-sensor`.
 
 ## What rtd-sensor owns
 

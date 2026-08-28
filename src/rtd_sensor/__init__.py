@@ -2,7 +2,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
-"""Resistance temperature detector conversion, measurement, and simulation tools.
+"""Resistance temperature detector conversion, modeling, and analysis tools.
 
 Example:
     from rtd_sensor import pt100, simulation

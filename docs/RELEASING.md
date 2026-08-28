@@ -223,8 +223,8 @@ installed distribution rather than the source checkout:
 - [ ] the legacy `rtd` package is absent;
 - [ ] representative built-in conversion succeeds; and
 - [ ] representative public APIs, including catalog/model composition, batch
-      conversion, calibration fitting, and portable-model round trips, are
-      importable and usable.
+      conversion, calibration fitting, self-heating analysis, and portable-model
+      round trips, are importable and usable.
 
 ## 7. User-facing installation and quickstart test
 

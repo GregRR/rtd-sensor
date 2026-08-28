@@ -1,6 +1,6 @@
 ---
 title: Hardware integration
-description: Integrate rtd-sensor with MAX31865, DAQ, bridge, ADC, or other acquisition systems by keeping compensated resistance separate from RTD conversion.
+description: Integrate rtd-sensor with MAX31865, DMM, DAQ, bridge, RTD-interface, ADC, or recorded resistance sources while keeping acquisition separate from RTD conversion.
 ---
 
 # Hardware integration
@@ -14,6 +14,25 @@ The integration contract is simple:
 
 > Acquisition code should provide the best available estimate of the RTD
 > sensing element resistance in ohms.
+
+The same contract also applies when another instrument or interface has already done
+that acquisition work. `rtd-acquire` is useful when raw hardware still needs
+converter handling, compensation, calibration, diagnostics, or a common acquisition
+interface; it is not required merely because a physical RTD is involved.
+
+## Where resistance can come from
+
+| Resistance source | Needs a separate `rtd-acquire` step? | Relationship to `rtd-sensor` |
+| --- | --- | --- |
+| Manual reading, DMM, or resistance bridge | No | Pass the resistance in ohms directly |
+| Raw RTD converter or configurable ADC | Usually | Convert the electrical observations into the best available RTD resistance first |
+| USB/HAT/DAQ RTD interface that already reports resistance | Usually no | Feed the reported RTD resistance to `rtd-sensor` |
+| PLC or universal input with a documented resistance mode | Usually no | Feed the resistance result to `rtd-sensor`; keep PLC/device faults upstream |
+| Recorded resistance dataset | No | Convert or analyze the recorded resistance values directly |
+| Smart device that exposes only calculated temperature | Not applicable | The device has already performed RTD interpretation; there is no original resistance for `rtd-sensor` to reinterpret |
+
+Naming a source class here does not mean `rtd-sensor` contains a device driver. The
+interoperability contract is the resistance value, not a vendor API.
 
 ## Direct composition
 

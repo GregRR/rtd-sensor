@@ -1,6 +1,6 @@
 ---
 title: Full rtd-sensor Documentation
-description: Complete user documentation for rtd-sensor, including conversion, built-in and custom RTD models, calibration, measurement composition, tolerance, uncertainty, simulation, and integration.
+description: Complete user documentation for rtd-sensor, including conversion, calibrated models, self-heating, measurement composition, tolerance, uncertainty, simulation, and integration.
 ---
 
 # Full rtd-sensor Documentation
@@ -15,8 +15,9 @@ give it resistance in ohms and it can calculate temperature in degrees Celsius,
 or give it temperature and it can calculate the corresponding model resistance.
 
 The package also provides calibration fitting, custom models, portable model
-definitions, tolerance calculations, uncertainty tools, simulation, batch
-conversion, model discovery, and cross-language conformance support.
+definitions, self-heating and zero-power analysis, tolerance calculations,
+uncertainty tools, simulation, batch conversion, model discovery, and cross-language
+conformance support.
 
 ## Choose a section
 
@@ -45,7 +46,8 @@ fitting, and portable definitions.
 ### Measurement & uncertainty
 
 Understand the acquisition boundary, compose resistance readers with models,
-calculate IEC 60751 tolerance limits, and build inspectable uncertainty budgets.
+analyze self-heating and zero-power resistance, calculate IEC 60751 tolerance limits,
+and build inspectable uncertainty budgets.
 
 [Measurement & uncertainty](measurement-uncertainty/index.md)
 

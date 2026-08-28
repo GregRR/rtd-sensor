@@ -2063,6 +2063,8 @@ class TwoCurrentSelfHeatingTemperatureUncertaintyResult:
         return _TWO_CURRENT_INPUT_PARAMETER_NAMES
 
 
+# Source: Pearce et al. (2022), section 4.1, for the self-heating
+# coefficient/dissipation-constant interpretation; see docs/REFERENCES.md.
 def evaluate_self_heating_coefficient(
     result: ZeroPowerResistanceFitTemperatureResult,
 ) -> SelfHeatingCoefficientResult:
@@ -2888,6 +2890,8 @@ class _GLSZeroPowerFitSolution:
     parameter_covariance: tuple[tuple[float, float], tuple[float, float]]
 
 
+# Source: Reeve (1988), generalized least-squares estimator and parameter
+# covariance; see docs/REFERENCES.md.
 def _fit_zero_power_gls(
     observations: tuple[SelfHeatingObservation, ...],
     resistance_covariance: ResistanceObservationCovariance,
@@ -3185,6 +3189,8 @@ def _york_fit_components(
     )
 
 
+# Source: York et al. (2004), straight-line errors-in-variables regression;
+# see docs/REFERENCES.md.
 def _fit_zero_power_york(
     observations: tuple[SelfHeatingObservation, ...],
     resistance_uncertainties: tuple[float, ...],
@@ -3564,6 +3570,8 @@ def _fit_zero_power_line(
     return zero_power_resistance, slope, residuals
 
 
+# Source: NIST/SEMATECH Handbook 151, sections 4.1.4.1 and 4.4.3.1,
+# for residual-variance-scaled linear-fit covariance; see docs/REFERENCES.md.
 def _zero_power_fit_parameter_covariance(
     result: ZeroPowerResistanceFitResult,
 ) -> tuple[
@@ -3671,6 +3679,8 @@ def _zero_power_fit_parameter_covariance(
     )
 
 
+# Source: NIST/SEMATECH Handbook 151, section 4.1.4.3, for
+# inverse-variance weighted least squares; see docs/REFERENCES.md.
 def _zero_power_weighted_fit_parameter_covariance(
     evidence: ZeroPowerResistanceFitEvidence,
 ) -> tuple[tuple[float, float], tuple[float, float]]:
@@ -3950,6 +3960,8 @@ def _two_current_uncertainty_propagation(
     )
 
 
+# Source: JCGM 100:2008, sections 5.1-5.2, for first-order covariance
+# propagation with sensitivity coefficients; see docs/REFERENCES.md.
 def _covariance_propagation(
     sensitivities: tuple[float, float, float, float],
     covariance_matrix: tuple[tuple[float, ...], ...],
@@ -4023,6 +4035,8 @@ def _zero_power_resistance_from_evidence(
     return low.resistance_ohms - slope * low.current_squared_a2
 
 
+# Source: BIPM CCT (2021), section 5.3.3 and Equation 34, and Pearce et al.
+# (2022), section 4.1; see docs/REFERENCES.md.
 def extrapolate_zero_power_resistance(
     observation_1: SelfHeatingObservation,
     observation_2: SelfHeatingObservation,

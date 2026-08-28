@@ -1,6 +1,6 @@
 ---
 title: Measurement & uncertainty
-description: Understand rtd-sensor's hardware-neutral measurement boundary, resistance readers, IEC tolerance classes, sensitivity-based propagation, and temperature uncertainty budgets.
+description: Understand rtd-sensor's hardware-neutral measurement boundary, self-heating and zero-power analysis, IEC tolerance classes, sensitivity-based propagation, and temperature uncertainty budgets.
 ---
 
 # Measurement & uncertainty

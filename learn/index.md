@@ -1,6 +1,6 @@
 ---
 title: rtd-sensor documentation — RTD conversion and modeling
-description: Learn rtd-sensor for Python RTD conversion and modeling, with Pt100/Pt1000 guides, calibration, uncertainty, and embedded interoperability.
+description: Learn rtd-sensor for Python RTD conversion and modeling, with Pt100/Pt1000 guides, calibration, self-heating, uncertainty, and embedded interoperability.
 ---
 
 # Learn rtd-sensor
@@ -9,22 +9,23 @@ description: Learn rtd-sensor for Python RTD conversion and modeling, with Pt100
 `rtd-sensor` is a Python library that turns RTD resistance values into temperatures, and
 temperatures back into expected resistance values. It supports common platinum
 RTDs such as Pt100, Pt500, Pt1000, and several nickel sensor types. It also provides
-tools for calibration, custom sensor models, tolerance, uncertainty, simulation, and
-working with many readings at once.
+tools for calibration, custom sensor models, self-heating analysis, tolerance,
+uncertainty, simulation, and working with many readings at once.
 
 ## What rtd-sensor is not
-`rtd-sensor` does not read a physical RTD directly. Hardware such as a MAX31865 or another
-measurement circuit must first determine the sensor’s resistance, and your hardware or
-acquisition software must pass that resistance to `rtd-sensor`. `rtd-sensor` handles the
-RTD science and calculations; it does not handle wiring, SPI/I²C communication, ADCs, or
-other sensor-interface hardware.
+`rtd-sensor` does not read a physical RTD directly. It starts once a trustworthy
+estimate of the RTD element resistance in ohms is available. That resistance may come
+from acquisition software such as [`rtd-acquire`](https://gregrr.github.io/rtd-acquire/),
+a multimeter or bridge, a DAQ or RTD interface that already reports resistance, or
+recorded data. `rtd-sensor` handles the RTD science and calculations; it does not
+handle wiring, SPI/I²C communication, ADCs, or other sensor-interface hardware.
 
-That separation is a benefit: acquisition software such as
-[`rtd-acquire`](https://gregrr.github.io/rtd-acquire/) can handle the hardware and
-produce a reliable resistance measurement, while `rtd-sensor` focuses only on
-interpreting that resistance. Keeping those jobs separate makes it easier to change
-hardware, reuse the same RTD calculations in different systems, test each layer
-independently, and keep hardware faults distinct from RTD model or calculation errors.
+That separation is a benefit: use `rtd-acquire` when raw hardware still needs
+acquisition, compensation, calibration, or diagnostics, and use `rtd-sensor`
+directly when the resistance is already available. Keeping those jobs separate makes
+it easier to change hardware, reuse the same RTD calculations in different systems,
+test each layer independently, and keep hardware faults distinct from RTD model or
+calculation errors.
 
 ## Let's Go!
 

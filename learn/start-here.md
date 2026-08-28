@@ -23,9 +23,10 @@ characteristic to convert a measured resistance into temperature, or calculate
 the resistance expected at a known temperature.
 
 `rtd-sensor` handles that conversion and modeling layer. It does not read an
-ADC, communicate over SPI or I²C, or perform lead-wire compensation itself.
-Hardware and acquisition code should first produce the best available estimate
-of the RTD element's resistance in ohms.
+ADC, communicate over SPI or I²C, or perform lead-wire compensation itself. It
+starts once the best available estimate of the RTD element's resistance in ohms is
+available, whether that value came from acquisition code, a multimeter or bridge,
+a DAQ/RTD interface, or recorded data.
 
 ## What does Pt100 mean?
 
@@ -106,7 +107,7 @@ print(resistance_ohms)
 
 ### Resistance to temperature
 
-If an acquisition system has measured 119.3971 Ω from a Pt100:
+If a Pt100 resistance measurement is 119.3971 Ω:
 
 ```python
 from rtd_sensor import pt100

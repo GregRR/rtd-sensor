@@ -52,6 +52,8 @@ scope. Items 8 through 11 shipped in version 0.6.0 on 2026-08-17. Version 0.6.1
 shipped on 2026-08-19 and expanded supported Python versions from Python 3.14
 only to Python 3.11 through 3.14 without adding roadmap feature scope. Version
 0.7.0 shipped on 2026-08-21 with the calibration and statistical foundation.
+Version 0.8.0 shipped on 2026-08-28 with self-heating characterization and
+zero-power correction.
 
 Item 12 remains an ongoing, provenance-dependent built-in expansion track rather
 than a release gate. New characteristics may land whenever their equations, source
@@ -64,7 +66,7 @@ provenance, independent validation, range, and tests are support-ready.
 - **0.6.0:** items 8–11; published 2026-08-17.
 - **0.6.1:** Python 3.11–3.14 compatibility release; published 2026-08-19.
 - **0.7.0:** calibration and statistical foundation; published 2026-08-21.
-- **0.8.0:** self-heating characterization and zero-power correction.
+- **0.8.0:** self-heating characterization and zero-power correction; published 2026-08-28.
 - **0.9.0:** calibration experiment design, tabulated interoperability completion,
   characteristic-compatibility promotion decision, and pre-1.0 API review.
 - **1.0.0:** stability release for the mature scientific, calibration, uncertainty,
@@ -129,7 +131,7 @@ the sensing element warmer than the environment being measured. The effect depen
 on both thermometer construction and the thermal environment, so it must not be
 modeled as an immutable property of an RTD characteristic alone.
 
-Implemented in the current 0.8.0 development checkpoint:
+Implemented in 0.8.0:
 
 - immutable observations containing measurement current and measured resistance;
 - two-current zero-power resistance extrapolation using resistance versus current

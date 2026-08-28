@@ -52,5 +52,5 @@
       "reference_resistance_ohms": 120.0
     }
   ],
-  "rtd_sensor_version": "0.7.0"
+  "rtd_sensor_version": "0.8.0"
 }
