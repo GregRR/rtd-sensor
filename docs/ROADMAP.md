@@ -238,7 +238,7 @@ or explicitly deferred before the 1.0 compatibility commitment.
 #### Characteristic compatibility and identifiability promotion gate
 
 Research and Playground prototyping for characteristic compatibility may proceed
-during 0.8 development. Before the 0.9 feature/API scope is frozen, evaluate whether
+before the 0.9 feature/API scope is frozen. Evaluate whether
 a bounded public capability for comparing observed `(temperature, resistance)` data
 against known RTD characteristics is mature enough to include before 1.0.
 
