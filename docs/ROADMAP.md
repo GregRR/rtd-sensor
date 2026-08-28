@@ -148,6 +148,11 @@ Implemented in the current 0.8.0 development checkpoint:
 - residual-variance-scaled ordinary-least-squares covariance for the 3+ observation
   fit parameters, conditional on fixed current-squared coordinates and independent,
   zero-mean resistance-domain errors with a common variance;
+- optional inverse-variance weighted least squares for 3+ observation fits when every
+  observation has an absolute independent resistance standard uncertainty, with
+  retained normalized weights, chi-square/reduced-chi-square diagnostics, and
+  parameter covariance determined directly from those supplied uncertainties rather
+  than rescaled by residual scatter;
 - model-based interpretation of the 3+ observation fit into zero-power, observed,
   and fitted temperatures together with observed/fitted `I²R` powers; and
 - first-order propagation of the full fitted intercept/slope covariance into the
@@ -168,10 +173,10 @@ Implemented in the current 0.8.0 development checkpoint:
 
 Remaining 0.8.0 scope includes:
 
-- uncertainty-weighted or errors-in-variables extensions to larger-observation
-  fitting where supplied resistance/current uncertainties justify them, plus any
-  correlated-observation treatment and experiment-specific residual acceptance
-  criteria that can be stated without inventing universal thresholds.
+- errors-in-variables extensions to larger-observation fitting where measurement-
+  current uncertainty is material, plus any defensible correlated-observation
+  treatment and experiment-specific residual acceptance criteria that can be stated
+  without inventing universal thresholds.
 
 The package will analyze supplied current/resistance observations. It will not
 control excitation current, ADCs, bridges, MAX31865 devices, or other acquisition

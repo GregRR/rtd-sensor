@@ -177,9 +177,10 @@ records it separately.
 
 ### Estimate fit-parameter uncertainty from residual scatter
 
-For an unweighted 3+ observation fit, residual scatter can also provide the usual
-ordinary-least-squares estimate of uncertainty in the fitted zero-power resistance
-and slope:
+For a 3+ observation fit, the parameter-covariance model depends on how the
+resistance observations were fitted. An unweighted fit uses the usual residual-
+scatter ordinary-least-squares estimate of uncertainty in the fitted zero-power
+resistance and slope:
 
 ```python
 fit_uncertainty = self_heating.estimate_zero_power_fit_uncertainty(fit)
@@ -205,16 +206,40 @@ and zero-mean with a common variance. That unknown variance is estimated from th
 retained residuals. This makes the result useful for repeated-current experiments
 whose scatter reasonably matches those assumptions.
 
-If measurement-current uncertainty is material, however, the independent
-coordinate itself is uncertain. Ordinary least squares does not account for that.
-Likewise, unequal resistance uncertainties, correlation among repeated readings,
-or shared bridge/current-source/calibration effects need an explicit statistical
-model rather than being inferred from the residuals.
+If every resistance observation instead has a defensible absolute standard
+uncertainty, use inverse-variance weighted least squares:
 
-A perfectly fitted finite dataset can produce zero residual-based covariance. That
-does **not** prove the experiment has zero physical uncertainty; it only means the
-residual-scatter estimator has no scatter from which to estimate a nonzero common
-resistance variance.
+```python
+weighted_fit = self_heating.fit_zero_power_resistance(
+    observations,
+    resistance_standard_uncertainties_ohms=(0.002, 0.002, 0.005, 0.005),
+)
+weighted_uncertainty = self_heating.estimate_zero_power_fit_uncertainty(weighted_fit)
+
+print(weighted_fit.evidence.effective_weights)
+print(weighted_fit.evidence.chi_squared)
+print(weighted_fit.evidence.reduced_chi_squared)
+print(weighted_uncertainty.parameter_covariance_matrix)
+```
+
+The effective fit weights are proportional to `1/u(R)²`. They are normalized for
+numerical stability, but the original absolute uncertainties are retained and used
+for chi-square and parameter covariance. That covariance is **not** multiplied by
+reduced chi-square or otherwise rescaled to make the observed residuals agree with
+the supplied uncertainties. An exact weighted line can therefore have zero
+chi-square residual while still retaining nonzero parameter uncertainty.
+
+If measurement-current uncertainty is material, however, the independent
+coordinate itself is uncertain. Fixed-coordinate least squares does not account for
+that; an errors-in-variables model is needed. Correlation among repeated readings or
+shared bridge/current-source/calibration effects likewise needs an explicit
+covariance model rather than being inferred from residuals or from marginal
+resistance standard uncertainties.
+
+A perfectly fitted **unweighted** finite dataset can produce zero residual-based
+covariance. That does **not** prove the experiment has zero physical uncertainty; it
+only means the residual-scatter estimator has no scatter from which to estimate a
+nonzero common resistance variance.
 
 A positive fitted slope is the direction ordinarily expected for self-heating.
 Zero or negative slopes are retained and reported as evidence rather than being
@@ -279,11 +304,12 @@ sensitivity vector. The zero-power sensitivity is subtracted before propagating 
 temperature rise, so the shared fitted intercept and its covariance with slope are
 not discarded.
 
-This propagation includes only the residual-scatter covariance estimated from the
-unweighted OLS fit. Current coordinates remain fixed/exact, and the RTD model is
-treated as fixed. Model-parameter covariance, measurement-current uncertainty,
-additional resistance uncertainty, heteroscedasticity, and correlated experimental
-effects remain separate.
+This propagation uses whichever intercept/slope covariance the retained fit
+provides: residual-scatter covariance for unweighted OLS, or covariance defined by
+supplied absolute resistance standard uncertainties for inverse-variance weighted
+least squares. Current coordinates remain fixed/exact, and the RTD model is treated
+as fixed. Model-parameter covariance, measurement-current uncertainty, and
+correlated experimental effects remain separate.
 
 ## Convert the result to zero-power temperature
 
@@ -474,8 +500,10 @@ print(coefficient_uncertainty.self_heating_coefficient_standard_uncertainty_c_pe
 print(coefficient_uncertainty.dissipation_constant_standard_uncertainty_mw_per_c)
 ```
 
-This propagates only the residual-scatter covariance of the fitted zero-power
-resistance and slope into the retained finite-range coefficient. It does not include
+This propagates the retained covariance of the fitted zero-power resistance and
+slope into the finite-range coefficient. That covariance can come from residual-
+scatter OLS or from supplied absolute resistance standard uncertainties in a
+weighted fit. It does not include
 the deterministic difference between that scalar and a zero-power differential
 coefficient. It also does not add coefficient-fit residual scatter, model parameter
 covariance, current uncertainty, or correlated environmental/acquisition effects.
@@ -516,8 +544,9 @@ as experimentally stable.
 
 The current 0.8.0 implementation does not yet provide:
 
-- covariance-aware propagation for correlated two-current measurement inputs;
-- uncertainty-weighted or covariance-aware multi-observation fitting;
+- errors-in-variables multi-observation fitting when measurement-current
+  uncertainty is material;
+- covariance-aware multi-observation fitting for defensibly correlated observations;
 - an automatic experiment-specific residual acceptance threshold.
 
 Those remaining capabilities stay within the documented 0.8.0 scope and can

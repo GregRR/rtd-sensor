@@ -434,6 +434,121 @@ def test_zero_power_fit_allows_repeated_two_current_cycles() -> None:
     )
 
 
+def test_zero_power_fit_inverse_variance_weighting_uses_resistance_uncertainties() -> (
+    None
+):
+    observations = (
+        SelfHeatingObservation(1.0, 101.0),
+        SelfHeatingObservation(2.0, 104.0),
+        SelfHeatingObservation(3.0, 120.0),
+    )
+
+    unweighted = fit_zero_power_resistance(observations)
+    weighted = fit_zero_power_resistance(
+        observations,
+        resistance_standard_uncertainties_ohms=(1.0, 1.0, 100.0),
+    )
+
+    assert weighted.evidence.method == (
+        "inverse_variance_weighted_least_squares_resistance_vs_current_squared"
+    )
+    assert weighted.evidence.resistance_standard_uncertainties_ohms == (
+        1.0,
+        1.0,
+        100.0,
+    )
+    assert weighted.evidence.effective_weights == pytest.approx((1.0, 1.0, 0.0001))
+    assert weighted.zero_power_resistance_ohms == pytest.approx(99.99658115863201)
+    assert weighted.resistance_slope_ohms_per_a2 == pytest.approx(1.0015873192065634)
+    assert abs(weighted.zero_power_resistance_ohms - 100.0) < abs(
+        unweighted.zero_power_resistance_ohms - 100.0
+    )
+    assert weighted.evidence.chi_squared == pytest.approx(0.012088046265359842)
+    assert weighted.evidence.reduced_chi_squared == pytest.approx(
+        weighted.evidence.chi_squared
+    )
+    assert weighted.evidence.weighted_rms_residual_ohms == pytest.approx(
+        0.07774137216844444
+    )
+
+
+def test_zero_power_fit_equal_resistance_uncertainties_preserve_ols_estimates() -> None:
+    observations = (
+        SelfHeatingObservation(1.0, 102.0),
+        SelfHeatingObservation(2.0, 108.0),
+        SelfHeatingObservation(3.0, 119.0),
+    )
+
+    unweighted = fit_zero_power_resistance(observations)
+    weighted = fit_zero_power_resistance(
+        observations,
+        resistance_standard_uncertainties_ohms=(0.5, 0.5, 0.5),
+    )
+
+    assert weighted.zero_power_resistance_ohms == pytest.approx(
+        unweighted.zero_power_resistance_ohms
+    )
+    assert weighted.resistance_slope_ohms_per_a2 == pytest.approx(
+        unweighted.resistance_slope_ohms_per_a2
+    )
+    assert weighted.evidence.residuals_ohms == pytest.approx(
+        unweighted.evidence.residuals_ohms
+    )
+
+
+def test_zero_power_weighted_fit_uncertainty_uses_absolute_input_uncertainties() -> (
+    None
+):
+    fit = fit_zero_power_resistance(
+        (
+            SelfHeatingObservation(1.0, 101.0),
+            SelfHeatingObservation(2.0, 104.0),
+            SelfHeatingObservation(3.0, 109.0),
+        ),
+        resistance_standard_uncertainties_ohms=(0.5, 0.5, 0.5),
+    )
+
+    uncertainty = estimate_zero_power_fit_uncertainty(fit)
+
+    assert fit.evidence.chi_squared == pytest.approx(0.0, abs=1e-20)
+    assert uncertainty.method == "resistance_standard_uncertainties"
+    assert uncertainty.residual_variance_ohms_squared is None
+    assert uncertainty.parameter_covariance_matrix[0] == pytest.approx(
+        (0.25, -1.0 / 28.0)
+    )
+    assert uncertainty.parameter_covariance_matrix[1] == pytest.approx(
+        (-1.0 / 28.0, 3.0 / 392.0)
+    )
+    assert uncertainty.zero_power_resistance_standard_uncertainty_ohms == pytest.approx(
+        0.5
+    )
+
+
+@pytest.mark.parametrize(
+    "uncertainties, match",
+    [
+        ((0.1, 0.1), "count must match"),
+        ((0.1, 0.0, 0.1), "greater than zero"),
+        ((0.1, math.inf, 0.1), "must be finite"),
+    ],
+)
+def test_zero_power_fit_rejects_invalid_resistance_uncertainties(
+    uncertainties: tuple[float, ...],
+    match: str,
+) -> None:
+    observations = (
+        SelfHeatingObservation(1.0, 101.0),
+        SelfHeatingObservation(2.0, 104.0),
+        SelfHeatingObservation(3.0, 109.0),
+    )
+
+    with pytest.raises(ValueError, match=match):
+        fit_zero_power_resistance(
+            observations,
+            resistance_standard_uncertainties_ohms=uncertainties,
+        )
+
+
 def test_zero_power_fit_uncertainty_matches_repeated_two_current_case() -> None:
     low_current = 0.001
     high_current = math.sqrt(2.0) * 0.001
@@ -664,6 +779,30 @@ def test_zero_power_fit_temperature_uncertainty_preserves_fit_covariance() -> No
     )
     assert result.fitted_temperature_rise_standard_uncertainties_c == pytest.approx(
         (math.sqrt(5.0e-7), math.sqrt(2.0e-6)) * 2
+    )
+
+
+def test_zero_power_fit_temperature_uncertainty_uses_weighted_fit_covariance() -> None:
+    fit = fit_zero_power_resistance(
+        (
+            SelfHeatingObservation(1.0, 101.0),
+            SelfHeatingObservation(2.0, 104.0),
+            SelfHeatingObservation(3.0, 109.0),
+        ),
+        resistance_standard_uncertainties_ohms=(0.5, 0.5, 0.5),
+    )
+    temperatures = evaluate_zero_power_fit_temperatures(
+        fit,
+        model=_LinearTwoOhmPerCelsiusModel(),
+    )
+
+    result = propagate_zero_power_fit_temperature_uncertainty(temperatures)
+
+    assert result.fit_uncertainty.method == "resistance_standard_uncertainties"
+    assert result.zero_power_temperature_standard_uncertainty_c == pytest.approx(0.25)
+    assert all(
+        uncertainty > 0.0
+        for uncertainty in result.fitted_temperature_rise_standard_uncertainties_c
     )
 
 

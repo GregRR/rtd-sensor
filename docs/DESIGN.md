@@ -1018,41 +1018,57 @@ both the independent and correlated first-order propagation.
 
 The larger-observation fit keeps the same scientific model rather than changing
 to a regression on observation-level `I^2 R` power. `fit_zero_power_resistance()`
-requires at least three observations and two numerically distinct current levels,
-then performs unweighted ordinary least squares of resistance versus current
-squared. Repeated measurements at only two current levels are valid, which supports
-low/high measurement cycles while providing positive residual degrees of freedom.
+requires at least three observations and two numerically distinct current levels.
+By default it performs unweighted ordinary least squares of resistance versus
+current squared. Callers may instead supply one absolute resistance standard
+uncertainty for every observation; the fit then uses inverse-variance weighted
+least squares with weights proportional to `1/u(R)^2`. In both cases the sampled
+current-squared coordinates are treated as fixed/exact. Repeated measurements at
+only two current levels are valid, which supports low/high measurement cycles while
+providing positive residual degrees of freedom.
+
 The evidence preserves caller order and reports every residual, descriptive RMS
 residual, maximum absolute residual, residual standard deviation, observation and
-distinct-current counts, and sampled current span. A zero or negative fitted slope
-is retained as evidence rather than silently converted into a physical
-self-heating claim.
+distinct-current counts, and sampled current span. For uncertainty-weighted fits it
+also retains the supplied resistance standard uncertainties, normalized effective
+weights, weighted RMS residual, chi-square, and reduced chi-square. Normalizing the
+weights changes neither the fitted line nor the relative influence of observations;
+the original absolute uncertainties remain retained so covariance and chi-square
+keep their physical scale. A zero or negative fitted slope is retained as evidence
+rather than silently converted into a physical self-heating claim.
 
 Those residual diagnostics can expose scatter or inconsistency with the fitted
 linear relation, but they cannot by themselves prove thermal stability or identify
-the physical cause of a poor fit. The first implementation therefore does not
-invent a universal residual acceptance threshold and does not silently introduce
-measurement uncertainties into the objective. Uncertainty-weighted fitting,
-correlated-input treatment, and experiment-specific acceptance rules require an
-explicit statistical basis before they are added.
+the physical cause of a poor fit. The implementation therefore does not invent a
+universal residual or reduced-chi-square acceptance threshold. Supplied resistance
+uncertainties are used only when the caller explicitly provides a complete positive
+set; they are never inferred from replicate scatter or other acquisition context.
 
 For an unweighted fit with positive residual degrees of freedom,
-``estimate_zero_power_fit_uncertainty()`` can estimate covariance of the fitted
+``estimate_zero_power_fit_uncertainty()`` estimates covariance of the fitted
 zero-power resistance and ``dR/d(I^2)`` slope from the residual variance. This is
-the ordinary-least-squares parameter-covariance model: the sampled current-squared
-coordinates are treated as fixed/exact, resistance-domain errors about the linear
-model are assumed independent and zero-mean with a common variance, and that unknown
-variance is estimated from the fitted residuals as
-``SSE / residual_degrees_of_freedom``. The public result retains the residual
-variance, parameter order, full 2 x 2 covariance matrix, parameter standard
-uncertainties, and intercept/slope covariance.
+the ordinary-least-squares parameter-covariance model: resistance-domain errors
+about the linear model are assumed independent and zero-mean with a common unknown
+variance, estimated from the fitted residuals as
+``SSE / residual_degrees_of_freedom``.
 
-This covariance is deliberately not described as propagation of measurement-current
+For an inverse-variance weighted fit, the supplied resistance standard
+uncertainties are instead treated as absolute independent response uncertainties.
+The fitted-parameter covariance is the corresponding weighted information-matrix
+inverse and is **not** multiplied by reduced chi-square or otherwise rescaled to
+make the observed scatter agree with the supplied uncertainties. Consequently an
+exact fitted line can have zero chi-square residual while still retaining nonzero
+parameter covariance. The public uncertainty result records which covariance model
+was used; its ``residual_variance_ohms_squared`` is present only for the residual-
+scatter ordinary-least-squares path.
+
+Neither covariance path is described as propagation of measurement-current
 uncertainty. If uncertainty in current is material, the independent coordinate has
-measurement error and ordinary least squares is not an adequate uncertainty model.
-Likewise, heteroscedastic resistance uncertainty, correlated repeated readings, and
-other common-mode effects require an explicit weighted, covariance-aware, or
-errors-in-variables treatment rather than being inferred from residual scatter.
+measurement error and fixed-coordinate least squares is not an adequate model.
+Correlated repeated readings and other common-mode effects likewise require an
+explicit covariance-aware or errors-in-variables treatment rather than being
+inferred from residual scatter or from the supplied marginal resistance
+uncertainties.
 
 The 3+ observation fit can also be interpreted through one explicitly supplied
 RTD model without changing the resistance-domain fit. The result converts the
@@ -1063,8 +1079,10 @@ rises separately and reports both measured ``I²R_observed`` power and fitted
 experimental evidence; they are not automatically labeled as a transferable
 self-heating coefficient or dissipation constant.
 
-The residual-scatter intercept/slope covariance can be propagated through the same
-model into the fitted zero-power temperature and fitted temperature rises. At each
+The retained intercept/slope covariance can be propagated through the same model
+into the fitted zero-power temperature and fitted temperature rises. It may come
+from residual-scatter ordinary least squares or from supplied absolute resistance
+standard uncertainties in the weighted fit. At each
 sampled ``x = I²``, the fitted resistance sensitivity to ``(R0, k)`` is ``(1, x)``.
 The temperature sensitivity vector is therefore the local ``dT/dR`` multiplied by
 ``(1, x)``, while the temperature-rise vector subtracts the corresponding
@@ -1149,9 +1167,9 @@ conditions. Experiment-specific acceptance criteria therefore remain a caller or
 future statistically justified API concern.
 
 The self-heating layer still does not automatically alter an RTD model or a
-general uncertainty budget. Later 0.8.0 work may add uncertainty-weighted or
-errors-in-variables handling for the 3+ observation fit where a defensible
-statistical basis exists.
+general uncertainty budget. Remaining 0.8.0 regression work is limited to
+errors-in-variables handling when measurement-current uncertainty is material and
+correlated-observation treatment where a defensible covariance model exists.
 
 #### Portable model-definition format decision
 

@@ -291,6 +291,18 @@ that assumption is not adequate. `rtd-sensor` therefore records temperature-coor
 standard uncertainty separately and does not silently convert it into resistance
 uncertainty.
 
+National Institute of Standards and Technology. (n.d.). *Weighted least
+squares regression*. Engineering Statistics Handbook, section 4.1.4.3.
+https://www.itl.nist.gov/div898/handbook/pmd/section1/pmd143.htm
+
+**Project use:** Implementation/design basis for inverse-variance weighting of the
+3+ observation self-heating resistance fit when observations have differing known
+resistance-domain standard uncertainties. NIST describes weighted least squares as
+appropriate when response precision varies and weights proportional to inverse
+variance are available. `rtd-sensor` keeps this response-uncertainty case separate
+from measurement-current uncertainty in the independent coordinate, which requires
+an errors-in-variables treatment.
+
 Bureau International des Poids et Mesures, Consultative Committee for
 Thermometry. (2021). *Guide to the realization of the ITS-90: Platinum
 resistance thermometry*.

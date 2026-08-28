@@ -71,6 +71,7 @@ wanted.
 fit_zero_power_resistance(
     observations: Iterable[SelfHeatingObservation],
     *,
+    resistance_standard_uncertainties_ohms: Iterable[float] | None = None,
     context: SelfHeatingExperimentContext | None = None,
 ) -> ZeroPowerResistanceFitResult
 ```
@@ -86,11 +87,29 @@ are required. Repeated measurements at the same current levels are allowed, so a
 sequence such as low/high/low/high can retain repeated-cycle scatter while still
 providing positive residual degrees of freedom.
 
-The first multi-observation implementation uses **unweighted ordinary least
-squares** in resistance. It does not use `I²R` as the fit coordinate and does not
-yet incorporate current uncertainty, resistance uncertainty, covariance, or an
-automatic residual pass/fail threshold. Optional ``context`` is retained as
-non-behavioral provenance and does not alter the fit.
+The default multi-observation path uses **unweighted ordinary least squares** in
+resistance. If every observation has an absolute resistance standard uncertainty,
+pass those values with `resistance_standard_uncertainties_ohms`; the same function
+then uses inverse-variance weighted least squares with weights proportional to
+`1/u²`. The `I²` coordinate remains fixed/exact in both cases, so this is not an
+errors-in-variables treatment for uncertain measurement current. Optional
+``context`` is retained as non-behavioral provenance and does not alter the fit.
+
+```python
+weighted_fit = self_heating.fit_zero_power_resistance(
+    observations,
+    resistance_standard_uncertainties_ohms=(0.002, 0.002, 0.005, 0.005),
+)
+
+print(weighted_fit.evidence.effective_weights)
+print(weighted_fit.evidence.chi_squared)
+print(weighted_fit.evidence.reduced_chi_squared)
+```
+
+The uncertainties must be finite, positive, and match the observation count. They
+are treated as absolute independent resistance-domain standard uncertainties and
+are never inferred from replicate scatter. `rtd-sensor` does not define a universal
+acceptable reduced-chi-square threshold.
 
 ## `assess_zero_power_extrapolation`
 
@@ -210,7 +229,15 @@ max_absolute_residual_ohms: float
 residual_standard_deviation_ohms: float
 fitted_resistances_ohms: tuple[float, ...]
 context: SelfHeatingExperimentContext | None
-method: "ordinary_least_squares_resistance_vs_current_squared"
+resistance_standard_uncertainties_ohms: tuple[float, ...] | None
+effective_weights: tuple[float, ...] | None
+chi_squared: float | None
+reduced_chi_squared: float | None
+weighted_rms_residual_ohms: float | None
+method: (
+    "ordinary_least_squares_resistance_vs_current_squared"
+    | "inverse_variance_weighted_least_squares_resistance_vs_current_squared"
+)
 ```
 
 Residuals are `observed resistance - fitted resistance`. RMS residual is the
@@ -231,16 +258,17 @@ estimate_zero_power_fit_uncertainty(
 ) -> ZeroPowerResistanceFitUncertaintyResult
 ```
 
-Estimates the fitted-parameter covariance from the unweighted fit's retained
-residual scatter. The calculation uses the residual variance
-`SSE / residual_degrees_of_freedom` and ordinary-least-squares parameter covariance.
-It treats measurement-current-squared coordinates as fixed/exact and assumes the
-resistance-domain errors about the linear model are independent and zero-mean with
-a common variance. That unknown variance is estimated from the retained residuals.
+Estimates fitted-parameter covariance using the statistical model retained by the
+fit. For an unweighted fit, the calculation uses residual variance
+`SSE / residual_degrees_of_freedom` and ordinary-least-squares covariance. For an
+inverse-variance weighted fit, covariance comes directly from the supplied absolute
+resistance standard uncertainties and is not rescaled by residual scatter or
+reduced chi-square. Measurement-current-squared coordinates remain fixed/exact in
+both cases.
 
-It does not incorporate measurement-current uncertainty, supplied resistance
-standard uncertainties, heteroscedasticity, correlated repeated observations, or
-fitted RTD-model covariance. Those require a different or larger statistical model.
+Measurement-current uncertainty and correlated observation errors still require a
+different or larger statistical model. Fitted RTD-model covariance also remains
+separate.
 
 ## `ZeroPowerResistanceFitUncertaintyResult`
 
@@ -250,7 +278,7 @@ Fields and read-only derived properties:
 
 ```text
 fit_result: ZeroPowerResistanceFitResult
-residual_variance_ohms_squared: float
+residual_variance_ohms_squared: float | None
 parameter_names: tuple[str, str]
 parameter_covariance_matrix: tuple[tuple[float, float], tuple[float, float]]
 zero_power_resistance_variance_ohms_squared: float
@@ -258,7 +286,7 @@ zero_power_resistance_standard_uncertainty_ohms: float
 resistance_slope_variance_ohms_squared_per_a4: float
 resistance_slope_standard_uncertainty_ohms_per_a2: float
 zero_power_resistance_slope_covariance_ohms_squared_per_a2: float
-method: "residual_variance_scaled_least_squares"
+method: "residual_variance_scaled_least_squares" | "resistance_standard_uncertainties"
 ```
 
 The covariance-matrix parameter order is:
@@ -268,10 +296,12 @@ zero_power_resistance_ohms
 resistance_slope_ohms_per_a2
 ```
 
-A zero residual-based covariance from an exact finite fit is not a statement that
-the physical experiment has zero uncertainty. It only means this residual-scatter
-estimator observed no scatter from which to estimate a nonzero common resistance
-variance.
+For an unweighted exact finite fit, zero residual-based covariance is not a
+statement that the physical experiment has zero uncertainty; it only means the
+residual-scatter estimator observed no scatter from which to estimate a nonzero
+common resistance variance. In contrast, an exact inverse-variance weighted fit can
+have zero chi-square residual and still retain nonzero parameter covariance because
+the supplied absolute resistance uncertainties define that covariance directly.
 
 ## `evaluate_zero_power_fit_temperatures`
 
@@ -323,10 +353,11 @@ propagate_zero_power_fit_temperature_uncertainty(
 ) -> ZeroPowerResistanceFitTemperatureUncertaintyResult
 ```
 
-Propagates the full residual-scatter covariance of the fitted zero-power resistance
-and ``dR/d(I²)`` slope through the supplied RTD model. The result reports fit-
-covariance uncertainty for the zero-power temperature, each fitted temperature,
-and each fitted temperature rise.
+Propagates the full retained covariance of the fitted zero-power resistance and
+``dR/d(I²)`` slope through the supplied RTD model. The covariance may come from
+residual-scatter OLS or from supplied absolute resistance uncertainties in the
+weighted fit. The result reports fit-covariance uncertainty for the zero-power
+temperature, each fitted temperature, and each fitted temperature rise.
 
 At sampled ``x = I²``, fitted resistance depends on the retained parameters as
 ``R0 + k*x``. The fitted-temperature sensitivity vector is the local ``dT/dR``
@@ -434,8 +465,10 @@ propagate_self_heating_coefficient_uncertainty(
 ) -> SelfHeatingCoefficientUncertaintyResult
 ```
 
-Propagates the full residual-scatter covariance of the fitted zero-power resistance
-and ``dR/d(I²)`` slope through the context-bound coefficient calculation. The
+Propagates the full retained covariance of the fitted zero-power resistance and
+``dR/d(I²)`` slope through the context-bound coefficient calculation. That
+covariance may come from residual-scatter OLS or supplied absolute resistance
+standard uncertainties in an inverse-variance weighted fit. The
 through-origin coefficient depends on both fitted temperature rise and fitted power,
 so both dependencies are included in the parameter sensitivities before the 2x2
 covariance matrix is applied. The dissipation-constant uncertainty is propagated
@@ -443,7 +476,8 @@ from the reciprocal relationship.
 
 This remains first-order/local. The supplied RTD model and experiment context are
 treated as fixed. The reported standard uncertainty describes covariance of this
-finite-range coefficient under the retained OLS fit; it does **not** include the
+finite-range coefficient under the retained resistance-fit covariance model; it
+does **not** include the
 deterministic difference between the finite-range scalar and a zero-power
 differential coefficient. Coefficient-fit residual scatter, RTD-model covariance,
 current-coordinate uncertainty, and correlated experiment effects are not added
