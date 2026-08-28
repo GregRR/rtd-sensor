@@ -141,6 +141,7 @@ def test_package_exports_self_heating_module() -> None:
 
 def test_self_heating_public_api() -> None:
     assert set(self_heating.__all__) == {
+        "ResistanceObservationCovariance",
         "SelfHeatingCoefficientResult",
         "SelfHeatingCoefficientUncertaintyResult",
         "SelfHeatingExperimentContext",

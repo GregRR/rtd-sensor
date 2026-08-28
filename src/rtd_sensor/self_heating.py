@@ -26,6 +26,7 @@ __all__ = [
     "SelfHeatingCoefficientUncertaintyResult",
     "SelfHeatingExperimentContext",
     "SelfHeatingObservation",
+    "ResistanceObservationCovariance",
     "ZeroPowerExtrapolationAssessment",
     "ZeroPowerExtrapolationWarning",
     "ZeroPowerResistanceFitEvidence",
@@ -58,11 +59,13 @@ _ZeroPowerFitMethod = Literal[
     "ordinary_least_squares_resistance_vs_current_squared",
     "inverse_variance_weighted_least_squares_resistance_vs_current_squared",
     "york_errors_in_variables_resistance_vs_current_squared",
+    "generalized_least_squares_correlated_resistance_errors",
 ]
 _ZeroPowerFitUncertaintyMethod = Literal[
     "residual_variance_scaled_least_squares",
     "resistance_standard_uncertainties",
     "york_coordinate_standard_uncertainties",
+    "resistance_observation_covariance",
 ]
 _ZeroPowerFitTemperatureUncertaintyMethod = Literal[
     "first_order_fit_parameter_covariance"
@@ -168,6 +171,53 @@ class SelfHeatingObservation:
     def dissipated_power_w(self) -> float:
         """Return observation-level electrical power ``I²R`` in watts."""
         return self.current_squared_a2 * self.resistance_ohms
+
+
+@dataclass(frozen=True, slots=True)
+class ResistanceObservationCovariance:
+    """Cross-observation resistance covariance for generalized least squares.
+
+    Rows and columns follow the caller-supplied observation order. Values are
+    covariances in ohm squared. The matrix must be finite, symmetric, and positive
+    definite so the generalized least-squares information model is invertible.
+    Singular positive-semidefinite covariance models require a more explicit
+    constrained/source model and are not silently approximated here.
+    """
+
+    covariance_matrix_ohms_squared: tuple[tuple[float, ...], ...]
+
+    def __post_init__(self) -> None:
+        matrix = _validate_resistance_observation_covariance(
+            self.covariance_matrix_ohms_squared
+        )
+        object.__setattr__(self, "covariance_matrix_ohms_squared", matrix)
+
+    @property
+    def observation_count(self) -> int:
+        """Return matrix row/column count."""
+        return len(self.covariance_matrix_ohms_squared)
+
+    @property
+    def standard_uncertainties_ohms(self) -> tuple[float, ...]:
+        """Return marginal resistance standard uncertainties from the diagonal."""
+        return tuple(
+            math.sqrt(self.covariance_matrix_ohms_squared[index][index])
+            for index in range(self.observation_count)
+        )
+
+    @property
+    def correlation_matrix(self) -> tuple[tuple[float, ...], ...]:
+        """Return the dimensionless correlation matrix implied by the covariance."""
+        uncertainties = self.standard_uncertainties_ohms
+        return tuple(
+            tuple(
+                self.covariance_matrix_ohms_squared[row][column]
+                / uncertainties[row]
+                / uncertainties[column]
+                for column in range(self.observation_count)
+            )
+            for row in range(self.observation_count)
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -349,8 +399,10 @@ class ZeroPowerResistanceFitEvidence:
     measurement-current standard uncertainties are also supplied, York
     errors-in-variables regression is used after first-order propagation of current
     uncertainty into the ``I²`` coordinate. Optional per-observation current/
-    resistance error correlations describe dependence within each measured pair;
-    cross-observation covariance is not included. Residual diagnostics can reveal
+    resistance error correlations describe dependence within each measured pair.
+    Alternatively, a full positive-definite resistance covariance matrix selects
+    generalized least squares with exact current coordinates and explicit
+    cross-observation resistance dependence. Residual diagnostics can reveal
     scatter or departures from the fitted linear ``R``-versus-``I²`` relationship,
     but they do not by themselves prove that the external temperature was stable or
     that a physical self-heating correction is valid.
@@ -362,6 +414,7 @@ class ZeroPowerResistanceFitEvidence:
     resistance_standard_uncertainties_ohms: tuple[float, ...] | None = None
     measurement_current_standard_uncertainties_a: tuple[float, ...] | None = None
     current_resistance_error_correlations: tuple[float, ...] | None = None
+    resistance_observation_covariance: ResistanceObservationCovariance | None = None
     method: _ZeroPowerFitMethod = field(init=False)
 
     def __post_init__(self) -> None:
@@ -399,15 +452,22 @@ class ZeroPowerResistanceFitEvidence:
             observation_count=len(observations),
             current_uncertainties=current_uncertainties,
         )
-        if current_uncertainties is not None and resistance_uncertainties is None:
-            raise ValueError(
-                "Errors-in-variables fitting requires resistance standard "
-                "uncertainties for every observation"
-            )
-        if current_uncertainties is not None:
+        resistance_covariance = _validated_fit_resistance_observation_covariance(
+            self.resistance_observation_covariance,
+            observation_count=len(observations),
+        )
+        _validate_fit_uncertainty_model_combination(
+            resistance_uncertainties=resistance_uncertainties,
+            current_uncertainties=current_uncertainties,
+            correlations=correlations,
+            resistance_observation_covariance=resistance_covariance,
+        )
+        if resistance_covariance is not None:
             method: _ZeroPowerFitMethod = (
-                "york_errors_in_variables_resistance_vs_current_squared"
+                "generalized_least_squares_correlated_resistance_errors"
             )
+        elif current_uncertainties is not None:
+            method = "york_errors_in_variables_resistance_vs_current_squared"
         elif resistance_uncertainties is not None:
             method = (
                 "inverse_variance_weighted_least_squares_resistance_vs_current_squared"
@@ -428,6 +488,7 @@ class ZeroPowerResistanceFitEvidence:
             resistance_standard_uncertainties_ohms=resistance_uncertainties,
             measurement_current_standard_uncertainties_a=current_uncertainties,
             current_resistance_error_correlations=correlations,
+            resistance_observation_covariance=resistance_covariance,
         )
         for residual, expected_residual in zip(
             residuals,
@@ -464,6 +525,11 @@ class ZeroPowerResistanceFitEvidence:
             self,
             "current_resistance_error_correlations",
             correlations,
+        )
+        object.__setattr__(
+            self,
+            "resistance_observation_covariance",
+            resistance_covariance,
         )
         object.__setattr__(self, "method", method)
 
@@ -514,6 +580,8 @@ class ZeroPowerResistanceFitEvidence:
     @property
     def chi_squared(self) -> float | None:
         """Return chi-square under the supplied absolute uncertainty model."""
+        if self.resistance_observation_covariance is not None:
+            return _fit_zero_power_gls_solution_from_evidence(self).chi_squared
         if self.measurement_current_standard_uncertainties_a is not None:
             return _fit_zero_power_york_solution_from_evidence(self).chi_squared
         uncertainties = self.resistance_standard_uncertainties_ohms
@@ -665,6 +733,9 @@ class ZeroPowerResistanceFitResult:
             ),
             current_resistance_error_correlations=(
                 self.evidence.current_resistance_error_correlations
+            ),
+            resistance_observation_covariance=(
+                self.evidence.resistance_observation_covariance
             ),
         )
         resistance_tolerance = 16.0 * max(
@@ -903,12 +974,14 @@ class ZeroPowerResistanceFitUncertaintyResult:
     is treated as an absolute independent response uncertainty. For a York
     errors-in-variables fit, supplied current and resistance standard uncertainties
     define uncertainty in both coordinates, with optional within-observation
-    current/resistance error correlation. In both absolute-uncertainty paths,
-    parameter covariance comes directly from the supplied uncertainty model and is
-    not rescaled by the observed residual scatter.
+    current/resistance error correlation. For a generalized least-squares fit,
+    a supplied positive-definite resistance covariance matrix represents dependence
+    across separate observations while current coordinates remain exact. In all
+    supplied-uncertainty paths, parameter covariance comes directly from the supplied
+    uncertainty model and is not rescaled by the observed residual scatter.
 
-    Cross-observation covariance and fitted RTD-model covariance remain outside this
-    result.
+    Cross-observation covariance involving uncertain current coordinates remains
+    outside this result, as does fitted RTD-model covariance.
     """
 
     fit_result: ZeroPowerResistanceFitResult
@@ -1079,16 +1152,16 @@ class ZeroPowerResistanceFitTemperatureUncertaintyResult:
 
     The propagation uses the fitted-parameter order
     ``(zero_power_resistance_ohms, resistance_slope_ohms_per_a2)`` and the full
-    retained 2x2 covariance matrix from the fit's OLS, resistance-weighted, or York
-    uncertainty model. For a York fit, measurement-current uncertainty has already
+    retained 2x2 covariance matrix from the fit's OLS, resistance-weighted, GLS, or
+    York uncertainty model. For a York fit, measurement-current uncertainty has already
     influenced that parameter covariance, but each reported fitted temperature and
     rise is evaluated at the retained nominal ``I²`` coordinate without a separate
     direct coordinate-uncertainty term.
 
     This result therefore contains fit-parameter-covariance uncertainty only. The
     supplied RTD model is treated as fixed; model-parameter covariance, additional
-    measurement uncertainty, and cross-observation correlated experimental effects
-    remain separate.
+    measurement uncertainty, and experimental effects not represented by the retained
+    fit uncertainty model remain separate.
     """
 
     temperature_result: ZeroPowerResistanceFitTemperatureResult
@@ -2022,14 +2095,14 @@ def propagate_self_heating_coefficient_uncertainty(
 
     The full fitted intercept/slope covariance is propagated through the
     through-origin coefficient calculation. The coefficient result currently
-    requires a fixed-current OLS or resistance-weighted fit, so covariance may come
-    from residual-scatter ordinary least squares or supplied absolute resistance
-    uncertainties. Errors-in-variables fits are rejected because fitted power
+    requires a fixed-current OLS, resistance-weighted, or GLS fit, so covariance may
+    come from residual-scatter ordinary least squares, supplied absolute independent
+    resistance uncertainties, or a supplied cross-observation resistance covariance
+    matrix. Errors-in-variables fits are rejected because fitted power
     depends directly on uncertain current coordinates and parameter covariance alone
     would not capture that dependence. The RTD model and thermal-environment context
-    are treated as fixed. It does not
-    add uncertainty
-    for the deterministic range dependence of this finite-range coefficient or for
+    are treated as fixed. It does not add uncertainty for the deterministic range
+    dependence of this finite-range coefficient or for
     its difference from a zero-power differential coefficient.
 
     Raises:
@@ -2188,15 +2261,19 @@ def estimate_zero_power_fit_uncertainty(
     For an unweighted fit, covariance uses the fitted residual variance and the
     ordinary-least-squares information matrix. For an inverse-variance weighted fit,
     covariance comes directly from the supplied absolute resistance standard
-    uncertainties. For a York errors-in-variables fit, covariance comes from the
-    supplied current/resistance coordinate uncertainties and optional within-
-    observation error correlations after first-order transformation into ``I²``.
-    Neither absolute-uncertainty path is rescaled by residual scatter.
+    uncertainties. For a generalized least-squares fit, covariance comes directly
+    from the supplied full resistance observation covariance. For a York errors-in-
+    variables fit, covariance comes from the supplied current/resistance coordinate
+    uncertainties and optional within-observation error correlations after first-order
+    transformation into ``I²``. None of these supplied-uncertainty paths is rescaled
+    by residual scatter.
 
-    York covariance includes the effect of current uncertainty on the fitted line
-    parameters. It does not create cross-observation covariance or turn subsequent
-    quantities that depend directly on the sampled current coordinates into complete
-    uncertainty budgets.
+    York covariance includes the effect of current uncertainty on the fitted line and
+    can represent current/resistance error correlation within each observation, but it
+    does not create covariance between separate observations. GLS can represent cross-
+    observation resistance covariance only while the sampled current coordinates remain
+    exact. Neither path turns downstream quantities that depend directly on uncertain
+    sampled current coordinates into complete uncertainty budgets.
 
     Raises:
         TypeError: If ``result`` is not a :class:`ZeroPowerResistanceFitResult`.
@@ -2270,6 +2347,7 @@ def fit_zero_power_resistance(
     resistance_standard_uncertainties_ohms: Iterable[float] | None = None,
     measurement_current_standard_uncertainties_a: Iterable[float] | None = None,
     current_resistance_error_correlations: Iterable[float] | None = None,
+    resistance_observation_covariance: ResistanceObservationCovariance | None = None,
     context: SelfHeatingExperimentContext | None = None,
 ) -> ZeroPowerResistanceFitResult:
     """Fit ``R = R0 + k*I²`` to at least three current/resistance observations.
@@ -2283,13 +2361,18 @@ def fit_zero_power_resistance(
     observation, the fit instead uses York errors-in-variables regression in
     ``(I², R)`` coordinates. The current uncertainties are transformed to ``I²``
     standard uncertainties by first-order propagation, ``u(I²) = 2 I u(I)``.
+    Alternatively, ``resistance_observation_covariance`` selects generalized least
+    squares using a complete positive-definite resistance covariance matrix across
+    observations while treating current coordinates as exact.
 
     Optional ``current_resistance_error_correlations`` are within-observation
     correlation coefficients between measurement-current and resistance errors.
     Because measurement currents are positive, the same coefficients apply to the
     first-order ``I²`` and resistance errors. If omitted in errors-in-variables
     mode, zero within-observation correlation is assumed. Cross-observation
-    covariance is not inferred or included by this fit.
+    resistance covariance is represented only when the caller explicitly supplies
+    ``resistance_observation_covariance``; it is never inferred from instrument
+    identity, repeated measurements, or residual patterns.
 
     At least three observations provide positive residual degrees of freedom;
     repeated measurements at only two current levels are allowed and can therefore
@@ -2304,13 +2387,17 @@ def fit_zero_power_resistance(
     and match the observation count. Errors-in-variables mode requires both kinds of
     standard uncertainty. Its fitted-parameter covariance is determined from the
     supplied coordinate uncertainties and optional within-observation correlations;
-    residual scatter does not rescale that covariance. The first-order ``I²``
+    the GLS path likewise uses its supplied resistance covariance directly. Residual
+    scatter does not rescale either covariance model. The first-order ``I²``
     uncertainty transformation assumes the local linear approximation is adequate
-    for the supplied current uncertainties. The fit does not infer shared calibration
-    or drift covariance across observations and applies no automatic pass/fail
-    threshold to reduced chi-square or other residual diagnostics. Optional
-    ``context`` is retained as non-behavioral experiment provenance and does not
-    alter the fit.
+    for the supplied current uncertainties. The full resistance covariance already
+    contains the marginal resistance variances, so it cannot be combined with separate
+    resistance standard uncertainties. It also cannot be combined with measurement-
+    current uncertainty or York within-observation correlation inputs; that would
+    require a more general correlated measurement-error model. The fit applies no
+    automatic pass/fail threshold to reduced chi-square or other residual diagnostics.
+    Optional ``context`` is retained as non-behavioral experiment provenance and does
+    not alter the fit.
 
     Raises:
         TypeError: If any supplied value is not a :class:`SelfHeatingObservation`,
@@ -2344,16 +2431,22 @@ def fit_zero_power_resistance(
         observation_count=len(observation_tuple),
         current_uncertainties=current_uncertainties,
     )
-    if current_uncertainties is not None and resistance_uncertainties is None:
-        raise ValueError(
-            "Errors-in-variables fitting requires resistance standard "
-            "uncertainties for every observation"
-        )
+    resistance_covariance = _validated_fit_resistance_observation_covariance(
+        resistance_observation_covariance,
+        observation_count=len(observation_tuple),
+    )
+    _validate_fit_uncertainty_model_combination(
+        resistance_uncertainties=resistance_uncertainties,
+        current_uncertainties=current_uncertainties,
+        correlations=correlations,
+        resistance_observation_covariance=resistance_covariance,
+    )
     zero_power_resistance, slope, residuals = _fit_zero_power_line(
         observation_tuple,
         resistance_standard_uncertainties_ohms=resistance_uncertainties,
         measurement_current_standard_uncertainties_a=current_uncertainties,
         current_resistance_error_correlations=correlations,
+        resistance_observation_covariance=resistance_covariance,
     )
     if not math.isfinite(zero_power_resistance):
         raise ValueError("Zero-power fit must produce finite resistance")
@@ -2367,6 +2460,7 @@ def fit_zero_power_resistance(
         resistance_standard_uncertainties_ohms=resistance_uncertainties,
         measurement_current_standard_uncertainties_a=current_uncertainties,
         current_resistance_error_correlations=correlations,
+        resistance_observation_covariance=resistance_covariance,
     )
     return ZeroPowerResistanceFitResult(
         zero_power_resistance_ohms=zero_power_resistance,
@@ -2580,6 +2674,194 @@ def _validated_fit_current_resistance_correlations(
     return correlations
 
 
+def _validated_fit_resistance_observation_covariance(
+    value: ResistanceObservationCovariance | None,
+    *,
+    observation_count: int,
+) -> ResistanceObservationCovariance | None:
+    if value is None:
+        return None
+    if not isinstance(value, ResistanceObservationCovariance):
+        raise TypeError(
+            "resistance_observation_covariance must be a "
+            "ResistanceObservationCovariance or None"
+        )
+    if value.observation_count != observation_count:
+        raise ValueError(
+            "Resistance observation covariance size must match observation count"
+        )
+    return value
+
+
+def _validate_fit_uncertainty_model_combination(
+    *,
+    resistance_uncertainties: tuple[float, ...] | None,
+    current_uncertainties: tuple[float, ...] | None,
+    correlations: tuple[float, ...] | None,
+    resistance_observation_covariance: ResistanceObservationCovariance | None,
+) -> None:
+    if resistance_observation_covariance is not None:
+        if (
+            resistance_uncertainties is not None
+            or current_uncertainties is not None
+            or correlations is not None
+        ):
+            raise ValueError(
+                "Cross-observation resistance covariance cannot be combined with "
+                "separate resistance/current uncertainty inputs"
+            )
+        return
+    if current_uncertainties is not None and resistance_uncertainties is None:
+        raise ValueError(
+            "Errors-in-variables fitting requires resistance standard "
+            "uncertainties for every observation"
+        )
+
+
+def _validate_resistance_observation_covariance(
+    matrix: tuple[tuple[float, ...], ...],
+) -> tuple[tuple[float, ...], ...]:
+    try:
+        rows = tuple(tuple(row) for row in matrix)
+    except TypeError as error:
+        raise TypeError(
+            "Resistance observation covariance must be an iterable of rows"
+        ) from error
+    size = len(rows)
+    if size < 3 or any(len(row) != size for row in rows):
+        raise ValueError(
+            "Resistance observation covariance must be a square matrix of size "
+            "3 or greater"
+        )
+
+    normalized: list[list[float]] = []
+    for row_index, row_values in enumerate(rows):
+        normalized_row: list[float] = []
+        for column_index, value in enumerate(row_values):
+            covariance = _as_float(
+                value,
+                name=f"Resistance covariance[{row_index},{column_index}]",
+            )
+            if not math.isfinite(covariance):
+                raise ValueError(
+                    "Resistance observation covariance entries must be finite"
+                )
+            normalized_row.append(covariance)
+        normalized.append(normalized_row)
+
+    matrix_scale = max(abs(value) for row in normalized for value in row)
+    if matrix_scale == 0.0:
+        raise ValueError(
+            "Resistance observation covariance diagonal must be greater than zero"
+        )
+    symmetry_tolerance = 1.0e-12 * matrix_scale
+    for index in range(size):
+        diagonal = normalized[index][index]
+        if diagonal <= 0.0:
+            raise ValueError(
+                "Resistance observation covariance diagonal must be greater than zero"
+            )
+        for other in range(index):
+            left = normalized[index][other]
+            right = normalized[other][index]
+            if not math.isclose(
+                left,
+                right,
+                rel_tol=1.0e-12,
+                abs_tol=symmetry_tolerance,
+            ):
+                raise ValueError("Resistance observation covariance must be symmetric")
+            symmetric = (left + right) / 2.0
+            if not math.isfinite(symmetric):
+                raise ValueError(
+                    "Resistance observation covariance entries must remain finite"
+                )
+            normalized[index][other] = symmetric
+            normalized[other][index] = symmetric
+
+    uncertainties = tuple(math.sqrt(normalized[index][index]) for index in range(size))
+    correlation = [
+        [
+            normalized[row][column] / uncertainties[row] / uncertainties[column]
+            for column in range(size)
+        ]
+        for row in range(size)
+    ]
+    correlation_tolerance = 1.0e-12
+    for row in range(size):
+        correlation[row][row] = 1.0
+        for column in range(row):
+            value = (correlation[row][column] + correlation[column][row]) / 2.0
+            if (
+                value < -1.0 - correlation_tolerance
+                or value > 1.0 + correlation_tolerance
+            ):
+                raise ValueError(
+                    "Resistance observation covariance implies correlation outside "
+                    "[-1, 1]"
+                )
+            value = min(1.0, max(-1.0, value))
+            correlation[row][column] = value
+            correlation[column][row] = value
+
+    _positive_definite_cholesky(
+        tuple(tuple(row) for row in correlation),
+        matrix_name="Resistance observation covariance",
+    )
+    return tuple(tuple(row) for row in normalized)
+
+
+def _positive_definite_cholesky(
+    matrix: tuple[tuple[float, ...], ...],
+    *,
+    matrix_name: str,
+) -> tuple[tuple[float, ...], ...]:
+    size = len(matrix)
+    factor = [[0.0] * size for _ in range(size)]
+    for row in range(size):
+        for column in range(row + 1):
+            remainder = matrix[row][column] - math.fsum(
+                factor[row][index] * factor[column][index] for index in range(column)
+            )
+            if not math.isfinite(remainder):
+                raise ValueError(f"{matrix_name} must remain finite")
+            if row == column:
+                if remainder <= 0.0:
+                    raise ValueError(
+                        f"{matrix_name} must be positive definite and numerically "
+                        "representable"
+                    )
+                factor[row][column] = math.sqrt(remainder)
+            else:
+                pivot = factor[column][column]
+                value = remainder / pivot
+                if not math.isfinite(value):
+                    raise ValueError(f"{matrix_name} factorization must remain finite")
+                factor[row][column] = value
+    return tuple(tuple(row) for row in factor)
+
+
+def _lower_triangular_solve(
+    factor: tuple[tuple[float, ...], ...],
+    values: tuple[float, ...],
+    *,
+    quantity_name: str,
+) -> tuple[float, ...]:
+    size = len(factor)
+    if len(values) != size:
+        raise ValueError(f"{quantity_name} size must match covariance matrix")
+    solution: list[float] = []
+    for row in range(size):
+        numerator = values[row] - math.fsum(
+            factor[row][column] * solution[column] for column in range(row)
+        )
+        value = numerator / factor[row][row]
+        if not math.isfinite(value):
+            raise ValueError(f"{quantity_name} whitening must remain finite")
+        solution.append(value)
+    return tuple(solution)
+
+
 def _current_squared_standard_uncertainties(
     observations: tuple[SelfHeatingObservation, ...],
     current_uncertainties: tuple[float, ...],
@@ -2595,6 +2877,206 @@ def _current_squared_standard_uncertainties(
             "Current-squared standard uncertainties must remain positive and finite"
         )
     return values
+
+
+@dataclass(frozen=True, slots=True)
+class _GLSZeroPowerFitSolution:
+    zero_power_resistance_ohms: float
+    resistance_slope_ohms_per_a2: float
+    residuals_ohms: tuple[float, ...]
+    chi_squared: float
+    parameter_covariance: tuple[tuple[float, float], tuple[float, float]]
+
+
+def _fit_zero_power_gls(
+    observations: tuple[SelfHeatingObservation, ...],
+    resistance_covariance: ResistanceObservationCovariance,
+) -> _GLSZeroPowerFitSolution:
+    if len(observations) < 3:
+        raise ValueError("Zero-power fitting requires at least three observations")
+    if resistance_covariance.observation_count != len(observations):
+        raise ValueError(
+            "Resistance observation covariance size must match observation count"
+        )
+
+    current_squared = tuple(
+        observation.current_squared_a2 for observation in observations
+    )
+    x_min = min(current_squared)
+    x_span = max(current_squared) - x_min
+    if not math.isfinite(x_span) or x_span <= 0.0:
+        raise ValueError(
+            "Zero-power fitting requires at least two distinct current levels"
+        )
+    scaled_x = tuple((value - x_min) / x_span for value in current_squared)
+    if not all(math.isfinite(value) for value in scaled_x):
+        raise ValueError("Scaled current-squared coordinates must remain finite")
+
+    resistance_scale = max(observation.resistance_ohms for observation in observations)
+    scaled_resistance = tuple(
+        observation.resistance_ohms / resistance_scale for observation in observations
+    )
+
+    uncertainties = resistance_covariance.standard_uncertainties_ohms
+    minimum_uncertainty = min(uncertainties)
+    relative_uncertainties = tuple(
+        uncertainty / minimum_uncertainty for uncertainty in uncertainties
+    )
+    if not all(
+        math.isfinite(value) and value > 0.0 for value in relative_uncertainties
+    ):
+        raise ValueError(
+            "Resistance observation covariance has an unrepresentable generalized "
+            "least-squares weighting range"
+        )
+
+    correlation = resistance_covariance.correlation_matrix
+    factor = _positive_definite_cholesky(
+        correlation,
+        matrix_name="Resistance observation covariance",
+    )
+    design_intercept = tuple(1.0 / value for value in relative_uncertainties)
+    design_slope = tuple(
+        x_value / uncertainty
+        for x_value, uncertainty in zip(scaled_x, relative_uncertainties, strict=True)
+    )
+    response = tuple(
+        value / uncertainty
+        for value, uncertainty in zip(
+            scaled_resistance, relative_uncertainties, strict=True
+        )
+    )
+    whitened_intercept = _lower_triangular_solve(
+        factor,
+        design_intercept,
+        quantity_name="GLS intercept design",
+    )
+    whitened_slope = _lower_triangular_solve(
+        factor,
+        design_slope,
+        quantity_name="GLS slope design",
+    )
+    whitened_response = _lower_triangular_solve(
+        factor,
+        response,
+        quantity_name="GLS response",
+    )
+
+    information_00 = math.fsum(value * value for value in whitened_intercept)
+    information_01 = math.fsum(
+        left * right
+        for left, right in zip(whitened_intercept, whitened_slope, strict=True)
+    )
+    information_11 = math.fsum(value * value for value in whitened_slope)
+    rhs_0 = math.fsum(
+        design * value
+        for design, value in zip(whitened_intercept, whitened_response, strict=True)
+    )
+    rhs_1 = math.fsum(
+        design * value
+        for design, value in zip(whitened_slope, whitened_response, strict=True)
+    )
+    values = (information_00, information_01, information_11, rhs_0, rhs_1)
+    if not all(math.isfinite(value) for value in values):
+        raise ValueError("Zero-power GLS information system must remain finite")
+    determinant = information_00 * information_11 - information_01 * information_01
+    if not math.isfinite(determinant) or determinant <= 0.0:
+        raise ValueError("Zero-power GLS information matrix must be positive definite")
+
+    scaled_intercept = (rhs_0 * information_11 - rhs_1 * information_01) / determinant
+    scaled_slope = (rhs_1 * information_00 - rhs_0 * information_01) / determinant
+    if not math.isfinite(scaled_intercept) or not math.isfinite(scaled_slope):
+        raise ValueError("Zero-power GLS fitted parameters must remain finite")
+
+    resistance_at_minimum_current_squared = scaled_intercept * resistance_scale
+    resistance_change_across_span = scaled_slope * resistance_scale
+    zero_coordinate_scaled = x_min / x_span
+    zero_power_resistance = (
+        resistance_at_minimum_current_squared
+        - resistance_change_across_span * zero_coordinate_scaled
+    )
+    slope = resistance_change_across_span / x_span
+    fitted_resistances = tuple(
+        resistance_scale * (scaled_intercept + scaled_slope * value)
+        for value in scaled_x
+    )
+    residuals = tuple(
+        observation.resistance_ohms - fitted
+        for observation, fitted in zip(observations, fitted_resistances, strict=True)
+    )
+    if not all(
+        math.isfinite(value)
+        for value in (zero_power_resistance, slope, *fitted_resistances, *residuals)
+    ):
+        raise ValueError("Zero-power GLS fit results must remain finite")
+
+    inverse_information_00 = information_11 / determinant
+    inverse_information_01 = -information_01 / determinant
+    inverse_information_11 = information_00 / determinant
+    uncertainty_scale_squared = minimum_uncertainty * minimum_uncertainty
+    if not math.isfinite(uncertainty_scale_squared) or uncertainty_scale_squared <= 0.0:
+        raise ValueError(
+            "Zero-power GLS covariance scale is not finitely representable"
+        )
+    variance_at_minimum = uncertainty_scale_squared * inverse_information_00
+    covariance_at_minimum_slope_span = (
+        uncertainty_scale_squared * inverse_information_01
+    )
+    variance_slope_span = uncertainty_scale_squared * inverse_information_11
+
+    intercept_variance = math.fsum(
+        (
+            variance_at_minimum,
+            -2.0 * zero_coordinate_scaled * covariance_at_minimum_slope_span,
+            zero_coordinate_scaled * zero_coordinate_scaled * variance_slope_span,
+        )
+    )
+    covariance = (
+        covariance_at_minimum_slope_span - zero_coordinate_scaled * variance_slope_span
+    ) / x_span
+    slope_variance = variance_slope_span / (x_span * x_span)
+    covariance_values = (intercept_variance, covariance, slope_variance)
+    if not all(math.isfinite(value) for value in covariance_values):
+        raise ValueError("Zero-power GLS parameter covariance must remain finite")
+    if intercept_variance <= 0.0 or slope_variance <= 0.0:
+        raise ValueError("Zero-power GLS parameter variances must be greater than zero")
+
+    standardized_residuals = tuple(
+        residual / uncertainty
+        for residual, uncertainty in zip(residuals, uncertainties, strict=True)
+    )
+    if not all(math.isfinite(value) for value in standardized_residuals):
+        raise ValueError("Zero-power GLS standardized residuals must remain finite")
+    whitened_residuals = _lower_triangular_solve(
+        factor,
+        standardized_residuals,
+        quantity_name="GLS residual",
+    )
+    chi_squared = math.fsum(value * value for value in whitened_residuals)
+    if not math.isfinite(chi_squared) or chi_squared < 0.0:
+        raise ValueError("Zero-power GLS chi-square must remain finite")
+
+    return _GLSZeroPowerFitSolution(
+        zero_power_resistance_ohms=zero_power_resistance,
+        resistance_slope_ohms_per_a2=slope,
+        residuals_ohms=residuals,
+        chi_squared=chi_squared,
+        parameter_covariance=(
+            (intercept_variance, covariance),
+            (covariance, slope_variance),
+        ),
+    )
+
+
+def _fit_zero_power_gls_solution_from_evidence(
+    evidence: ZeroPowerResistanceFitEvidence,
+) -> _GLSZeroPowerFitSolution:
+    covariance = evidence.resistance_observation_covariance
+    if covariance is None:
+        raise ValueError(
+            "Generalized least-squares fit evidence requires resistance covariance"
+        )
+    return _fit_zero_power_gls(evidence.observations, covariance)
 
 
 @dataclass(frozen=True, slots=True)
@@ -2925,9 +3407,30 @@ def _fit_zero_power_line(
     resistance_standard_uncertainties_ohms: tuple[float, ...] | None = None,
     measurement_current_standard_uncertainties_a: tuple[float, ...] | None = None,
     current_resistance_error_correlations: tuple[float, ...] | None = None,
+    resistance_observation_covariance: ResistanceObservationCovariance | None = None,
 ) -> tuple[float, float, tuple[float, ...]]:
     if len(observations) < 3:
         raise ValueError("Zero-power fitting requires at least three observations")
+
+    if resistance_observation_covariance is not None:
+        if (
+            resistance_standard_uncertainties_ohms is not None
+            or measurement_current_standard_uncertainties_a is not None
+            or current_resistance_error_correlations is not None
+        ):
+            raise ValueError(
+                "Cross-observation resistance covariance cannot be combined with "
+                "separate resistance/current uncertainty inputs"
+            )
+        gls_solution = _fit_zero_power_gls(
+            observations,
+            resistance_observation_covariance,
+        )
+        return (
+            gls_solution.zero_power_resistance_ohms,
+            gls_solution.resistance_slope_ohms_per_a2,
+            gls_solution.residuals_ohms,
+        )
 
     if measurement_current_standard_uncertainties_a is not None:
         if resistance_standard_uncertainties_ohms is None:
@@ -2940,16 +3443,16 @@ def _fit_zero_power_line(
             if current_resistance_error_correlations is None
             else current_resistance_error_correlations
         )
-        solution = _fit_zero_power_york(
+        york_solution = _fit_zero_power_york(
             observations,
             resistance_standard_uncertainties_ohms,
             measurement_current_standard_uncertainties_a,
             correlations,
         )
         return (
-            solution.zero_power_resistance_ohms,
-            solution.resistance_slope_ohms_per_a2,
-            solution.residuals_ohms,
+            york_solution.zero_power_resistance_ohms,
+            york_solution.resistance_slope_ohms_per_a2,
+            york_solution.residuals_ohms,
         )
     if current_resistance_error_correlations is not None:
         raise ValueError(
@@ -3069,6 +3572,11 @@ def _zero_power_fit_parameter_covariance(
     _ZeroPowerFitUncertaintyMethod,
 ]:
     evidence = result.evidence
+    if evidence.resistance_observation_covariance is not None:
+        gls_covariance = _fit_zero_power_gls_solution_from_evidence(
+            evidence
+        ).parameter_covariance
+        return (None, gls_covariance, "resistance_observation_covariance")
     if evidence.measurement_current_standard_uncertainties_a is not None:
         york_covariance = _fit_zero_power_york_solution_from_evidence(
             evidence

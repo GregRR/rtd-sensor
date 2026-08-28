@@ -1082,11 +1082,25 @@ its fitted intercept/slope covariance is obtained from the York adjusted
 coordinates and supplied absolute uncertainties without residual rescaling.
 
 This errors-in-variables path still treats separate observations as statistically
-independent. Shared current-source calibration, bridge calibration, environmental
-drift, or other common-mode effects can create cross-observation covariance that a
-per-observation correlation coefficient does not represent. Such covariance must be
-supplied through a separate generalized covariance model rather than inferred from
-replicate scatter, instrument identity, or marginal standard uncertainties.
+independent. Shared bridge calibration, resistance-reference effects, drift, or
+other common influences can instead be represented in the fixed-current case by an
+explicit full resistance covariance matrix. When such a positive-definite matrix is
+supplied, the fitter uses generalized least squares (GLS), minimizing
+``rᵀ V⁻¹ r`` and obtaining parameter covariance from
+``(Xᵀ V⁻¹ X)⁻¹``. A diagonal covariance therefore reduces to the existing
+inverse-variance weighted fit. The covariance matrix is treated as an absolute
+measurement model and is not rescaled by reduced chi-square.
+
+The GLS matrix must be positive definite and numerically invertible. Singular
+positive-semidefinite models, such as an exactly common-mode uncertainty with no
+independent component, are not pseudo-inverted because their null-space constraints
+require a more explicit source/constrained model. Because the full matrix already
+contains the marginal resistance variances, the GLS path cannot be combined with
+separate resistance standard uncertainties. It also cannot be combined with
+measurement-current uncertainty or York within-observation correlations; a model
+with covariance across observations *and* errors in the current coordinate is a more
+general correlated measurement-error problem. No covariance structure is inferred
+from replicate scatter, instrument identity, or marginal standard uncertainties.
 
 The 3+ observation fit can also be interpreted through one explicitly supplied
 RTD model without changing the resistance-domain fit. The result converts the
@@ -1100,8 +1114,9 @@ self-heating coefficient or dissipation constant.
 The retained intercept/slope covariance can be propagated through the same model
 into the fitted zero-power temperature and fitted temperature rises. It may come
 from residual-scatter ordinary least squares, supplied absolute resistance standard
-uncertainties in the weighted fit, or the supplied two-coordinate uncertainty model
-in the York errors-in-variables fit. At each
+uncertainties in the weighted fit, a supplied cross-observation resistance covariance
+matrix in the GLS fit, or the supplied two-coordinate uncertainty model in the York
+errors-in-variables fit. At each
 sampled ``x = I²``, the fitted resistance sensitivity to ``(R0, k)`` is ``(1, x)``.
 The temperature sensitivity vector is therefore the local ``dT/dR`` multiplied by
 ``(1, x)``, while the temperature-rise vector subtracts the corresponding
@@ -1156,7 +1171,8 @@ The scalar coefficient is a deterministic function of the retained fitted
 propagates the full residual-scatter intercept/slope covariance through both fitted
 temperature rise and fitted power. The reciprocal dissipation-constant uncertainty
 is propagated from the same parameter sensitivities. This uncertainty describes
-only covariance of the retained **finite-range coefficient** under the OLS model; it
+only covariance of the retained **finite-range coefficient** under the retained
+fixed-current OLS/WLS/GLS fit model; it
 does not quantify the deterministic difference between that scalar and a zero-power
 differential coefficient or another coefficient definition. Coefficient-fit
 residual scatter, RTD-model parameter covariance, current-coordinate uncertainty,
@@ -1186,10 +1202,12 @@ conditions. Experiment-specific acceptance criteria therefore remain a caller or
 future statistically justified API concern.
 
 The self-heating layer still does not automatically alter an RTD model or a
-general uncertainty budget. Remaining 0.8.0 regression work is limited to
-cross-observation covariance treatment where a defensible covariance model exists,
-plus any experiment-specific residual acceptance criteria that can be stated without
-inventing universal thresholds.
+general uncertainty budget. The required 0.8.0 regression scope is complete with
+OLS, resistance-only WLS, fixed-current GLS for explicit cross-observation
+resistance covariance, and York EIV for uncertainty in both fitted coordinates.
+No universal residual acceptance criterion is encoded: the retained residual,
+chi-square, repeatability, and geometry diagnostics are evidence for a caller's
+experiment-specific requirement rather than a package-defined pass/fail rule.
 
 #### Portable model-definition format decision
 

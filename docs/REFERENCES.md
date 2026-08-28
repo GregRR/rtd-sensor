@@ -303,6 +303,18 @@ variance are available. `rtd-sensor` keeps this response-uncertainty case separa
 from measurement-current uncertainty in the independent coordinate, which requires
 an errors-in-variables treatment.
 
+Reeve, C. P. (1988). *A new statistical model for the calibration of force
+sensors* (NBS Technical Note 1246). National Bureau of Standards.
+https://doi.org/10.6028/NBS.TN.1246
+
+**Project use:** Generalized-least-squares basis for the 3+ observation
+self-heating fit when current coordinates are treated as exact and the caller has a
+full resistance covariance matrix across observations. Reeve gives the standard
+``(XᵀV⁻¹X)⁻¹XᵀV⁻¹y`` estimator and ``(XᵀV⁻¹X)⁻¹`` parameter covariance.
+`rtd-sensor` uses this only for an explicit positive-definite response covariance
+and does not infer cross-observation covariance from shared instrumentation or
+residuals.
+
 York, D., Evensen, N. M., López Martínez, M., & De Basabe Delgado, J.
 (2004). Unified equations for the slope, intercept, and standard errors of the
 best straight line. *American Journal of Physics, 72*(3), 367–375.

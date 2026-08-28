@@ -9,6 +9,7 @@ import pytest
 
 from rtd_sensor import catalog
 from rtd_sensor.self_heating import (
+    ResistanceObservationCovariance,
     SelfHeatingCoefficientResult,
     SelfHeatingCoefficientUncertaintyResult,
     SelfHeatingExperimentContext,
@@ -547,6 +548,239 @@ def test_zero_power_fit_rejects_invalid_resistance_uncertainties(
             observations,
             resistance_standard_uncertainties_ohms=uncertainties,
         )
+
+
+def _gls_reference_case() -> tuple[
+    tuple[SelfHeatingObservation, ...],
+    ResistanceObservationCovariance,
+]:
+    observations = tuple(
+        SelfHeatingObservation(current, resistance)
+        for current, resistance in zip(
+            (0.001, 0.002, 0.003, 0.004),
+            (100.011, 100.038, 100.094, 100.158),
+            strict=True,
+        )
+    )
+    uncertainties = (0.01, 0.012, 0.009, 0.011)
+    correlations = (
+        (1.0, 0.4, 0.1, 0.0),
+        (0.4, 1.0, 0.3, 0.1),
+        (0.1, 0.3, 1.0, 0.5),
+        (0.0, 0.1, 0.5, 1.0),
+    )
+    covariance = ResistanceObservationCovariance(
+        covariance_matrix_ohms_squared=tuple(
+            tuple(
+                correlations[row][column] * uncertainties[row] * uncertainties[column]
+                for column in range(4)
+            )
+            for row in range(4)
+        )
+    )
+    return observations, covariance
+
+
+def test_resistance_observation_covariance_exposes_marginals_and_correlations() -> None:
+    _, covariance = _gls_reference_case()
+
+    assert covariance.observation_count == 4
+    assert covariance.standard_uncertainties_ohms == pytest.approx(
+        (0.01, 0.012, 0.009, 0.011)
+    )
+    for actual, expected in zip(
+        covariance.correlation_matrix,
+        (
+            (1.0, 0.4, 0.1, 0.0),
+            (0.4, 1.0, 0.3, 0.1),
+            (0.1, 0.3, 1.0, 0.5),
+            (0.0, 0.1, 0.5, 1.0),
+        ),
+        strict=True,
+    ):
+        assert actual == pytest.approx(expected)
+    with pytest.raises(FrozenInstanceError):
+        covariance.covariance_matrix_ohms_squared = ((1.0,),)  # type: ignore[misc]
+
+
+def test_zero_power_fit_gls_matches_correlated_resistance_reference() -> None:
+    observations, covariance = _gls_reference_case()
+
+    result = fit_zero_power_resistance(
+        observations,
+        resistance_observation_covariance=covariance,
+    )
+    uncertainty = estimate_zero_power_fit_uncertainty(result)
+
+    assert result.evidence.method == (
+        "generalized_least_squares_correlated_resistance_errors"
+    )
+    assert result.evidence.resistance_observation_covariance is covariance
+    assert result.zero_power_resistance_ohms == pytest.approx(100.00297437545122)
+    assert result.resistance_slope_ohms_per_a2 == pytest.approx(9736.241176254249)
+    assert result.evidence.chi_squared == pytest.approx(0.46348372018523637)
+    assert result.evidence.reduced_chi_squared == pytest.approx(0.23174186009261818)
+    assert result.evidence.effective_weights is None
+    assert result.evidence.weighted_rms_residual_ohms is None
+    assert uncertainty.method == "resistance_observation_covariance"
+    assert uncertainty.residual_variance_ohms_squared is None
+    assert uncertainty.parameter_covariance_matrix[0] == pytest.approx(
+        (9.219513018189718e-05, -6.782112589817649)
+    )
+    assert uncertainty.parameter_covariance_matrix[1] == pytest.approx(
+        (-6.782112589817649, 948154.4521981365)
+    )
+
+
+def test_zero_power_fit_diagonal_gls_matches_resistance_weighted_fit() -> None:
+    observations = (
+        SelfHeatingObservation(0.001, 100.011),
+        SelfHeatingObservation(0.002, 100.038),
+        SelfHeatingObservation(0.003, 100.094),
+        SelfHeatingObservation(0.004, 100.158),
+    )
+    uncertainties = (0.01, 0.012, 0.009, 0.011)
+    covariance = ResistanceObservationCovariance(
+        covariance_matrix_ohms_squared=tuple(
+            tuple(
+                uncertainties[row] * uncertainties[row] if row == column else 0.0
+                for column in range(4)
+            )
+            for row in range(4)
+        )
+    )
+
+    gls = fit_zero_power_resistance(
+        observations,
+        resistance_observation_covariance=covariance,
+    )
+    weighted = fit_zero_power_resistance(
+        observations,
+        resistance_standard_uncertainties_ohms=uncertainties,
+    )
+    gls_uncertainty = estimate_zero_power_fit_uncertainty(gls)
+    weighted_uncertainty = estimate_zero_power_fit_uncertainty(weighted)
+
+    assert gls.zero_power_resistance_ohms == pytest.approx(
+        weighted.zero_power_resistance_ohms
+    )
+    assert gls.resistance_slope_ohms_per_a2 == pytest.approx(
+        weighted.resistance_slope_ohms_per_a2
+    )
+    assert gls.evidence.chi_squared == pytest.approx(weighted.evidence.chi_squared)
+    assert gls_uncertainty.parameter_covariance_matrix[0] == pytest.approx(
+        weighted_uncertainty.parameter_covariance_matrix[0]
+    )
+    assert gls_uncertainty.parameter_covariance_matrix[1] == pytest.approx(
+        weighted_uncertainty.parameter_covariance_matrix[1]
+    )
+
+
+@pytest.mark.parametrize(
+    "matrix, match",
+    [
+        (((1.0, 0.0), (0.0, 1.0)), "size 3 or greater"),
+        (
+            ((1.0, 0.2, 0.0), (0.1, 1.0, 0.0), (0.0, 0.0, 1.0)),
+            "must be symmetric",
+        ),
+        (
+            ((1.0, 1.0, 1.0), (1.0, 1.0, 1.0), (1.0, 1.0, 1.0)),
+            "positive definite",
+        ),
+        (
+            ((1.0, 0.0, 0.0), (0.0, 0.0, 0.0), (0.0, 0.0, 1.0)),
+            "diagonal must be greater than zero",
+        ),
+        (
+            ((1.0, 0.0, 0.0), (0.0, math.inf, 0.0), (0.0, 0.0, 1.0)),
+            "entries must be finite",
+        ),
+    ],
+)
+def test_resistance_observation_covariance_rejects_invalid_matrices(
+    matrix: tuple[tuple[float, ...], ...],
+    match: str,
+) -> None:
+    with pytest.raises(ValueError, match=match):
+        ResistanceObservationCovariance(covariance_matrix_ohms_squared=matrix)
+
+
+def test_zero_power_fit_gls_rejects_incompatible_uncertainty_models_and_size() -> None:
+    observations, covariance = _gls_reference_case()
+
+    with pytest.raises(ValueError, match="cannot be combined"):
+        fit_zero_power_resistance(
+            observations,
+            resistance_standard_uncertainties_ohms=(0.01,) * 4,
+            resistance_observation_covariance=covariance,
+        )
+    with pytest.raises(ValueError, match="cannot be combined"):
+        fit_zero_power_resistance(
+            observations,
+            resistance_standard_uncertainties_ohms=(0.01,) * 4,
+            measurement_current_standard_uncertainties_a=(1.0e-7,) * 4,
+            resistance_observation_covariance=covariance,
+        )
+    smaller = ResistanceObservationCovariance(
+        covariance_matrix_ohms_squared=(
+            (1.0e-4, 0.0, 0.0),
+            (0.0, 1.0e-4, 0.0),
+            (0.0, 0.0, 1.0e-4),
+        )
+    )
+    with pytest.raises(ValueError, match="size must match observation count"):
+        fit_zero_power_resistance(
+            observations,
+            resistance_observation_covariance=smaller,
+        )
+
+
+def test_zero_power_fit_gls_evidence_direct_construction_recomputes_fit() -> None:
+    observations, covariance = _gls_reference_case()
+    produced = fit_zero_power_resistance(
+        observations,
+        resistance_observation_covariance=covariance,
+    )
+
+    direct = ZeroPowerResistanceFitEvidence(
+        observations=observations,
+        residuals_ohms=produced.evidence.residuals_ohms,
+        resistance_observation_covariance=covariance,
+    )
+
+    assert direct.method == "generalized_least_squares_correlated_resistance_errors"
+    assert direct.chi_squared == pytest.approx(produced.evidence.chi_squared)
+    with pytest.raises(ValueError, match="consistent with retained observations"):
+        ZeroPowerResistanceFitEvidence(
+            observations=observations,
+            residuals_ohms=(0.0,) * 4,
+            resistance_observation_covariance=covariance,
+        )
+
+
+def test_self_heating_coefficient_accepts_fixed_current_gls_fit() -> None:
+    observations, covariance = _gls_reference_case()
+    fit = fit_zero_power_resistance(
+        observations,
+        resistance_observation_covariance=covariance,
+        context=SelfHeatingExperimentContext(medium="air"),
+    )
+    temperatures = evaluate_zero_power_fit_temperatures(
+        fit,
+        model=_LinearTwoOhmPerCelsiusModel(),
+    )
+
+    coefficient = evaluate_self_heating_coefficient(temperatures)
+    coefficient_uncertainty = propagate_self_heating_coefficient_uncertainty(
+        coefficient
+    )
+
+    assert coefficient.self_heating_coefficient_c_per_w > 0.0
+    assert (
+        coefficient_uncertainty.self_heating_coefficient_standard_uncertainty_c_per_w
+        > 0.0
+    )
 
 
 def _york_reference_case() -> tuple[

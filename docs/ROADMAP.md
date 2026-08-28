@@ -159,6 +159,10 @@ Implemented in the current 0.8.0 development checkpoint:
   within-observation current/resistance error correlation, chi-square diagnostics,
   and parameter covariance from the supplied coordinate-uncertainty model without
   residual rescaling;
+- generalized least squares for 3+ observation fits with exact current coordinates
+  and an explicitly supplied positive-definite resistance covariance matrix across
+  observations, with full-covariance chi-square diagnostics and parameter covariance
+  from the supplied observation covariance without residual rescaling;
 - model-based interpretation of the 3+ observation fit into zero-power, observed,
   and fitted temperatures together with observed/fitted `I²R` powers; and
 - first-order propagation of the full fitted intercept/slope covariance into the
@@ -177,11 +181,17 @@ Implemented in the current 0.8.0 development checkpoint:
   current levels, missing repeated-current evidence, and nonpositive fitted slopes,
   together with descriptive current-ratio and extrapolation-geometry metrics.
 
-Remaining 0.8.0 scope includes:
+The required 0.8.0 implementation scope is complete. Cross-observation resistance
+covariance is supported through explicit generalized least squares when a
+positive-definite covariance matrix is defensible. Correlated measurement-error
+models that also include uncertain current coordinates remain outside this release
+rather than being approximated as ordinary GLS or York regression.
 
-- cross-observation covariance treatment where a defensible model exists, plus any
-  experiment-specific residual acceptance criteria that can be stated without
-  inventing universal thresholds.
+Residuals, chi-square, reduced chi-square, repeatability/linearity evidence, and
+extrapolation geometry remain inspectable diagnostics. No universal residual or
+reduced-chi-square pass/fail threshold is imposed because an acceptance criterion
+depends on the experiment's stated uncertainty requirement, instrument model,
+thermal conditions, and intended use.
 
 The package will analyze supplied current/resistance observations. It will not
 control excitation current, ADCs, bridges, MAX31865 devices, or other acquisition

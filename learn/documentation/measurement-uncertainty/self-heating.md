@@ -132,7 +132,8 @@ The multi-observation fit deliberately does **not** assign a universal "good" or
 "bad" residual threshold. Such a threshold depends on the experiment, measurement
 uncertainty, thermometer, and intended use. It also does not infer a weighting or
 dependence model: resistance/current uncertainties must be supplied explicitly for
-the WLS or York paths, and cross-observation correlated effects remain separate.
+the WLS, GLS, or York paths; dependence is never inferred from the observation
+sequence or shared instrumentation.
 
 ### Ask what the observations can actually support
 
@@ -258,11 +259,33 @@ positive measurement currents, the first-order `I -> I²` transformation preserv
 the sign and magnitude of that correlation coefficient. Omitting the argument
 records zero within-observation correlation.
 
-This still does not describe covariance **between different observations**. Shared
-bridge calibration, current-source calibration, environmental drift, and other
-common-mode effects can correlate separate readings. Those require an explicit
-cross-observation covariance model rather than being inferred from residuals,
-replicate identity, or marginal standard uncertainties.
+For correlation **between different resistance observations** with exact current
+coordinates, supply a full covariance matrix and use generalized least squares:
+
+```python
+resistance_covariance = self_heating.ResistanceObservationCovariance(
+    covariance_matrix_ohms_squared=(
+        (4e-6, 1e-6, 0.0, 0.0),
+        (1e-6, 4e-6, 1e-6, 0.0),
+        (0.0, 1e-6, 25e-6, 2e-6),
+        (0.0, 0.0, 2e-6, 25e-6),
+    )
+)
+gls_fit = self_heating.fit_zero_power_resistance(
+    observations,
+    resistance_observation_covariance=resistance_covariance,
+)
+```
+
+GLS uses the full supplied covariance rather than reducing it to marginal error
+bars. The matrix must be positive definite; an exactly singular common-mode model
+needs a more explicit source/constrained treatment rather than an arbitrary
+pseudoinverse. Because the matrix already contains the marginal resistance variances,
+do not also pass separate resistance standard uncertainties. Cross-observation
+covariance is never inferred from residuals, replicate identity, or shared
+instrumentation. Measurement-current uncertainty cannot be combined with the GLS
+covariance path; doing so would require a more general correlated measurement-error
+model than the York or GLS paths implemented here.
 
 A perfectly fitted **unweighted** finite dataset can produce zero residual-based
 covariance. That does **not** prove the experiment has zero physical uncertainty; it
@@ -341,7 +364,8 @@ influenced the fitted-parameter covariance, but the sampled current coordinate u
 for each reported fitted temperature is still treated as the retained nominal
 coordinate. No additional direct current-coordinate term is added to those reported
 fitted-temperature uncertainties. The RTD model is treated as fixed, and model-
-parameter covariance and cross-observation experimental effects remain separate.
+parameter covariance and any experimental effects not represented by the supplied
+WLS/GLS/York uncertainty model remain separate.
 
 ## Convert the result to zero-power temperature
 
@@ -511,7 +535,7 @@ calculation yet. Once current uncertainty is material, the fitted power itself h
 direct current-coordinate uncertainty and shares dependence with the fitted line;
 propagating only the intercept/slope covariance would understate that uncertainty.
 The EIV result remains valid for zero-power extrapolation, but the finite-range
-coefficient stays limited to fixed-current OLS/WLS fits for now.
+coefficient stays limited to fixed-current OLS/WLS/GLS fits for now.
 
 The reciprocal is reported as the **dissipation constant**. The convenient unit
 forms follow the metrology guidance:
@@ -579,17 +603,20 @@ degrees of freedom. The returned evidence therefore exposes the current ratio,
 resistance change, current-squared span, and slope, but it does not label the data
 as experimentally stable.
 
-## Deliberately deferred within 0.8.0
+## What 0.8.0 deliberately does not infer
 
-The current 0.8.0 implementation does not yet provide:
+The 0.8.0 self-heating analysis now covers OLS, resistance-only WLS, fixed-current
+GLS with a supplied cross-observation resistance covariance matrix, and York EIV
+with per-observation current/resistance correlation. It still does not invent a
+correlation model from instrument identity, repeated measurements, residual shape,
+or thermal context. A model that combines uncertain current coordinates with
+covariance across different observations is more general than the implemented York
+or GLS paths and remains outside this release.
 
-- covariance-aware multi-observation fitting for defensibly correlated observations
-  across separate readings;
-- an automatic experiment-specific residual acceptance threshold.
-
-Those remaining capabilities stay within the documented 0.8.0 scope and can
-build on the retained observation/evidence contract rather than changing nominal
-RTD conversion.
+Likewise, there is no automatic residual or reduced-chi-square pass/fail threshold.
+The package reports the diagnostics; whether they satisfy an experiment depends on
+the required uncertainty, measurement procedure, thermal stability, and intended
+use.
 
 ## Sources
 
@@ -601,6 +628,8 @@ references:
 - *Guide on Secondary Thermometry — Industrial Platinum Resistance Thermometers*,
   section 4.1 and Equation 4.1.1 for linear extrapolation of resistance versus
   current squared and the requirement for stable external temperature.
+- Reeve (1988), NBS Technical Note 1246, for generalized least squares with a
+  supplied observation covariance matrix;
 - York et al. (2004), *Unified equations for the slope, intercept, and standard
   errors of the best straight line*, for the errors-in-variables treatment with
   uncertainty in both fitted coordinates and within-observation correlated errors.
