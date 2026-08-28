@@ -355,7 +355,10 @@ attached. The guide also cautions that self-heating behavior can vary with
 temperature, supporting the API/documentation rule that a derived coefficient is
 local to the experiment's fitted temperature and sampled power range rather than
 universally transferable. The guide's °C/mW coefficient and reciprocal mW/°C
-dissipation-constant forms also define the public unit conventions. Appendix 1
+dissipation-constant forms also define the public unit conventions. The guide does
+not prescribe `rtd-sensor`'s specific finite-range through-origin regression policy;
+that estimator and its equal weighting of distinct sampled current levels are
+project design choices whose range dependence is documented explicitly. Appendix 1
 documents the modern Callendar–Van Dusen `R0`, `A`, `B`, `C` form, the
 zero-above-0-°C role of `C`, and the historical determination of CVD parameters
 from calibration measurements. It also remains a research source for hysteresis,

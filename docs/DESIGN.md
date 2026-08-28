@@ -1086,32 +1086,38 @@ The scalar coefficient is the through-origin least-squares slope
 ```
 
 with ``C_self`` reported in °C/W and °C/mW. Its reciprocal is the dissipation
-constant in W/°C and mW/°C. The result also retains the distinct current-squared
-levels, fitted powers, fitted temperature rises, pointwise ``ΔT/P`` values, and
-coefficient-fit residuals. The residual RMS and maximum absolute residual are
-descriptive shape diagnostics of the fitted ``ΔT``-versus-power relationship, not a
-second statistical residual-variance estimate. No universal residual threshold is
-imposed; those diagnostics remain available so callers can decide whether one scalar
-adequately describes their sampled range and setup. The coefficient is local to the
-fitted zero-power temperature and sampled power/current range as well as the retained
-thermal environment; it is not assumed to transfer unchanged across temperature. A
-zero or negative resistance slope remains
-valid fit evidence but is not promoted into a named positive self-heating
-coefficient. The two-current path remains available for zero-power correction and
-temperature-rise analysis, but its zero residual degrees of freedom are not promoted
-into this named characterization result.
+constant in W/°C and mW/°C. This scalar is explicitly a **finite-range**
+description of the sampled fitted relationship, not the zero-power differential
+``d(ΔT)/dP``. Even when ``R = R0 + kI²`` is exact, fitted power is
+``P = I²(R0 + kI²)``; the ``kI⁴`` term means pointwise ``ΔT/P`` can change across
+the sampled current range without measurement noise or RTD-model curvature. The
+result therefore retains the distinct current-squared levels, fitted powers, fitted
+temperature rises, pointwise ``ΔT/P`` values, and coefficient-fit residuals. The
+residual RMS and maximum absolute residual are descriptive shape diagnostics of the
+fitted ``ΔT``-versus-power relationship, not a second statistical residual-variance
+estimate. No universal residual threshold is imposed; those diagnostics remain
+available so callers can judge whether one scalar adequately describes their
+sampled range and setup. The coefficient is local to the fitted zero-power
+temperature and sampled power/current range as well as the retained thermal
+environment; it is not assumed to transfer unchanged across temperature. A zero or
+negative resistance slope remains valid fit evidence but is not promoted into a
+named positive self-heating coefficient. The two-current path remains available for
+zero-power correction and temperature-rise analysis, but its zero residual degrees
+of freedom are not promoted into this named characterization result.
 
 The scalar coefficient is a deterministic function of the retained fitted
 ``(R0, k)`` parameters and supplied RTD model. Its first-order uncertainty therefore
 propagates the full residual-scatter intercept/slope covariance through both fitted
 temperature rise and fitted power. The reciprocal dissipation-constant uncertainty
 is propagated from the same parameter sensitivities. This uncertainty describes
-only the retained OLS fit covariance; coefficient-fit residual scatter, RTD-model
-parameter covariance, current-coordinate uncertainty, correlated experimental
-effects, and uncertainty in the environmental description are not silently added.
-An exact resistance fit can therefore still produce zero covariance-derived
-coefficient uncertainty without implying that the physical coefficient is known
-exactly.
+only covariance of the retained **finite-range coefficient** under the OLS model; it
+does not quantify the deterministic difference between that scalar and a zero-power
+differential coefficient or another coefficient definition. Coefficient-fit
+residual scatter, RTD-model parameter covariance, current-coordinate uncertainty,
+correlated experimental effects, and uncertainty in the environmental description
+are also not silently added. An exact resistance fit can therefore still produce
+zero covariance-derived coefficient uncertainty without implying that the physical
+self-heating behavior is known exactly or is range-independent.
 
 The self-heating layer still does not automatically alter an RTD model or a
 general uncertainty budget. Later 0.8.0 work may add correlated-input or

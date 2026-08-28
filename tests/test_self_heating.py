@@ -989,6 +989,126 @@ def test_self_heating_coefficient_uncertainty_rejects_nonfinite_sensitivity() ->
         propagate_self_heating_coefficient_uncertainty(coefficient)
 
 
+def test_self_heating_coefficient_pt100_sensitivity_matches_finite_difference() -> None:
+    context = SelfHeatingExperimentContext(setup="water bath")
+    model = catalog.get_model("pt100")
+    current_squared = (1.0e-6, 4.0e-6, 9.0e-6)
+
+    def coefficient_for(r0: float, slope: float) -> float:
+        observations = tuple(
+            SelfHeatingObservation(math.sqrt(value), r0 + slope * value)
+            for value in current_squared
+        )
+        temperatures = evaluate_zero_power_fit_temperatures(
+            fit_zero_power_resistance(observations, context=context),
+            model=model,
+        )
+        return evaluate_self_heating_coefficient(
+            temperatures
+        ).self_heating_coefficient_c_per_w
+
+    r0 = 100.0
+    slope = 10000.0
+    observations = tuple(
+        SelfHeatingObservation(math.sqrt(value), r0 + slope * value)
+        for value in current_squared
+    )
+    temperatures = evaluate_zero_power_fit_temperatures(
+        fit_zero_power_resistance(observations, context=context),
+        model=model,
+    )
+    uncertainty = propagate_self_heating_coefficient_uncertainty(
+        evaluate_self_heating_coefficient(temperatures)
+    )
+
+    r0_step = 1.0e-4
+    slope_step = 1.0
+    expected_r0_sensitivity = (
+        coefficient_for(r0 + r0_step, slope) - coefficient_for(r0 - r0_step, slope)
+    ) / (2.0 * r0_step)
+    expected_slope_sensitivity = (
+        coefficient_for(r0, slope + slope_step)
+        - coefficient_for(r0, slope - slope_step)
+    ) / (2.0 * slope_step)
+
+    actual = uncertainty.self_heating_coefficient_parameter_sensitivity_vector
+    assert actual[0] == pytest.approx(expected_r0_sensitivity, rel=1.0e-6)
+    assert actual[1] == pytest.approx(expected_slope_sensitivity, rel=1.0e-6)
+
+
+def test_self_heating_coefficient_reports_finite_range_dependence() -> None:
+    context = SelfHeatingExperimentContext(medium="stirred water")
+    model = _LinearTwoOhmPerCelsiusModel()
+
+    def coefficient_for(currents: tuple[float, ...]) -> SelfHeatingCoefficientResult:
+        observations = tuple(
+            SelfHeatingObservation(current, 100.0 + 10000.0 * current**2)
+            for current in currents
+        )
+        temperatures = evaluate_zero_power_fit_temperatures(
+            fit_zero_power_resistance(observations, context=context),
+            model=model,
+        )
+        return evaluate_self_heating_coefficient(temperatures)
+
+    narrow = coefficient_for((0.001, 0.002, 0.003))
+    wide = coefficient_for((0.001, 0.003, 0.005))
+
+    assert (
+        wide.self_heating_coefficient_c_per_w < narrow.self_heating_coefficient_c_per_w
+    )
+    assert wide.coefficient_rms_residual_c > narrow.coefficient_rms_residual_c
+    assert max(wide.pointwise_self_heating_coefficients_c_per_w) > min(
+        wide.pointwise_self_heating_coefficients_c_per_w
+    )
+
+
+def test_zero_power_fit_uncertainty_handles_difficult_current_geometry() -> None:
+    def observations_for(
+        currents: tuple[float, float, float],
+        residual_offsets: tuple[float, float, float],
+    ) -> tuple[SelfHeatingObservation, ...]:
+        return tuple(
+            SelfHeatingObservation(
+                current,
+                100.0 + 10000.0 * current**2 + residual,
+            )
+            for current, residual in zip(currents, residual_offsets, strict=True)
+        )
+
+    far = estimate_zero_power_fit_uncertainty(
+        fit_zero_power_resistance(
+            observations_for((0.001, 0.002, 0.003), (0.0, 1.0e-6, -1.0e-6))
+        )
+    )
+    close = estimate_zero_power_fit_uncertainty(
+        fit_zero_power_resistance(
+            observations_for(
+                (0.001, 0.001001, 0.001002),
+                (0.0, 1.0e-6, -1.0e-6),
+            )
+        )
+    )
+    assert (
+        close.resistance_slope_standard_uncertainty_ohms_per_a2
+        > 1000.0 * far.resistance_slope_standard_uncertainty_ohms_per_a2
+    )
+
+    asymmetric = estimate_zero_power_fit_uncertainty(
+        fit_zero_power_resistance(
+            observations_for(
+                (0.001, 0.00101, 0.01),
+                (1.0e-6, -1.0e-6, 2.0e-6),
+            )
+        )
+    )
+    assert all(
+        math.isfinite(value)
+        for row in asymmetric.parameter_covariance_matrix
+        for value in row
+    )
+
+
 def test_zero_power_fit_preserves_caller_observation_order() -> None:
     observations = (
         SelfHeatingObservation(0.002, 100.04),
@@ -1448,6 +1568,87 @@ def test_zero_power_uncertainty_grows_as_current_levels_get_close() -> None:
         close.zero_power_resistance_standard_uncertainty_ohms
         > 100.0 * far.zero_power_resistance_standard_uncertainty_ohms
     )
+
+
+def test_two_current_zero_power_uncertainty_result_derives_internal_state() -> None:
+    zero_power = extrapolate_zero_power_resistance(
+        SelfHeatingObservation(0.001, 100.01),
+        SelfHeatingObservation(0.002, 100.04),
+    )
+    inputs = TwoCurrentInputStandardUncertainties(
+        low_current_standard_uncertainty_a=1.0e-7,
+        low_resistance_standard_uncertainty_ohms=1.0e-4,
+        high_current_standard_uncertainty_a=1.0e-7,
+        high_resistance_standard_uncertainty_ohms=1.0e-4,
+    )
+
+    direct = TwoCurrentZeroPowerUncertaintyResult(
+        zero_power_result=zero_power,
+        input_standard_uncertainties=inputs,
+    )
+    produced = propagate_two_current_zero_power_uncertainty(
+        zero_power,
+        input_standard_uncertainties=inputs,
+    )
+
+    assert direct.zero_power_resistance_input_sensitivity_vector == pytest.approx(
+        produced.zero_power_resistance_input_sensitivity_vector
+    )
+    assert direct.zero_power_resistance_variance_ohms_squared == pytest.approx(
+        produced.zero_power_resistance_variance_ohms_squared
+    )
+
+
+def test_two_current_temperature_result_derives_temperatures_from_retained_state() -> (
+    None
+):
+    zero_power = extrapolate_zero_power_resistance(
+        SelfHeatingObservation(0.001, 100.01),
+        SelfHeatingObservation(0.002, 100.04),
+    )
+    model = _LinearTwoOhmPerCelsiusModel()
+
+    direct = TwoCurrentSelfHeatingTemperatureResult(
+        zero_power_result=zero_power,
+        model=model,
+    )
+
+    assert direct.zero_power_temperature_c == pytest.approx(0.0)
+    assert direct.low_current_temperature_c == pytest.approx(0.005)
+    assert direct.high_current_temperature_c == pytest.approx(0.02)
+
+
+def test_two_current_temperature_uncertainty_rejects_mismatched_zero_power_result() -> (
+    None
+):
+    first_zero_power = extrapolate_zero_power_resistance(
+        SelfHeatingObservation(0.001, 100.01),
+        SelfHeatingObservation(0.002, 100.04),
+    )
+    second_zero_power = extrapolate_zero_power_resistance(
+        SelfHeatingObservation(0.001, 100.02),
+        SelfHeatingObservation(0.002, 100.08),
+    )
+    inputs = TwoCurrentInputStandardUncertainties(
+        low_current_standard_uncertainty_a=0.0,
+        low_resistance_standard_uncertainty_ohms=1.0e-4,
+        high_current_standard_uncertainty_a=0.0,
+        high_resistance_standard_uncertainty_ohms=1.0e-4,
+    )
+    temperatures = TwoCurrentSelfHeatingTemperatureResult(
+        zero_power_result=first_zero_power,
+        model=_LinearTwoOhmPerCelsiusModel(),
+    )
+    mismatched = TwoCurrentZeroPowerUncertaintyResult(
+        zero_power_result=second_zero_power,
+        input_standard_uncertainties=inputs,
+    )
+
+    with pytest.raises(ValueError, match="retained zero-power result"):
+        TwoCurrentSelfHeatingTemperatureUncertaintyResult(
+            temperature_result=temperatures,
+            zero_power_uncertainty=mismatched,
+        )
 
 
 def test_two_current_uncertainty_rejects_wrong_argument_types() -> None:

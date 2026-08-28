@@ -311,9 +311,11 @@ A named coefficient is produced only when the underlying 3+ observation fit reta
 a ``SelfHeatingExperimentContext`` and has a positive resistance-versus-current-
 squared slope. The calculation uses fitted temperature rise and fitted ``I²R`` power
 at each **distinct** sampled current level and fits the proportional relationship
-``ΔT = C_self * P`` through the origin. Repeated observations at one current level
-affect the underlying resistance fit but do not receive a second weight merely by
-being repeated in the coefficient calculation.
+``ΔT = C_self * P`` through the origin. The returned scalar is a **finite-range**
+coefficient over those sampled levels, not the zero-power differential
+``d(ΔT)/dP``. Repeated observations at one current level affect the underlying
+resistance fit but do not receive a second weight merely by being repeated in the
+coefficient calculation.
 
 No universal coefficient-fit residual threshold is imposed. A zero or negative
 resistance slope remains available as fit evidence but is rejected for named
@@ -351,10 +353,13 @@ The coefficient is tied to the retained experiment context and to the fitted
 zero-power temperature and sampled power/current range. It must not be treated as
 an intrinsic property of the RTD characteristic or assumed to transfer unchanged
 to another medium, flow condition, mounting, setup, temperature, or substantially
-different power range. The retained coefficient-fit residuals, RMS residual, and
-maximum absolute residual are descriptive shape diagnostics of the fitted
-``ΔT``-versus-power relationship; they are not an additional statistical residual
-variance or uncertainty estimate.
+different power range. Even for an exact linear ``R``-versus-``I²`` fit,
+``P = I²(R0 + kI²)`` contains a ``kI⁴`` term, so pointwise ``ΔT/P`` and the fitted
+finite-range scalar can vary with sampled power without measurement noise or RTD
+model curvature. The retained coefficient-fit residuals, RMS residual, and maximum
+absolute residual expose that finite-range shape behavior; they are descriptive
+diagnostics, not an additional statistical residual variance or uncertainty
+estimate.
 
 ## `propagate_self_heating_coefficient_uncertainty`
 
@@ -374,7 +379,10 @@ covariance matrix is applied. The dissipation-constant uncertainty is propagated
 from the reciprocal relationship.
 
 This remains first-order/local. The supplied RTD model and experiment context are
-treated as fixed. Coefficient-fit residual scatter, RTD-model covariance,
+treated as fixed. The reported standard uncertainty describes covariance of this
+finite-range coefficient under the retained OLS fit; it does **not** include the
+deterministic difference between the finite-range scalar and a zero-power
+differential coefficient. Coefficient-fit residual scatter, RTD-model covariance,
 current-coordinate uncertainty, and correlated experiment effects are not added
 automatically.
 

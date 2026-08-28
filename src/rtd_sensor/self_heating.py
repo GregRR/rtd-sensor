@@ -877,7 +877,11 @@ class SelfHeatingCoefficientResult:
     versus fitted ``I²R`` power at each distinct sampled current level. Repeated
     observations at the same current level therefore influence the underlying
     resistance fit but do not receive an additional weight in this secondary
-    coefficient calculation.
+    coefficient calculation. This is a finite-range descriptive coefficient, not
+    the zero-power differential ``d(ΔT)/dP``. Because fitted power is
+    ``I² * (R0 + k*I²)``, pointwise ``ΔT/P`` and the fitted scalar can depend on
+    the sampled power range even when the resistance-versus-current-squared fit is
+    exact.
 
     The retained experiment context is part of the result because self-heating is
     influenced by thermal contact with the environment. The coefficient must not
@@ -1017,6 +1021,9 @@ class SelfHeatingCoefficientUncertaintyResult:
     zero-power resistance and ``dR/d(I²)`` slope. The full retained 2x2 covariance
     matrix is propagated through the coefficient calculation with first-order
     local sensitivities. The RTD model and experiment context are treated as fixed.
+    This uncertainty describes covariance of the retained finite-range coefficient;
+    it does not quantify the deterministic difference between that coefficient and
+    a zero-power differential coefficient or other coefficient definition.
     """
 
     coefficient_result: SelfHeatingCoefficientResult
@@ -1191,13 +1198,51 @@ class TwoCurrentZeroPowerUncertaintyResult:
 
     zero_power_result: TwoCurrentZeroPowerResult
     input_standard_uncertainties: TwoCurrentInputStandardUncertainties
-    zero_power_resistance_input_sensitivity_vector: tuple[float, float, float, float]
-    zero_power_resistance_variance_ohms_squared: float
-    zero_power_resistance_standard_uncertainty_ohms: float
+    zero_power_resistance_input_sensitivity_vector: tuple[
+        float, float, float, float
+    ] = field(init=False)
+    zero_power_resistance_variance_ohms_squared: float = field(init=False)
+    zero_power_resistance_standard_uncertainty_ohms: float = field(init=False)
     propagation_method: _TwoCurrentUncertaintyMethod = field(
         init=False,
         default="first_order_independent_inputs",
     )
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.zero_power_result, TwoCurrentZeroPowerResult):
+            raise TypeError("zero_power_result must be a TwoCurrentZeroPowerResult")
+        if not isinstance(
+            self.input_standard_uncertainties,
+            TwoCurrentInputStandardUncertainties,
+        ):
+            raise TypeError(
+                "input_standard_uncertainties must be a "
+                "TwoCurrentInputStandardUncertainties"
+            )
+
+        sensitivities = _zero_power_resistance_input_sensitivities(
+            self.zero_power_result
+        )
+        variance, standard_uncertainty = _independent_propagation(
+            sensitivities,
+            self.input_standard_uncertainties.standard_uncertainty_vector,
+            quantity_name="Zero-power resistance uncertainty",
+        )
+        object.__setattr__(
+            self,
+            "zero_power_resistance_input_sensitivity_vector",
+            sensitivities,
+        )
+        object.__setattr__(
+            self,
+            "zero_power_resistance_variance_ohms_squared",
+            variance,
+        )
+        object.__setattr__(
+            self,
+            "zero_power_resistance_standard_uncertainty_ohms",
+            standard_uncertainty,
+        )
 
     @property
     def input_parameter_names(self) -> tuple[str, str, str, str]:
@@ -1217,9 +1262,37 @@ class TwoCurrentSelfHeatingTemperatureResult:
 
     zero_power_result: TwoCurrentZeroPowerResult
     model: _RTDModel = field(repr=False, compare=False)
-    zero_power_temperature_c: float
-    low_current_temperature_c: float
-    high_current_temperature_c: float
+    zero_power_temperature_c: float = field(init=False)
+    low_current_temperature_c: float = field(init=False)
+    high_current_temperature_c: float = field(init=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.zero_power_result, TwoCurrentZeroPowerResult):
+            raise TypeError("zero_power_result must be a TwoCurrentZeroPowerResult")
+
+        evidence = self.zero_power_result.evidence
+        zero_power_temperature = _converted_temperature_c(
+            self.model,
+            self.zero_power_result.zero_power_resistance_ohms,
+            name="Zero-power temperature",
+        )
+        low_current_temperature = _converted_temperature_c(
+            self.model,
+            evidence.low_current_observation.resistance_ohms,
+            name="Low-current temperature",
+        )
+        high_current_temperature = _converted_temperature_c(
+            self.model,
+            evidence.high_current_observation.resistance_ohms,
+            name="High-current temperature",
+        )
+        object.__setattr__(self, "zero_power_temperature_c", zero_power_temperature)
+        object.__setattr__(self, "low_current_temperature_c", low_current_temperature)
+        object.__setattr__(
+            self,
+            "high_current_temperature_c",
+            high_current_temperature,
+        )
 
     @property
     def low_current_temperature_rise_c(self) -> float:
@@ -1245,29 +1318,207 @@ class TwoCurrentSelfHeatingTemperatureUncertaintyResult:
 
     temperature_result: TwoCurrentSelfHeatingTemperatureResult
     zero_power_uncertainty: TwoCurrentZeroPowerUncertaintyResult
-    zero_power_temperature_input_sensitivity_vector: tuple[float, float, float, float]
-    low_current_temperature_input_sensitivity_vector: tuple[float, float, float, float]
-    high_current_temperature_input_sensitivity_vector: tuple[float, float, float, float]
+    zero_power_temperature_input_sensitivity_vector: tuple[
+        float, float, float, float
+    ] = field(init=False)
+    low_current_temperature_input_sensitivity_vector: tuple[
+        float, float, float, float
+    ] = field(init=False)
+    high_current_temperature_input_sensitivity_vector: tuple[
+        float, float, float, float
+    ] = field(init=False)
     low_current_temperature_rise_input_sensitivity_vector: tuple[
         float, float, float, float
-    ]
+    ] = field(init=False)
     high_current_temperature_rise_input_sensitivity_vector: tuple[
         float, float, float, float
-    ]
-    zero_power_temperature_variance_celsius_squared: float
-    zero_power_temperature_standard_uncertainty_c: float
-    low_current_temperature_variance_celsius_squared: float
-    low_current_temperature_standard_uncertainty_c: float
-    high_current_temperature_variance_celsius_squared: float
-    high_current_temperature_standard_uncertainty_c: float
-    low_current_temperature_rise_variance_celsius_squared: float
-    low_current_temperature_rise_standard_uncertainty_c: float
-    high_current_temperature_rise_variance_celsius_squared: float
-    high_current_temperature_rise_standard_uncertainty_c: float
+    ] = field(init=False)
+    zero_power_temperature_variance_celsius_squared: float = field(init=False)
+    zero_power_temperature_standard_uncertainty_c: float = field(init=False)
+    low_current_temperature_variance_celsius_squared: float = field(init=False)
+    low_current_temperature_standard_uncertainty_c: float = field(init=False)
+    high_current_temperature_variance_celsius_squared: float = field(init=False)
+    high_current_temperature_standard_uncertainty_c: float = field(init=False)
+    low_current_temperature_rise_variance_celsius_squared: float = field(init=False)
+    low_current_temperature_rise_standard_uncertainty_c: float = field(init=False)
+    high_current_temperature_rise_variance_celsius_squared: float = field(init=False)
+    high_current_temperature_rise_standard_uncertainty_c: float = field(init=False)
     propagation_method: _TwoCurrentUncertaintyMethod = field(
         init=False,
         default="first_order_independent_inputs",
     )
+
+    def __post_init__(self) -> None:
+        if not isinstance(
+            self.temperature_result, TwoCurrentSelfHeatingTemperatureResult
+        ):
+            raise TypeError(
+                "temperature_result must be a TwoCurrentSelfHeatingTemperatureResult"
+            )
+        if not isinstance(
+            self.zero_power_uncertainty, TwoCurrentZeroPowerUncertaintyResult
+        ):
+            raise TypeError(
+                "zero_power_uncertainty must be a TwoCurrentZeroPowerUncertaintyResult"
+            )
+        if (
+            self.zero_power_uncertainty.zero_power_result
+            != self.temperature_result.zero_power_result
+        ):
+            raise ValueError(
+                "zero_power_uncertainty must describe the retained zero-power result"
+            )
+
+        zero_resistance_sensitivities = (
+            self.zero_power_uncertainty.zero_power_resistance_input_sensitivity_vector
+        )
+        model = self.temperature_result.model
+        zero_temperature_sensitivity = _temperature_sensitivity_celsius_per_ohm(
+            model,
+            self.temperature_result.zero_power_temperature_c,
+            name="Zero-power temperature sensitivity",
+        )
+        low_temperature_sensitivity = _temperature_sensitivity_celsius_per_ohm(
+            model,
+            self.temperature_result.low_current_temperature_c,
+            name="Low-current temperature sensitivity",
+        )
+        high_temperature_sensitivity = _temperature_sensitivity_celsius_per_ohm(
+            model,
+            self.temperature_result.high_current_temperature_c,
+            name="High-current temperature sensitivity",
+        )
+
+        zero_temperature_vector = (
+            zero_temperature_sensitivity * zero_resistance_sensitivities[0],
+            zero_temperature_sensitivity * zero_resistance_sensitivities[1],
+            zero_temperature_sensitivity * zero_resistance_sensitivities[2],
+            zero_temperature_sensitivity * zero_resistance_sensitivities[3],
+        )
+        low_temperature_vector = (0.0, low_temperature_sensitivity, 0.0, 0.0)
+        high_temperature_vector = (0.0, 0.0, 0.0, high_temperature_sensitivity)
+        low_rise_vector = (
+            low_temperature_vector[0] - zero_temperature_vector[0],
+            low_temperature_vector[1] - zero_temperature_vector[1],
+            low_temperature_vector[2] - zero_temperature_vector[2],
+            low_temperature_vector[3] - zero_temperature_vector[3],
+        )
+        high_rise_vector = (
+            high_temperature_vector[0] - zero_temperature_vector[0],
+            high_temperature_vector[1] - zero_temperature_vector[1],
+            high_temperature_vector[2] - zero_temperature_vector[2],
+            high_temperature_vector[3] - zero_temperature_vector[3],
+        )
+
+        uncertainty_inputs = self.zero_power_uncertainty.input_standard_uncertainties
+        standard_uncertainties = uncertainty_inputs.standard_uncertainty_vector
+        zero_temperature_variance, zero_temperature_uncertainty = (
+            _independent_propagation(
+                zero_temperature_vector,
+                standard_uncertainties,
+                quantity_name="Zero-power temperature uncertainty",
+            )
+        )
+        low_temperature_variance, low_temperature_uncertainty = (
+            _independent_propagation(
+                low_temperature_vector,
+                standard_uncertainties,
+                quantity_name="Low-current temperature uncertainty",
+            )
+        )
+        high_temperature_variance, high_temperature_uncertainty = (
+            _independent_propagation(
+                high_temperature_vector,
+                standard_uncertainties,
+                quantity_name="High-current temperature uncertainty",
+            )
+        )
+        low_rise_variance, low_rise_uncertainty = _independent_propagation(
+            low_rise_vector,
+            standard_uncertainties,
+            quantity_name="Low-current temperature-rise uncertainty",
+        )
+        high_rise_variance, high_rise_uncertainty = _independent_propagation(
+            high_rise_vector,
+            standard_uncertainties,
+            quantity_name="High-current temperature-rise uncertainty",
+        )
+
+        object.__setattr__(
+            self,
+            "zero_power_temperature_input_sensitivity_vector",
+            zero_temperature_vector,
+        )
+        object.__setattr__(
+            self,
+            "low_current_temperature_input_sensitivity_vector",
+            low_temperature_vector,
+        )
+        object.__setattr__(
+            self,
+            "high_current_temperature_input_sensitivity_vector",
+            high_temperature_vector,
+        )
+        object.__setattr__(
+            self,
+            "low_current_temperature_rise_input_sensitivity_vector",
+            low_rise_vector,
+        )
+        object.__setattr__(
+            self,
+            "high_current_temperature_rise_input_sensitivity_vector",
+            high_rise_vector,
+        )
+        object.__setattr__(
+            self,
+            "zero_power_temperature_variance_celsius_squared",
+            zero_temperature_variance,
+        )
+        object.__setattr__(
+            self,
+            "zero_power_temperature_standard_uncertainty_c",
+            zero_temperature_uncertainty,
+        )
+        object.__setattr__(
+            self,
+            "low_current_temperature_variance_celsius_squared",
+            low_temperature_variance,
+        )
+        object.__setattr__(
+            self,
+            "low_current_temperature_standard_uncertainty_c",
+            low_temperature_uncertainty,
+        )
+        object.__setattr__(
+            self,
+            "high_current_temperature_variance_celsius_squared",
+            high_temperature_variance,
+        )
+        object.__setattr__(
+            self,
+            "high_current_temperature_standard_uncertainty_c",
+            high_temperature_uncertainty,
+        )
+        object.__setattr__(
+            self,
+            "low_current_temperature_rise_variance_celsius_squared",
+            low_rise_variance,
+        )
+        object.__setattr__(
+            self,
+            "low_current_temperature_rise_standard_uncertainty_c",
+            low_rise_uncertainty,
+        )
+        object.__setattr__(
+            self,
+            "high_current_temperature_rise_variance_celsius_squared",
+            high_rise_variance,
+        )
+        object.__setattr__(
+            self,
+            "high_current_temperature_rise_standard_uncertainty_c",
+            high_rise_uncertainty,
+        )
 
     @property
     def input_parameter_names(self) -> tuple[str, str, str, str]:
@@ -1283,9 +1534,11 @@ def evaluate_self_heating_coefficient(
     The retained experiment context is required, as is a positive fitted
     resistance-versus-current-squared slope. The scalar coefficient is a
     through-origin least-squares description of fitted temperature rise versus
-    fitted dissipated power at the distinct sampled current levels. Residuals and
-    pointwise coefficients remain available for judging how well one scalar
-    describes the retained range; no universal acceptance threshold is imposed.
+    fitted dissipated power at the distinct sampled current levels. It is therefore
+    a finite-range coefficient rather than a zero-power differential coefficient.
+    Residuals and pointwise coefficients remain available for judging how well one
+    scalar describes the retained range; no universal acceptance threshold is
+    imposed.
 
     Raises:
         TypeError: If ``result`` is not a
@@ -1307,7 +1560,9 @@ def propagate_self_heating_coefficient_uncertainty(
     through-origin coefficient calculation. This remains a first-order/local
     estimate conditional on the same fixed-current, common-resistance-error-variance
     assumptions as :func:`estimate_zero_power_fit_uncertainty`. The RTD model and
-    thermal-environment context are treated as fixed.
+    thermal-environment context are treated as fixed. It does not add uncertainty
+    for the deterministic range dependence of this finite-range coefficient or for
+    its difference from a zero-power differential coefficient.
 
     Raises:
         TypeError: If ``result`` is not a :class:`SelfHeatingCoefficientResult`.
@@ -1346,29 +1601,9 @@ def evaluate_two_current_temperatures(
     if not isinstance(result, TwoCurrentZeroPowerResult):
         raise TypeError("result must be a TwoCurrentZeroPowerResult")
 
-    evidence = result.evidence
-    zero_power_temperature = _converted_temperature_c(
-        model,
-        result.zero_power_resistance_ohms,
-        name="Zero-power temperature",
-    )
-    low_current_temperature = _converted_temperature_c(
-        model,
-        evidence.low_current_observation.resistance_ohms,
-        name="Low-current temperature",
-    )
-    high_current_temperature = _converted_temperature_c(
-        model,
-        evidence.high_current_observation.resistance_ohms,
-        name="High-current temperature",
-    )
-
     return TwoCurrentSelfHeatingTemperatureResult(
         zero_power_result=result,
         model=model,
-        zero_power_temperature_c=zero_power_temperature,
-        low_current_temperature_c=low_current_temperature,
-        high_current_temperature_c=high_current_temperature,
     )
 
 
@@ -1400,19 +1635,9 @@ def propagate_two_current_zero_power_uncertainty(
             "TwoCurrentInputStandardUncertainties"
         )
 
-    sensitivities = _zero_power_resistance_input_sensitivities(result)
-    variance, standard_uncertainty = _independent_propagation(
-        sensitivities,
-        input_standard_uncertainties.standard_uncertainty_vector,
-        quantity_name="Zero-power resistance uncertainty",
-    )
-
     return TwoCurrentZeroPowerUncertaintyResult(
         zero_power_result=result,
         input_standard_uncertainties=input_standard_uncertainties,
-        zero_power_resistance_input_sensitivity_vector=sensitivities,
-        zero_power_resistance_variance_ohms_squared=variance,
-        zero_power_resistance_standard_uncertainty_ohms=standard_uncertainty,
     )
 
 
@@ -1447,92 +1672,9 @@ def propagate_two_current_temperature_uncertainty(
         result.zero_power_result,
         input_standard_uncertainties=input_standard_uncertainties,
     )
-    zero_resistance_sensitivities = (
-        zero_power_uncertainty.zero_power_resistance_input_sensitivity_vector
-    )
-
-    zero_temperature_sensitivity = _temperature_sensitivity_celsius_per_ohm(
-        result.model,
-        result.zero_power_temperature_c,
-        name="Zero-power temperature sensitivity",
-    )
-    low_temperature_sensitivity = _temperature_sensitivity_celsius_per_ohm(
-        result.model,
-        result.low_current_temperature_c,
-        name="Low-current temperature sensitivity",
-    )
-    high_temperature_sensitivity = _temperature_sensitivity_celsius_per_ohm(
-        result.model,
-        result.high_current_temperature_c,
-        name="High-current temperature sensitivity",
-    )
-
-    zero_temperature_vector = (
-        zero_temperature_sensitivity * zero_resistance_sensitivities[0],
-        zero_temperature_sensitivity * zero_resistance_sensitivities[1],
-        zero_temperature_sensitivity * zero_resistance_sensitivities[2],
-        zero_temperature_sensitivity * zero_resistance_sensitivities[3],
-    )
-    low_temperature_vector = (0.0, low_temperature_sensitivity, 0.0, 0.0)
-    high_temperature_vector = (0.0, 0.0, 0.0, high_temperature_sensitivity)
-    low_rise_vector = (
-        low_temperature_vector[0] - zero_temperature_vector[0],
-        low_temperature_vector[1] - zero_temperature_vector[1],
-        low_temperature_vector[2] - zero_temperature_vector[2],
-        low_temperature_vector[3] - zero_temperature_vector[3],
-    )
-    high_rise_vector = (
-        high_temperature_vector[0] - zero_temperature_vector[0],
-        high_temperature_vector[1] - zero_temperature_vector[1],
-        high_temperature_vector[2] - zero_temperature_vector[2],
-        high_temperature_vector[3] - zero_temperature_vector[3],
-    )
-
-    standard_uncertainties = input_standard_uncertainties.standard_uncertainty_vector
-    zero_temperature_variance, zero_temperature_uncertainty = _independent_propagation(
-        zero_temperature_vector,
-        standard_uncertainties,
-        quantity_name="Zero-power temperature uncertainty",
-    )
-    low_temperature_variance, low_temperature_uncertainty = _independent_propagation(
-        low_temperature_vector,
-        standard_uncertainties,
-        quantity_name="Low-current temperature uncertainty",
-    )
-    high_temperature_variance, high_temperature_uncertainty = _independent_propagation(
-        high_temperature_vector,
-        standard_uncertainties,
-        quantity_name="High-current temperature uncertainty",
-    )
-    low_rise_variance, low_rise_uncertainty = _independent_propagation(
-        low_rise_vector,
-        standard_uncertainties,
-        quantity_name="Low-current temperature-rise uncertainty",
-    )
-    high_rise_variance, high_rise_uncertainty = _independent_propagation(
-        high_rise_vector,
-        standard_uncertainties,
-        quantity_name="High-current temperature-rise uncertainty",
-    )
-
     return TwoCurrentSelfHeatingTemperatureUncertaintyResult(
         temperature_result=result,
         zero_power_uncertainty=zero_power_uncertainty,
-        zero_power_temperature_input_sensitivity_vector=zero_temperature_vector,
-        low_current_temperature_input_sensitivity_vector=low_temperature_vector,
-        high_current_temperature_input_sensitivity_vector=high_temperature_vector,
-        low_current_temperature_rise_input_sensitivity_vector=low_rise_vector,
-        high_current_temperature_rise_input_sensitivity_vector=high_rise_vector,
-        zero_power_temperature_variance_celsius_squared=zero_temperature_variance,
-        zero_power_temperature_standard_uncertainty_c=zero_temperature_uncertainty,
-        low_current_temperature_variance_celsius_squared=low_temperature_variance,
-        low_current_temperature_standard_uncertainty_c=low_temperature_uncertainty,
-        high_current_temperature_variance_celsius_squared=high_temperature_variance,
-        high_current_temperature_standard_uncertainty_c=high_temperature_uncertainty,
-        low_current_temperature_rise_variance_celsius_squared=low_rise_variance,
-        low_current_temperature_rise_standard_uncertainty_c=low_rise_uncertainty,
-        high_current_temperature_rise_variance_celsius_squared=high_rise_variance,
-        high_current_temperature_rise_standard_uncertainty_c=high_rise_uncertainty,
     )
 
 

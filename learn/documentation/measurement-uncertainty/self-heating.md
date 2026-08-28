@@ -355,16 +355,21 @@ print(coefficient.coefficient_fit_residuals_c)
 ```
 
 The scalar is a through-origin fit of **fitted temperature rise versus fitted
-``I²R`` power** at the distinct sampled current levels. Repeated measurements at
-one current level still influence the resistance fit, but that level appears only
-once in the coefficient fit so replicate count does not create an extra secondary
-weight.
+``I²R`` power** at the distinct sampled current levels. It is a **finite-range**
+coefficient over those levels, not the zero-power differential ``d(ΔT)/dP``.
+Repeated measurements at one current level still influence the resistance fit, but
+that level appears only once in the coefficient fit so replicate count does not
+create an extra secondary weight.
 
-The result also retains the pointwise ``ΔT/P`` values and coefficient-fit residuals.
-Their RMS and maximum absolute residual are descriptive shape diagnostics of the
-fitted relationship, not a second statistical error model. Use those diagnostics to
-judge whether one scalar describes the sampled range; `rtd-sensor` does not invent a
-universal acceptance threshold. A zero or negative
+The finite-range distinction matters even for idealized data. If the resistance fit
+is exactly ``R = R0 + kI²``, then fitted power is
+``P = I²(R0 + kI²)``. The ``kI⁴`` term means pointwise ``ΔT/P`` can change across
+the current range even with no measurement noise and, for a linear RTD model, no
+model curvature. The result therefore retains the pointwise ``ΔT/P`` values and
+coefficient-fit residuals. Their RMS and maximum absolute residual are descriptive
+shape diagnostics of the fitted relationship, not a second statistical error model.
+Use those diagnostics to judge whether one scalar describes the sampled range;
+`rtd-sensor` does not invent a universal acceptance threshold. A zero or negative
 resistance slope is retained by the resistance fit but is not promoted into a named
 positive self-heating coefficient. The two-current correction path is intentionally
 not used for this named characterization because two points leave no residual
@@ -397,10 +402,13 @@ print(coefficient_uncertainty.dissipation_constant_standard_uncertainty_mw_per_c
 ```
 
 This propagates only the residual-scatter covariance of the fitted zero-power
-resistance and slope. It does not add coefficient-fit residual scatter, model
-parameter covariance, current uncertainty, or correlated environmental/acquisition
-effects. An exact resistance fit can therefore produce zero covariance-derived
-coefficient uncertainty without proving that the physical coefficient is exact.
+resistance and slope into the retained finite-range coefficient. It does not include
+the deterministic difference between that scalar and a zero-power differential
+coefficient. It also does not add coefficient-fit residual scatter, model parameter
+covariance, current uncertainty, or correlated environmental/acquisition effects.
+An exact resistance fit can therefore produce zero covariance-derived coefficient
+uncertainty without proving that the physical self-heating behavior is exact or
+range-independent.
 
 ## What the observation retains
 
