@@ -1000,12 +1000,21 @@ uncertainties are propagated directly from the original four inputs rather than 
 combining already-derived observed and zero-power temperatures as if they were
 independent; those quantities share resistance observations by construction.
 
-This first uncertainty implementation assumes the four supplied input standard
-uncertainties are mutually independent. It does not infer covariance for readings
-that share an instrument, calibration, current source, bridge, or other common
-error source. Fitted-model covariance and other uncertainty-budget components also
-remain separate rather than being combined automatically. JCGM 100:2008 sections
-5.1-5.2 remain the implementation basis for the first-order propagation.
+The four supplied standard uncertainty magnitudes are treated as mutually
+independent by default. When dependence is known, callers may additionally supply a
+4 x 4 `TwoCurrentInputCorrelationMatrix` in the same fixed input order. The matrix
+must be finite, symmetric, positive semidefinite, and have unit diagonal. It is
+combined with the supplied standard uncertainties to form the full covariance
+matrix, and propagation uses the correlated-input form `u²(y) = J Cov(x) Jᵀ`. The
+result retains the correlation object, exposes the covariance matrix actually used,
+and records whether propagation used independent or correlated inputs.
+
+Correlation is never inferred merely because readings share an instrument,
+calibration, current source, bridge, or measurement sequence; the caller must have
+a defensible covariance/correlation model. Fitted-model covariance and other
+uncertainty-budget components also remain separate rather than being combined
+automatically. JCGM 100:2008 sections 5.1-5.2 are the implementation basis for
+both the independent and correlated first-order propagation.
 
 The larger-observation fit keeps the same scientific model rather than changing
 to a regression on observation-level `I^2 R` power. `fit_zero_power_resistance()`
@@ -1140,8 +1149,9 @@ conditions. Experiment-specific acceptance criteria therefore remain a caller or
 future statistically justified API concern.
 
 The self-heating layer still does not automatically alter an RTD model or a
-general uncertainty budget. Later 0.8.0 work may add correlated-input or
-errors-in-variables handling where a defensible statistical basis exists.
+general uncertainty budget. Later 0.8.0 work may add uncertainty-weighted or
+errors-in-variables handling for the 3+ observation fit where a defensible
+statistical basis exists.
 
 #### Portable model-definition format decision
 

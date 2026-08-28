@@ -13,6 +13,7 @@ from rtd_sensor.self_heating import (
     SelfHeatingCoefficientUncertaintyResult,
     SelfHeatingExperimentContext,
     SelfHeatingObservation,
+    TwoCurrentInputCorrelationMatrix,
     TwoCurrentInputStandardUncertainties,
     TwoCurrentSelfHeatingTemperatureResult,
     TwoCurrentSelfHeatingTemperatureUncertaintyResult,
@@ -1382,6 +1383,227 @@ def test_two_current_input_uncertainties_reject_invalid_values(
         TwoCurrentInputStandardUncertainties(**kwargs)  # type: ignore[arg-type]
 
 
+def test_two_current_input_correlation_matrix_normalizes_and_exposes_order() -> None:
+    correlations = TwoCurrentInputCorrelationMatrix(
+        correlation_matrix=(
+            (1, 0, 0, 0),
+            (0, 1, 0, 0.25),
+            (0, 0, 1, 0),
+            (0, 0.25, 0, 1),
+        )
+    )
+
+    assert correlations.input_parameter_names == (
+        "low_current_a",
+        "low_resistance_ohms",
+        "high_current_a",
+        "high_resistance_ohms",
+    )
+    assert correlations.correlation_matrix[1][3] == pytest.approx(0.25)
+    assert correlations.correlation_matrix[3][1] == pytest.approx(0.25)
+
+
+@pytest.mark.parametrize(
+    ("matrix", "message"),
+    [
+        (
+            (
+                (1.0, 0.2, 0.0, 0.0),
+                (0.1, 1.0, 0.0, 0.0),
+                (0.0, 0.0, 1.0, 0.0),
+                (0.0, 0.0, 0.0, 1.0),
+            ),
+            "symmetric",
+        ),
+        (
+            (
+                (0.9, 0.0, 0.0, 0.0),
+                (0.0, 1.0, 0.0, 0.0),
+                (0.0, 0.0, 1.0, 0.0),
+                (0.0, 0.0, 0.0, 1.0),
+            ),
+            "diagonal",
+        ),
+        (
+            (
+                (1.0, 1.1, 0.0, 0.0),
+                (1.1, 1.0, 0.0, 0.0),
+                (0.0, 0.0, 1.0, 0.0),
+                (0.0, 0.0, 0.0, 1.0),
+            ),
+            "between -1 and 1",
+        ),
+        (
+            (
+                (1.0, 0.9, 0.9, 0.0),
+                (0.9, 1.0, -0.9, 0.0),
+                (0.9, -0.9, 1.0, 0.0),
+                (0.0, 0.0, 0.0, 1.0),
+            ),
+            "positive semidefinite",
+        ),
+    ],
+)
+def test_two_current_input_correlation_matrix_rejects_invalid_matrices(
+    matrix: tuple[tuple[float, ...], ...],
+    message: str,
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        TwoCurrentInputCorrelationMatrix(correlation_matrix=matrix)
+
+
+def test_two_current_input_correlation_matrix_accepts_valid_low_rank_matrix() -> None:
+    correlations = TwoCurrentInputCorrelationMatrix(
+        correlation_matrix=(
+            (1.0, -0.9999791765107585, 0.5626028914348433, -0.530474000927361),
+            (-0.9999791765107585, 1.0, -0.5679263889742487, 0.5359335209517727),
+            (0.5626028914348433, -0.5679263889742489, 1.0, -0.999263914301841),
+            (-0.530474000927361, 0.5359335209517727, -0.9992639143018411, 1.0),
+        )
+    )
+
+    assert correlations.correlation_matrix[0][0] == 1.0
+
+
+def test_two_current_input_correlation_matrix_tolerates_float_roundoff_at_bounds() -> (
+    None
+):
+    correlations = TwoCurrentInputCorrelationMatrix(
+        correlation_matrix=(
+            (1.0000000000000002, 0.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0, 0.0),
+            (0.0, 0.0, 1.0, -1.0000000000000002),
+            (0.0, 0.0, -1.0000000000000002, 1.0),
+        )
+    )
+
+    assert correlations.correlation_matrix[0][0] == 1.0
+    assert correlations.correlation_matrix[2][3] == -1.0
+    assert correlations.correlation_matrix[3][2] == -1.0
+
+
+def test_correlated_zero_power_uncertainty_uses_full_covariance() -> None:
+    zero_power, inputs = _sqrt2_uncertainty_case()
+    correlations = TwoCurrentInputCorrelationMatrix(
+        correlation_matrix=(
+            (1.0, 0.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0, 1.0),
+            (0.0, 0.0, 1.0, 0.0),
+            (0.0, 1.0, 0.0, 1.0),
+        )
+    )
+
+    result = propagate_two_current_zero_power_uncertainty(
+        zero_power,
+        input_standard_uncertainties=inputs,
+        input_correlation_matrix=correlations,
+    )
+
+    assert result.propagation_method == "first_order_correlated_inputs"
+    assert result.input_correlation_matrix is correlations
+    assert result.input_covariance_matrix[1][3] == pytest.approx(1.0e-6)
+    assert result.zero_power_resistance_variance_ohms_squared == pytest.approx(1.0e-6)
+    assert result.zero_power_resistance_standard_uncertainty_ohms == pytest.approx(
+        0.001
+    )
+
+
+def test_correlated_current_uncertainty_uses_current_sensitivities() -> None:
+    low = SelfHeatingObservation(0.001, 100.01)
+    high = SelfHeatingObservation(math.sqrt(2.0) * 0.001, 100.02)
+    zero_power = extrapolate_zero_power_resistance(low, high)
+    inputs = TwoCurrentInputStandardUncertainties(
+        low_current_standard_uncertainty_a=1.0e-6,
+        low_resistance_standard_uncertainty_ohms=0.0,
+        high_current_standard_uncertainty_a=1.0e-6,
+        high_resistance_standard_uncertainty_ohms=0.0,
+    )
+    correlations = TwoCurrentInputCorrelationMatrix(
+        correlation_matrix=(
+            (1.0, 0.0, 1.0, 0.0),
+            (0.0, 1.0, 0.0, 0.0),
+            (1.0, 0.0, 1.0, 0.0),
+            (0.0, 0.0, 0.0, 1.0),
+        )
+    )
+
+    result = propagate_two_current_zero_power_uncertainty(
+        zero_power,
+        input_standard_uncertainties=inputs,
+        input_correlation_matrix=correlations,
+    )
+
+    expected = (-40.0 + 20.0 * math.sqrt(2.0)) * 1.0e-6
+    assert result.zero_power_resistance_standard_uncertainty_ohms == pytest.approx(
+        abs(expected)
+    )
+
+
+def test_identity_correlation_reproduces_independent_propagation() -> None:
+    zero_power, inputs = _sqrt2_uncertainty_case()
+    identity = TwoCurrentInputCorrelationMatrix(
+        correlation_matrix=(
+            (1.0, 0.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0, 0.0),
+            (0.0, 0.0, 1.0, 0.0),
+            (0.0, 0.0, 0.0, 1.0),
+        )
+    )
+
+    independent = propagate_two_current_zero_power_uncertainty(
+        zero_power,
+        input_standard_uncertainties=inputs,
+    )
+    correlated = propagate_two_current_zero_power_uncertainty(
+        zero_power,
+        input_standard_uncertainties=inputs,
+        input_correlation_matrix=identity,
+    )
+
+    assert correlated.zero_power_resistance_variance_ohms_squared == pytest.approx(
+        independent.zero_power_resistance_variance_ohms_squared
+    )
+    for correlated_row, independent_row in zip(
+        correlated.input_covariance_matrix,
+        independent.input_covariance_matrix,
+        strict=True,
+    ):
+        assert correlated_row == pytest.approx(independent_row)
+
+
+def test_correlated_resistance_error_cancels_from_temperature_rises() -> None:
+    zero_power, inputs = _sqrt2_uncertainty_case()
+    temperatures = evaluate_two_current_temperatures(
+        zero_power,
+        model=_LinearTwoOhmPerCelsiusModel(),
+    )
+    correlations = TwoCurrentInputCorrelationMatrix(
+        correlation_matrix=(
+            (1.0, 0.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0, 1.0),
+            (0.0, 0.0, 1.0, 0.0),
+            (0.0, 1.0, 0.0, 1.0),
+        )
+    )
+
+    result = propagate_two_current_temperature_uncertainty(
+        temperatures,
+        input_standard_uncertainties=inputs,
+        input_correlation_matrix=correlations,
+    )
+
+    assert result.propagation_method == "first_order_correlated_inputs"
+    assert result.zero_power_temperature_standard_uncertainty_c == pytest.approx(0.0005)
+    assert result.low_current_temperature_rise_standard_uncertainty_c == pytest.approx(
+        0.0,
+        abs=1.0e-15,
+    )
+    assert result.high_current_temperature_rise_standard_uncertainty_c == pytest.approx(
+        0.0,
+        abs=1.0e-15,
+    )
+
+
 def test_zero_power_uncertainty_matches_sqrt2_resistance_only_case() -> None:
     zero_power, inputs = _sqrt2_uncertainty_case()
 
@@ -1670,6 +1892,12 @@ def test_two_current_uncertainty_rejects_wrong_argument_types() -> None:
         propagate_two_current_zero_power_uncertainty(
             zero_power,
             input_standard_uncertainties=100.0,  # type: ignore[arg-type]
+        )
+    with pytest.raises(TypeError, match="TwoCurrentInputCorrelationMatrix"):
+        propagate_two_current_zero_power_uncertainty(
+            zero_power,
+            input_standard_uncertainties=inputs,
+            input_correlation_matrix=100.0,  # type: ignore[arg-type]
         )
     with pytest.raises(TypeError, match="TwoCurrentSelfHeatingTemperatureResult"):
         propagate_two_current_temperature_uncertainty(

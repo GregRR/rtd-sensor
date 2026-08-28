@@ -355,11 +355,41 @@ inputs in this order:
 low current, low resistance, high current, high resistance
 ```
 
-The first uncertainty implementation assumes those four standard uncertainties are
-independent. It does **not** infer covariance between readings made with the same
-current source, bridge, meter, or calibration chain. If important common-mode or
-correlated effects are present, they should not be hidden inside an independence
-assumption. Because this is a local first-order propagation, the supplied
+When no additional dependence information is supplied, those four standard
+uncertainties are treated as independent. If a defensible correlation model is
+available, retain it explicitly instead of hiding it inside an independence
+assumption:
+
+```python
+correlations = self_heating.TwoCurrentInputCorrelationMatrix(
+    correlation_matrix=(
+        (1.0, 0.0, 0.0, 0.0),
+        (0.0, 1.0, 0.0, 1.0),
+        (0.0, 0.0, 1.0, 0.0),
+        (0.0, 1.0, 0.0, 1.0),
+    )
+)
+
+correlated = self_heating.propagate_two_current_zero_power_uncertainty(
+    result,
+    input_standard_uncertainties=inputs,
+    input_correlation_matrix=correlations,
+)
+
+print(correlated.input_covariance_matrix)
+print(correlated.propagation_method)
+```
+
+This example represents perfectly correlated low/high resistance errors while the
+other cross-correlations are zero. The matrix order is still `I_low`, `R_low`,
+`I_high`, `R_high`. `rtd-sensor` requires a finite, symmetric, positive-semidefinite
+correlation matrix with unit diagonal and combines it with the supplied standard
+uncertainties to form the covariance matrix used in `J Cov(x) Jᵀ`.
+
+Correlation is **not inferred** merely because readings use the same current source,
+bridge, meter, calibration chain, or acquisition sequence. A shared instrument can
+create dependence, but its sign and magnitude require an actual measurement/error
+model. Because this remains a local first-order propagation, the supplied
 uncertainties should also be small enough for the local linearization to be
 meaningful. A current uncertainty that is large relative to the separation between
 the two current levels needs more careful treatment.
@@ -378,7 +408,9 @@ zero-power resistance. The same is true at the high-current point.
 For that reason, `rtd-sensor` propagates each temperature rise directly from the
 original current/resistance inputs. It does not simply combine the uncertainty of
 `T_observed` and `T_zero_power` by root-sum-square, which would discard the shared
-input dependence and can give the wrong result.
+input dependence and can give the wrong result. When an input correlation matrix is
+supplied, the same full covariance matrix is used here as well; common-mode terms
+can therefore cancel or reinforce according to the retained sensitivity vectors.
 
 ## Report a context-bound self-heating coefficient
 

@@ -33,6 +33,7 @@ __all__ = [
     "ZeroPowerResistanceFitTemperatureResult",
     "ZeroPowerResistanceFitTemperatureUncertaintyResult",
     "ZeroPowerResistanceFitUncertaintyResult",
+    "TwoCurrentInputCorrelationMatrix",
     "TwoCurrentInputStandardUncertainties",
     "TwoCurrentSelfHeatingTemperatureResult",
     "TwoCurrentSelfHeatingTemperatureUncertaintyResult",
@@ -64,7 +65,10 @@ _SelfHeatingCoefficientMethod = Literal[
 _SelfHeatingCoefficientUncertaintyMethod = Literal[
     "first_order_fit_parameter_covariance"
 ]
-_TwoCurrentUncertaintyMethod = Literal["first_order_independent_inputs"]
+_TwoCurrentUncertaintyMethod = Literal[
+    "first_order_independent_inputs",
+    "first_order_correlated_inputs",
+]
 _ZeroPowerExtrapolationWarningCode = Literal[
     "two_current_exact_line_no_residual_test",
     "only_two_distinct_current_levels",
@@ -1336,15 +1340,60 @@ class SelfHeatingCoefficientUncertaintyResult:
         return self.dissipation_constant_standard_uncertainty_w_per_c * 1000.0
 
 
+@dataclass(frozen=True, slots=True)
+class TwoCurrentInputCorrelationMatrix:
+    """Correlation matrix for the four normalized two-current inputs.
+
+    Matrix rows and columns follow :attr:`input_parameter_names`: ``I_low``,
+    ``R_low``, ``I_high``, and ``R_high``. The matrix must be finite, symmetric,
+    positive semidefinite, and have unit diagonal. Correlations are supplied
+    separately from :class:`TwoCurrentInputStandardUncertainties` so the same
+    uncertainty magnitudes can be propagated under independent or correlated
+    assumptions without changing the retained measurement evidence.
+    """
+
+    correlation_matrix: tuple[tuple[float, ...], ...]
+
+    def __post_init__(self) -> None:
+        matrix = _validate_two_current_correlation_matrix(self.correlation_matrix)
+        object.__setattr__(self, "correlation_matrix", matrix)
+
+    @property
+    def input_parameter_names(self) -> tuple[str, str, str, str]:
+        """Return the fixed row/column order of the correlation matrix."""
+        return _TWO_CURRENT_INPUT_PARAMETER_NAMES
+
+    def covariance_matrix(
+        self,
+        standard_uncertainties: TwoCurrentInputStandardUncertainties,
+    ) -> tuple[tuple[float, ...], ...]:
+        """Return the covariance matrix for supplied standard uncertainties."""
+        if not isinstance(
+            standard_uncertainties,
+            TwoCurrentInputStandardUncertainties,
+        ):
+            raise TypeError(
+                "standard_uncertainties must be a TwoCurrentInputStandardUncertainties"
+            )
+        values = standard_uncertainties.standard_uncertainty_vector
+        return tuple(
+            tuple(
+                self.correlation_matrix[row][column] * values[row] * values[column]
+                for column in range(4)
+            )
+            for row in range(4)
+        )
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class TwoCurrentInputStandardUncertainties:
-    """Independent standard uncertainties for the four two-current inputs.
+    """Standard uncertainty magnitudes for the four two-current inputs.
 
     Fields correspond to the normalized low- and high-current observations retained
     by :class:`TwoCurrentZeroPowerEvidence`. All values are non-negative standard
-    uncertainties. This first uncertainty model assumes the four inputs are
-    mutually independent; covariance between repeated current or resistance
-    measurements is not inferred.
+    uncertainties. Propagation treats them as mutually independent unless an
+    explicit :class:`TwoCurrentInputCorrelationMatrix` is supplied; correlation is
+    never inferred from the measurement sequence or shared instrumentation.
     """
 
     low_current_standard_uncertainty_a: float
@@ -1396,19 +1445,22 @@ class TwoCurrentInputStandardUncertainties:
 
 @dataclass(frozen=True, slots=True)
 class TwoCurrentZeroPowerUncertaintyResult:
-    """First-order uncertainty propagated to two-current zero-power resistance."""
+    """First-order uncertainty propagated to two-current zero-power resistance.
+
+    Standard uncertainty magnitudes are retained separately from an optional input
+    correlation matrix. When correlations are supplied, :attr:`input_covariance_matrix`
+    exposes the full covariance matrix actually used by the propagation.
+    """
 
     zero_power_result: TwoCurrentZeroPowerResult
     input_standard_uncertainties: TwoCurrentInputStandardUncertainties
+    input_correlation_matrix: TwoCurrentInputCorrelationMatrix | None = None
     zero_power_resistance_input_sensitivity_vector: tuple[
         float, float, float, float
     ] = field(init=False)
     zero_power_resistance_variance_ohms_squared: float = field(init=False)
     zero_power_resistance_standard_uncertainty_ohms: float = field(init=False)
-    propagation_method: _TwoCurrentUncertaintyMethod = field(
-        init=False,
-        default="first_order_independent_inputs",
-    )
+    propagation_method: _TwoCurrentUncertaintyMethod = field(init=False)
 
     def __post_init__(self) -> None:
         if not isinstance(self.zero_power_result, TwoCurrentZeroPowerResult):
@@ -1422,13 +1474,27 @@ class TwoCurrentZeroPowerUncertaintyResult:
                 "TwoCurrentInputStandardUncertainties"
             )
 
+        if self.input_correlation_matrix is not None and not isinstance(
+            self.input_correlation_matrix, TwoCurrentInputCorrelationMatrix
+        ):
+            raise TypeError(
+                "input_correlation_matrix must be a "
+                "TwoCurrentInputCorrelationMatrix or None"
+            )
+
         sensitivities = _zero_power_resistance_input_sensitivities(
             self.zero_power_result
         )
-        variance, standard_uncertainty = _independent_propagation(
+        variance, standard_uncertainty = _two_current_uncertainty_propagation(
             sensitivities,
-            self.input_standard_uncertainties.standard_uncertainty_vector,
+            self.input_standard_uncertainties,
+            self.input_correlation_matrix,
             quantity_name="Zero-power resistance uncertainty",
+        )
+        propagation_method: _TwoCurrentUncertaintyMethod = (
+            "first_order_correlated_inputs"
+            if self.input_correlation_matrix is not None
+            else "first_order_independent_inputs"
         )
         object.__setattr__(
             self,
@@ -1444,6 +1510,17 @@ class TwoCurrentZeroPowerUncertaintyResult:
             self,
             "zero_power_resistance_standard_uncertainty_ohms",
             standard_uncertainty,
+        )
+        object.__setattr__(self, "propagation_method", propagation_method)
+
+    @property
+    def input_covariance_matrix(
+        self,
+    ) -> tuple[tuple[float, ...], ...]:
+        """Return the 4x4 covariance matrix used for propagation."""
+        return _two_current_input_covariance_matrix(
+            self.input_standard_uncertainties,
+            self.input_correlation_matrix,
         )
 
     @property
@@ -1513,9 +1590,10 @@ class TwoCurrentSelfHeatingTemperatureUncertaintyResult:
 
     Sensitivity vectors use the fixed input order exposed by
     :attr:`input_parameter_names`. Temperature-rise uncertainties are propagated
-    directly from the original current/resistance inputs so the shared
-    zero-power estimate is not incorrectly treated as independent of each
-    observed resistance.
+    directly from the original current/resistance inputs so the shared zero-power
+    estimate is not incorrectly treated as independent of each observed resistance.
+    Any explicit input correlations retained by the corresponding zero-power
+    uncertainty result are propagated through the same sensitivity vectors.
     """
 
     temperature_result: TwoCurrentSelfHeatingTemperatureResult
@@ -1545,10 +1623,7 @@ class TwoCurrentSelfHeatingTemperatureUncertaintyResult:
     low_current_temperature_rise_standard_uncertainty_c: float = field(init=False)
     high_current_temperature_rise_variance_celsius_squared: float = field(init=False)
     high_current_temperature_rise_standard_uncertainty_c: float = field(init=False)
-    propagation_method: _TwoCurrentUncertaintyMethod = field(
-        init=False,
-        default="first_order_independent_inputs",
-    )
+    propagation_method: _TwoCurrentUncertaintyMethod = field(init=False)
 
     def __post_init__(self) -> None:
         if not isinstance(
@@ -1612,38 +1687,47 @@ class TwoCurrentSelfHeatingTemperatureUncertaintyResult:
             high_temperature_vector[3] - zero_temperature_vector[3],
         )
 
-        uncertainty_inputs = self.zero_power_uncertainty.input_standard_uncertainties
-        standard_uncertainties = uncertainty_inputs.standard_uncertainty_vector
+        standard_uncertainties = (
+            self.zero_power_uncertainty.input_standard_uncertainties
+        )
+        correlation_matrix = self.zero_power_uncertainty.input_correlation_matrix
         zero_temperature_variance, zero_temperature_uncertainty = (
-            _independent_propagation(
+            _two_current_uncertainty_propagation(
                 zero_temperature_vector,
                 standard_uncertainties,
+                correlation_matrix,
                 quantity_name="Zero-power temperature uncertainty",
             )
         )
         low_temperature_variance, low_temperature_uncertainty = (
-            _independent_propagation(
+            _two_current_uncertainty_propagation(
                 low_temperature_vector,
                 standard_uncertainties,
+                correlation_matrix,
                 quantity_name="Low-current temperature uncertainty",
             )
         )
         high_temperature_variance, high_temperature_uncertainty = (
-            _independent_propagation(
+            _two_current_uncertainty_propagation(
                 high_temperature_vector,
                 standard_uncertainties,
+                correlation_matrix,
                 quantity_name="High-current temperature uncertainty",
             )
         )
-        low_rise_variance, low_rise_uncertainty = _independent_propagation(
+        low_rise_variance, low_rise_uncertainty = _two_current_uncertainty_propagation(
             low_rise_vector,
             standard_uncertainties,
+            correlation_matrix,
             quantity_name="Low-current temperature-rise uncertainty",
         )
-        high_rise_variance, high_rise_uncertainty = _independent_propagation(
-            high_rise_vector,
-            standard_uncertainties,
-            quantity_name="High-current temperature-rise uncertainty",
+        high_rise_variance, high_rise_uncertainty = (
+            _two_current_uncertainty_propagation(
+                high_rise_vector,
+                standard_uncertainties,
+                correlation_matrix,
+                quantity_name="High-current temperature-rise uncertainty",
+            )
         )
 
         object.__setattr__(
@@ -1720,6 +1804,11 @@ class TwoCurrentSelfHeatingTemperatureUncertaintyResult:
             self,
             "high_current_temperature_rise_standard_uncertainty_c",
             high_rise_uncertainty,
+        )
+        object.__setattr__(
+            self,
+            "propagation_method",
+            self.zero_power_uncertainty.propagation_method,
         )
 
     @property
@@ -1813,18 +1902,22 @@ def propagate_two_current_zero_power_uncertainty(
     result: TwoCurrentZeroPowerResult,
     *,
     input_standard_uncertainties: TwoCurrentInputStandardUncertainties,
+    input_correlation_matrix: TwoCurrentInputCorrelationMatrix | None = None,
 ) -> TwoCurrentZeroPowerUncertaintyResult:
-    """Propagate independent input uncertainties to zero-power resistance.
+    """Propagate input uncertainties to zero-power resistance.
 
     The first-order law of propagation is applied to the original four inputs in
     normalized low/high-current order: ``I_low``, ``R_low``, ``I_high``, and
     ``R_high``. Current and resistance uncertainties may therefore contribute to
-    the extrapolated intercept. The four supplied input standard uncertainties are
-    assumed mutually independent.
+    the extrapolated intercept. Inputs are treated as mutually independent when
+    ``input_correlation_matrix`` is omitted. When supplied, its correlations are
+    combined with the retained standard uncertainties and the full covariance form
+    of the first-order law of propagation is used.
 
     This result contains only measurement-input uncertainty for the two-current
-    extrapolation. It does not add model uncertainty, thermal-drift effects, or
-    covariance between the supplied measurements.
+    extrapolation. Correlation must be supplied explicitly; it is not inferred from
+    a shared instrument, current source, calibration, or measurement sequence. Model
+    uncertainty and thermal-drift effects remain separate.
     """
     if not isinstance(result, TwoCurrentZeroPowerResult):
         raise TypeError("result must be a TwoCurrentZeroPowerResult")
@@ -1836,10 +1929,18 @@ def propagate_two_current_zero_power_uncertainty(
             "input_standard_uncertainties must be a "
             "TwoCurrentInputStandardUncertainties"
         )
+    if input_correlation_matrix is not None and not isinstance(
+        input_correlation_matrix, TwoCurrentInputCorrelationMatrix
+    ):
+        raise TypeError(
+            "input_correlation_matrix must be a "
+            "TwoCurrentInputCorrelationMatrix or None"
+        )
 
     return TwoCurrentZeroPowerUncertaintyResult(
         zero_power_result=result,
         input_standard_uncertainties=input_standard_uncertainties,
+        input_correlation_matrix=input_correlation_matrix,
     )
 
 
@@ -1847,8 +1948,9 @@ def propagate_two_current_temperature_uncertainty(
     result: TwoCurrentSelfHeatingTemperatureResult,
     *,
     input_standard_uncertainties: TwoCurrentInputStandardUncertainties,
+    input_correlation_matrix: TwoCurrentInputCorrelationMatrix | None = None,
 ) -> TwoCurrentSelfHeatingTemperatureUncertaintyResult:
-    """Propagate independent two-current input uncertainties into temperatures.
+    """Propagate two-current input uncertainties into temperatures.
 
     The calculation uses first-order local RTD sensitivities from the exact model
     retained by ``result``. Zero-power temperature, observed temperatures, and
@@ -1856,8 +1958,10 @@ def propagate_two_current_temperature_uncertainty(
     the original four inputs. This preserves the dependence created because the
     zero-power estimate is calculated from the same resistance observations.
 
-    Fitted-model covariance and other uncertainty-budget components remain
-    separate and are not combined automatically.
+    ``input_correlation_matrix`` has the same meaning as in
+    :func:`propagate_two_current_zero_power_uncertainty`; when omitted, the four
+    inputs are treated as mutually independent. Fitted-model covariance and other
+    uncertainty-budget components remain separate and are not combined automatically.
     """
     if not isinstance(result, TwoCurrentSelfHeatingTemperatureResult):
         raise TypeError("result must be a TwoCurrentSelfHeatingTemperatureResult")
@@ -1873,6 +1977,7 @@ def propagate_two_current_temperature_uncertainty(
     zero_power_uncertainty = propagate_two_current_zero_power_uncertainty(
         result.zero_power_result,
         input_standard_uncertainties=input_standard_uncertainties,
+        input_correlation_matrix=input_correlation_matrix,
     )
     return TwoCurrentSelfHeatingTemperatureUncertaintyResult(
         temperature_result=result,
@@ -2399,6 +2504,169 @@ def _temperature_sensitivity_celsius_per_ohm(
     if not math.isfinite(sensitivity):
         raise ValueError(f"{name} must be finite")
     return sensitivity
+
+
+def _validate_two_current_correlation_matrix(
+    matrix: tuple[tuple[float, ...], ...],
+) -> tuple[tuple[float, ...], ...]:
+    try:
+        rows = tuple(tuple(row) for row in matrix)
+    except TypeError as error:
+        raise TypeError("Correlation matrix must be an iterable of rows") from error
+    if len(rows) != 4 or any(len(row) != 4 for row in rows):
+        raise ValueError("Correlation matrix must be 4x4")
+
+    tolerance = 1.0e-12
+    normalized: list[list[float]] = []
+    for row_index, row in enumerate(rows):
+        normalized_row: list[float] = []
+        for column_index, value in enumerate(row):
+            correlation = _as_float(
+                value,
+                name=f"Correlation[{row_index},{column_index}]",
+            )
+            if not math.isfinite(correlation):
+                raise ValueError("Correlation matrix entries must be finite")
+            if correlation < -1.0 - tolerance or correlation > 1.0 + tolerance:
+                raise ValueError("Correlation matrix entries must be between -1 and 1")
+            normalized_row.append(min(1.0, max(-1.0, correlation)))
+        normalized.append(normalized_row)
+
+    for index in range(4):
+        if not math.isclose(
+            normalized[index][index],
+            1.0,
+            rel_tol=0.0,
+            abs_tol=tolerance,
+        ):
+            raise ValueError("Correlation matrix diagonal entries must equal 1")
+        normalized[index][index] = 1.0
+        for other in range(index):
+            left = normalized[index][other]
+            right = normalized[other][index]
+            if not math.isclose(left, right, rel_tol=0.0, abs_tol=tolerance):
+                raise ValueError("Correlation matrix must be symmetric")
+            symmetric = (left + right) / 2.0
+            normalized[index][other] = symmetric
+            normalized[other][index] = symmetric
+
+    _validate_positive_semidefinite_correlation_matrix(normalized)
+    return (
+        tuple(normalized[0]),
+        tuple(normalized[1]),
+        tuple(normalized[2]),
+        tuple(normalized[3]),
+    )
+
+
+def _validate_positive_semidefinite_correlation_matrix(
+    matrix: list[list[float]],
+) -> None:
+    """Validate a small correlation matrix with pivoted semidefinite elimination."""
+    size = len(matrix)
+    work = [row.copy() for row in matrix]
+    tolerance = 1.0e-12
+
+    for pivot_index in range(size):
+        selected_index = max(
+            range(pivot_index, size),
+            key=lambda index: work[index][index],
+        )
+        selected_pivot = work[selected_index][selected_index]
+        if selected_pivot < -tolerance:
+            raise ValueError("Correlation matrix must be positive semidefinite")
+        if selected_pivot <= tolerance:
+            remainder_scale = max(
+                abs(work[row][column])
+                for row in range(pivot_index, size)
+                for column in range(pivot_index, size)
+            )
+            if remainder_scale > tolerance:
+                raise ValueError("Correlation matrix must be positive semidefinite")
+            return
+
+        if selected_index != pivot_index:
+            work[pivot_index], work[selected_index] = (
+                work[selected_index],
+                work[pivot_index],
+            )
+            for work_row in work:
+                work_row[pivot_index], work_row[selected_index] = (
+                    work_row[selected_index],
+                    work_row[pivot_index],
+                )
+
+        pivot = work[pivot_index][pivot_index]
+        for row in range(pivot_index + 1, size):
+            for column in range(row, size):
+                updated = work[row][column] - (
+                    work[row][pivot_index] * work[column][pivot_index] / pivot
+                )
+                work[row][column] = updated
+                work[column][row] = updated
+
+
+def _two_current_input_covariance_matrix(
+    standard_uncertainties: TwoCurrentInputStandardUncertainties,
+    correlation_matrix: TwoCurrentInputCorrelationMatrix | None,
+) -> tuple[tuple[float, ...], ...]:
+    values = standard_uncertainties.standard_uncertainty_vector
+    if correlation_matrix is None:
+        return tuple(
+            tuple(
+                values[row] * values[row] if row == column else 0.0
+                for column in range(4)
+            )
+            for row in range(4)
+        )
+    return correlation_matrix.covariance_matrix(standard_uncertainties)
+
+
+def _two_current_uncertainty_propagation(
+    sensitivities: tuple[float, float, float, float],
+    standard_uncertainties: TwoCurrentInputStandardUncertainties,
+    correlation_matrix: TwoCurrentInputCorrelationMatrix | None,
+    *,
+    quantity_name: str,
+) -> tuple[float, float]:
+    if correlation_matrix is None:
+        return _independent_propagation(
+            sensitivities,
+            standard_uncertainties.standard_uncertainty_vector,
+            quantity_name=quantity_name,
+        )
+    return _covariance_propagation(
+        sensitivities,
+        correlation_matrix.covariance_matrix(standard_uncertainties),
+        quantity_name=quantity_name,
+    )
+
+
+def _covariance_propagation(
+    sensitivities: tuple[float, float, float, float],
+    covariance_matrix: tuple[tuple[float, ...], ...],
+    *,
+    quantity_name: str,
+) -> tuple[float, float]:
+    variance = math.fsum(
+        sensitivities[row] * covariance_matrix[row][column] * sensitivities[column]
+        for row in range(4)
+        for column in range(4)
+    )
+    scale = math.fsum(
+        abs(sensitivities[row] * covariance_matrix[row][column] * sensitivities[column])
+        for row in range(4)
+        for column in range(4)
+    )
+    tolerance = 64.0 * math.ulp(scale) if math.isfinite(scale) else 0.0
+    if variance < 0.0 and abs(variance) <= tolerance:
+        variance = 0.0
+    if not math.isfinite(variance) or variance < 0.0:
+        raise ValueError(f"{quantity_name} variance must be finite and non-negative")
+    standard_uncertainty = math.sqrt(variance)
+    if not math.isfinite(standard_uncertainty):
+        raise ValueError(f"{quantity_name} must remain finite")
+    return variance, standard_uncertainty
 
 
 def _independent_propagation(

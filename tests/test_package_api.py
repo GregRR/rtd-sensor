@@ -152,6 +152,7 @@ def test_self_heating_public_api() -> None:
         "ZeroPowerResistanceFitTemperatureResult",
         "ZeroPowerResistanceFitTemperatureUncertaintyResult",
         "ZeroPowerResistanceFitUncertaintyResult",
+        "TwoCurrentInputCorrelationMatrix",
         "TwoCurrentInputStandardUncertainties",
         "TwoCurrentSelfHeatingTemperatureResult",
         "TwoCurrentSelfHeatingTemperatureUncertaintyResult",

@@ -524,11 +524,11 @@ TwoCurrentInputStandardUncertainties(
 
 All four values must be finite and non-negative. The fields correspond to the
 normalized low- and high-current observations retained by the zero-power result.
-This first uncertainty model treats the four input quantities as independent.
-Because the propagation is a local first-order approximation, the supplied
-uncertainties should also be small enough for that local linearization to be
-meaningful. In particular, a current uncertainty that is large relative to the
-separation between the two current levels needs more careful treatment.
+They are treated as independent when no correlation matrix is supplied. Because
+the propagation is a local first-order approximation, the supplied uncertainties
+should also be small enough for that local linearization to be meaningful. In
+particular, a current uncertainty that is large relative to the separation between
+the two current levels needs more careful treatment.
 
 The fixed sensitivity-vector order is:
 
@@ -539,6 +539,26 @@ high_current_a
 high_resistance_ohms
 ```
 
+## `TwoCurrentInputCorrelationMatrix`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+```python
+TwoCurrentInputCorrelationMatrix(
+    correlation_matrix: tuple[tuple[float, float, float, float], ...],
+)
+```
+
+The matrix uses the same four-input order shown above. It must be finite,
+symmetric, positive semidefinite, and have unit diagonal. Supply it only when the
+input dependence is known from the measurement model or supporting evidence;
+`rtd-sensor` does not infer correlation from shared hardware or from the order in
+which readings were collected.
+
+`covariance_matrix(standard_uncertainties)` combines the dimensionless
+correlations with a `TwoCurrentInputStandardUncertainties` object and returns the
+4 x 4 covariance matrix used by first-order propagation.
+
 ## `propagate_two_current_zero_power_uncertainty`
 
 **Introduced in:** rtd-sensor 0.8.0
@@ -548,16 +568,20 @@ propagate_two_current_zero_power_uncertainty(
     result: TwoCurrentZeroPowerResult,
     *,
     input_standard_uncertainties: TwoCurrentInputStandardUncertainties,
+    input_correlation_matrix: TwoCurrentInputCorrelationMatrix | None = None,
 ) -> TwoCurrentZeroPowerUncertaintyResult
 ```
 
 Applies first-order propagation directly to the two measured currents and two
 measured resistances. Both current uncertainty and resistance uncertainty can
-therefore contribute to the zero-power resistance uncertainty.
+therefore contribute to the zero-power resistance uncertainty. Omitting
+`input_correlation_matrix` preserves the independent-input calculation. Supplying
+one uses the full covariance form of the propagation law.
 
-`TwoCurrentZeroPowerUncertaintyResult` retains the input uncertainties, the
-zero-power-resistance sensitivity vector, propagated variance, standard
-uncertainty, and the method label `first_order_independent_inputs`.
+`TwoCurrentZeroPowerUncertaintyResult` retains the input uncertainties, optional
+correlation matrix, covariance matrix actually used, zero-power-resistance
+sensitivity vector, propagated variance, standard uncertainty, and a method label
+of either `first_order_independent_inputs` or `first_order_correlated_inputs`.
 
 ## `propagate_two_current_temperature_uncertainty`
 
@@ -568,6 +592,7 @@ propagate_two_current_temperature_uncertainty(
     result: TwoCurrentSelfHeatingTemperatureResult,
     *,
     input_standard_uncertainties: TwoCurrentInputStandardUncertainties,
+    input_correlation_matrix: TwoCurrentInputCorrelationMatrix | None = None,
 ) -> TwoCurrentSelfHeatingTemperatureUncertaintyResult
 ```
 
@@ -586,9 +611,10 @@ independent.
 
 `TwoCurrentSelfHeatingTemperatureUncertaintyResult` retains the input sensitivity
 vectors, variances, standard uncertainties, the corresponding zero-power
-resistance-uncertainty result, and the method label
-`first_order_independent_inputs`. Fitted-model covariance and other uncertainty
-budget components remain separate.
+resistance-uncertainty result, and the same independent/correlated propagation
+method label. Known correlations therefore propagate directly into temperatures
+and temperature rises instead of being discarded. Fitted-model covariance and
+other uncertainty-budget components remain separate.
 
 ## `TwoCurrentZeroPowerResult`
 

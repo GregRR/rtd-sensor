@@ -138,8 +138,10 @@ Implemented in the current 0.8.0 development checkpoint:
   through a supplied RTD model;
 - self-heating temperature rise at both observed current levels;
 - retained two-current evidence and method details;
-- first-order propagation of independent current/resistance input uncertainties to
-  zero-power resistance, model-based temperatures, and temperature rises; and
+- first-order propagation of current/resistance input uncertainties to zero-power
+  resistance, model-based temperatures, and temperature rises, using independent
+  inputs by default and an optional explicit 4 x 4 input correlation matrix when
+  dependence is known; and
 - unweighted 3+ observation fitting of resistance versus current squared with
   retained residuals, residual degrees of freedom, repeated-current support, and
   descriptive residual/consistency diagnostics; and
@@ -168,10 +170,8 @@ Remaining 0.8.0 scope includes:
 
 - uncertainty-weighted or errors-in-variables extensions to larger-observation
   fitting where supplied resistance/current uncertainties justify them, plus any
-  correlated-observation treatment and experiment-specific
-  residual acceptance criteria that can be stated without inventing universal
-  thresholds; and
-- correlated-input uncertainty handling where justified.
+  correlated-observation treatment and experiment-specific residual acceptance
+  criteria that can be stated without inventing universal thresholds.
 
 The package will analyze supplied current/resistance observations. It will not
 control excitation current, ADCs, bridges, MAX31865 devices, or other acquisition
