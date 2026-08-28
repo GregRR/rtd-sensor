@@ -1062,13 +1062,31 @@ parameter covariance. The public uncertainty result records which covariance mod
 was used; its ``residual_variance_ohms_squared`` is present only for the residual-
 scatter ordinary-least-squares path.
 
-Neither covariance path is described as propagation of measurement-current
-uncertainty. If uncertainty in current is material, the independent coordinate has
-measurement error and fixed-coordinate least squares is not an adequate model.
-Correlated repeated readings and other common-mode effects likewise require an
-explicit covariance-aware or errors-in-variables treatment rather than being
-inferred from residual scatter or from the supplied marginal resistance
-uncertainties.
+When measurement-current standard uncertainties are supplied together with
+resistance standard uncertainties for every observation, the 3+ observation fitter
+uses York errors-in-variables regression rather than fixed-coordinate least
+squares. The measured current magnitude is the supplied independent quantity, while
+the fitted coordinate is ``I²``; current uncertainty is therefore propagated to the
+fit coordinate by the first-order relation ``u(I²) = 2 I u(I)``. This is an explicit
+local linearization of the coordinate transformation, not a claim that squared
+current is normally distributed for arbitrarily large relative current uncertainty.
+
+The York path also accepts an optional correlation coefficient for the current and
+resistance errors of each observation. Since all accepted measurement currents are
+positive, the first-order transformation from ``I`` to ``I²`` has positive
+derivative and preserves that within-observation correlation coefficient. Omitting
+the coefficients records zero within-observation correlation. York weights depend
+on the fitted slope and both coordinate uncertainties, so the solver iterates to a
+converged slope. Its chi-square uses the final combined coordinate-error model, and
+its fitted intercept/slope covariance is obtained from the York adjusted
+coordinates and supplied absolute uncertainties without residual rescaling.
+
+This errors-in-variables path still treats separate observations as statistically
+independent. Shared current-source calibration, bridge calibration, environmental
+drift, or other common-mode effects can create cross-observation covariance that a
+per-observation correlation coefficient does not represent. Such covariance must be
+supplied through a separate generalized covariance model rather than inferred from
+replicate scatter, instrument identity, or marginal standard uncertainties.
 
 The 3+ observation fit can also be interpreted through one explicitly supplied
 RTD model without changing the resistance-domain fit. The result converts the
@@ -1081,8 +1099,9 @@ self-heating coefficient or dissipation constant.
 
 The retained intercept/slope covariance can be propagated through the same model
 into the fitted zero-power temperature and fitted temperature rises. It may come
-from residual-scatter ordinary least squares or from supplied absolute resistance
-standard uncertainties in the weighted fit. At each
+from residual-scatter ordinary least squares, supplied absolute resistance standard
+uncertainties in the weighted fit, or the supplied two-coordinate uncertainty model
+in the York errors-in-variables fit. At each
 sampled ``x = I²``, the fitted resistance sensitivity to ``(R0, k)`` is ``(1, x)``.
 The temperature sensitivity vector is therefore the local ``dT/dR`` multiplied by
 ``(1, x)``, while the temperature-rise vector subtracts the corresponding
@@ -1168,8 +1187,9 @@ future statistically justified API concern.
 
 The self-heating layer still does not automatically alter an RTD model or a
 general uncertainty budget. Remaining 0.8.0 regression work is limited to
-errors-in-variables handling when measurement-current uncertainty is material and
-correlated-observation treatment where a defensible covariance model exists.
+cross-observation covariance treatment where a defensible covariance model exists,
+plus any experiment-specific residual acceptance criteria that can be stated without
+inventing universal thresholds.
 
 #### Portable model-definition format decision
 

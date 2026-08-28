@@ -153,6 +153,12 @@ Implemented in the current 0.8.0 development checkpoint:
   retained normalized weights, chi-square/reduced-chi-square diagnostics, and
   parameter covariance determined directly from those supplied uncertainties rather
   than rescaled by residual scatter;
+- York errors-in-variables regression for 3+ observation fits when every observation
+  has both measurement-current and resistance standard uncertainty, including
+  first-order propagation of current uncertainty into the `I²` coordinate, optional
+  within-observation current/resistance error correlation, chi-square diagnostics,
+  and parameter covariance from the supplied coordinate-uncertainty model without
+  residual rescaling;
 - model-based interpretation of the 3+ observation fit into zero-power, observed,
   and fitted temperatures together with observed/fitted `I²R` powers; and
 - first-order propagation of the full fitted intercept/slope covariance into the
@@ -173,10 +179,9 @@ Implemented in the current 0.8.0 development checkpoint:
 
 Remaining 0.8.0 scope includes:
 
-- errors-in-variables extensions to larger-observation fitting where measurement-
-  current uncertainty is material, plus any defensible correlated-observation
-  treatment and experiment-specific residual acceptance criteria that can be stated
-  without inventing universal thresholds.
+- cross-observation covariance treatment where a defensible model exists, plus any
+  experiment-specific residual acceptance criteria that can be stated without
+  inventing universal thresholds.
 
 The package will analyze supplied current/resistance observations. It will not
 control excitation current, ADCs, bridges, MAX31865 devices, or other acquisition

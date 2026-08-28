@@ -128,11 +128,11 @@ assumed linear relation that two points cannot reveal. It still cannot prove tha
 the external temperature was stable. Drift, incomplete settling, acquisition
 error, and genuine nonlinearity can all appear in the residuals.
 
-The first multi-observation fit deliberately does **not** assign a universal
-"good" or "bad" residual threshold. Such a threshold depends on the experiment,
-measurement uncertainty, thermometer, and intended use. It also remains unweighted
-for now; resistance/current uncertainties and correlated effects are not silently
-inserted into the objective.
+The multi-observation fit deliberately does **not** assign a universal "good" or
+"bad" residual threshold. Such a threshold depends on the experiment, measurement
+uncertainty, thermometer, and intended use. It also does not infer a weighting or
+dependence model: resistance/current uncertainties must be supplied explicitly for
+the WLS or York paths, and cross-observation correlated effects remain separate.
 
 ### Ask what the observations can actually support
 
@@ -229,12 +229,40 @@ reduced chi-square or otherwise rescaled to make the observed residuals agree wi
 the supplied uncertainties. An exact weighted line can therefore have zero
 chi-square residual while still retaining nonzero parameter uncertainty.
 
-If measurement-current uncertainty is material, however, the independent
-coordinate itself is uncertain. Fixed-coordinate least squares does not account for
-that; an errors-in-variables model is needed. Correlation among repeated readings or
-shared bridge/current-source/calibration effects likewise needs an explicit
-covariance model rather than being inferred from residuals or from marginal
-resistance standard uncertainties.
+If measurement-current uncertainty is material, the independent coordinate itself
+is uncertain. Supply current standard uncertainties together with resistance
+standard uncertainties to use York errors-in-variables regression:
+
+```python
+eiv_fit = self_heating.fit_zero_power_resistance(
+    observations,
+    resistance_standard_uncertainties_ohms=(0.002, 0.002, 0.005, 0.005),
+    measurement_current_standard_uncertainties_a=(2e-7, 2e-7, 5e-7, 5e-7),
+)
+eiv_uncertainty = self_heating.estimate_zero_power_fit_uncertainty(eiv_fit)
+
+print(eiv_fit.evidence.current_squared_standard_uncertainties_a2)
+print(eiv_fit.evidence.chi_squared)
+print(eiv_uncertainty.parameter_covariance_matrix)
+```
+
+The fit transforms each current uncertainty to the actual fitted coordinate using
+the first-order relation `u(I²) = 2 I u(I)`. That local linearization is appropriate
+only when the supplied standard uncertainty makes first-order propagation a
+defensible description of the squared-current coordinate. The method does not claim
+that an arbitrarily broad current distribution becomes Gaussian after squaring.
+
+If current and resistance errors for the **same observation** are correlated, pass
+one coefficient per observation with `current_resistance_error_correlations`. With
+positive measurement currents, the first-order `I -> I²` transformation preserves
+the sign and magnitude of that correlation coefficient. Omitting the argument
+records zero within-observation correlation.
+
+This still does not describe covariance **between different observations**. Shared
+bridge calibration, current-source calibration, environmental drift, and other
+common-mode effects can correlate separate readings. Those require an explicit
+cross-observation covariance model rather than being inferred from residuals,
+replicate identity, or marginal standard uncertainties.
 
 A perfectly fitted **unweighted** finite dataset can produce zero residual-based
 covariance. That does **not** prove the experiment has zero physical uncertainty; it
@@ -305,11 +333,15 @@ temperature rise, so the shared fitted intercept and its covariance with slope a
 not discarded.
 
 This propagation uses whichever intercept/slope covariance the retained fit
-provides: residual-scatter covariance for unweighted OLS, or covariance defined by
+provides: residual-scatter covariance for unweighted OLS, covariance defined by
 supplied absolute resistance standard uncertainties for inverse-variance weighted
-least squares. Current coordinates remain fixed/exact, and the RTD model is treated
-as fixed. Model-parameter covariance, measurement-current uncertainty, and
-correlated experimental effects remain separate.
+least squares, or York parameter covariance when current and resistance coordinate
+uncertainties were supplied. For the York path, current uncertainty has therefore
+influenced the fitted-parameter covariance, but the sampled current coordinate used
+for each reported fitted temperature is still treated as the retained nominal
+coordinate. No additional direct current-coordinate term is added to those reported
+fitted-temperature uncertainties. The RTD model is treated as fixed, and model-
+parameter covariance and cross-observation experimental effects remain separate.
 
 ## Convert the result to zero-power temperature
 
@@ -474,6 +506,13 @@ positive self-heating coefficient. The two-current correction path is intentiona
 not used for this named characterization because two points leave no residual
 degrees of freedom.
 
+York errors-in-variables fits are intentionally not accepted for this coefficient
+calculation yet. Once current uncertainty is material, the fitted power itself has
+direct current-coordinate uncertainty and shares dependence with the fitted line;
+propagating only the intercept/slope covariance would understate that uncertainty.
+The EIV result remains valid for zero-power extrapolation, but the finite-range
+coefficient stays limited to fixed-current OLS/WLS fits for now.
+
 The reciprocal is reported as the **dissipation constant**. The convenient unit
 forms follow the metrology guidance:
 
@@ -544,9 +583,8 @@ as experimentally stable.
 
 The current 0.8.0 implementation does not yet provide:
 
-- errors-in-variables multi-observation fitting when measurement-current
-  uncertainty is material;
-- covariance-aware multi-observation fitting for defensibly correlated observations;
+- covariance-aware multi-observation fitting for defensibly correlated observations
+  across separate readings;
 - an automatic experiment-specific residual acceptance threshold.
 
 Those remaining capabilities stay within the documented 0.8.0 scope and can
@@ -563,6 +601,9 @@ references:
 - *Guide on Secondary Thermometry — Industrial Platinum Resistance Thermometers*,
   section 4.1 and Equation 4.1.1 for linear extrapolation of resistance versus
   current squared and the requirement for stable external temperature.
+- York et al. (2004), *Unified equations for the slope, intercept, and standard
+  errors of the best straight line*, for the errors-in-variables treatment with
+  uncertainty in both fitted coordinates and within-observation correlated errors.
 
 See the project [`docs/REFERENCES.md`](https://github.com/GregRR/rtd-sensor/blob/main/docs/REFERENCES.md)
 for the retained source record.

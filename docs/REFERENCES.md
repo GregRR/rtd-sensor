@@ -303,6 +303,18 @@ variance are available. `rtd-sensor` keeps this response-uncertainty case separa
 from measurement-current uncertainty in the independent coordinate, which requires
 an errors-in-variables treatment.
 
+York, D., Evensen, N. M., López Martínez, M., & De Basabe Delgado, J.
+(2004). Unified equations for the slope, intercept, and standard errors of the
+best straight line. *American Journal of Physics, 72*(3), 367–375.
+https://doi.org/10.1119/1.1632486
+
+**Project use:** Implementation basis for the 3+ observation self-heating
+errors-in-variables fit when measurement-current uncertainty is material. York's
+straight-line formulation supports observation-specific uncertainty in both
+coordinates and correlation between the coordinate errors of each observation.
+`rtd-sensor` applies it to `(I², R)` after first-order propagation
+`u(I²) = 2 I u(I)` and does not infer covariance between separate observations.
+
 Bureau International des Poids et Mesures, Consultative Committee for
 Thermometry. (2021). *Guide to the realization of the ITS-90: Platinum
 resistance thermometry*.

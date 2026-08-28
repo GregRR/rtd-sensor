@@ -72,6 +72,8 @@ fit_zero_power_resistance(
     observations: Iterable[SelfHeatingObservation],
     *,
     resistance_standard_uncertainties_ohms: Iterable[float] | None = None,
+    measurement_current_standard_uncertainties_a: Iterable[float] | None = None,
+    current_resistance_error_correlations: Iterable[float] | None = None,
     context: SelfHeatingExperimentContext | None = None,
 ) -> ZeroPowerResistanceFitResult
 ```
@@ -91,9 +93,17 @@ The default multi-observation path uses **unweighted ordinary least squares** in
 resistance. If every observation has an absolute resistance standard uncertainty,
 pass those values with `resistance_standard_uncertainties_ohms`; the same function
 then uses inverse-variance weighted least squares with weights proportional to
-`1/u²`. The `I²` coordinate remains fixed/exact in both cases, so this is not an
-errors-in-variables treatment for uncertain measurement current. Optional
-``context`` is retained as non-behavioral provenance and does not alter the fit.
+`1/u²`. The `I²` coordinate remains fixed/exact in those two modes.
+
+If every observation also has a measurement-current standard uncertainty, pass it
+with `measurement_current_standard_uncertainties_a`. The fit then uses York
+errors-in-variables regression in `(I², R)` coordinates. Current uncertainty is
+propagated to the squared-current coordinate with the first-order relation
+`u(I²) = 2 I u(I)`. Optional `current_resistance_error_correlations` supply one
+within-observation correlation coefficient per current/resistance pair; omitted
+coefficients are recorded as zero. The York path does not infer covariance between
+separate observations. Optional ``context`` remains non-behavioral provenance and
+does not alter any fit.
 
 ```python
 weighted_fit = self_heating.fit_zero_power_resistance(
@@ -106,10 +116,25 @@ print(weighted_fit.evidence.chi_squared)
 print(weighted_fit.evidence.reduced_chi_squared)
 ```
 
-The uncertainties must be finite, positive, and match the observation count. They
-are treated as absolute independent resistance-domain standard uncertainties and
-are never inferred from replicate scatter. `rtd-sensor` does not define a universal
-acceptable reduced-chi-square threshold.
+The uncertainty sequences must be finite, positive, and match the observation
+count. Errors-in-variables fitting requires both current and resistance standard
+uncertainties. Correlation coefficients must lie from `-1` through `1`. These values
+are supplied measurement evidence; `rtd-sensor` does not infer them from replicate
+scatter or shared instrumentation and does not define a universal acceptable
+reduced-chi-square threshold.
+
+```python
+eiv_fit = self_heating.fit_zero_power_resistance(
+    observations,
+    resistance_standard_uncertainties_ohms=(0.002, 0.002, 0.005, 0.005),
+    measurement_current_standard_uncertainties_a=(2e-7, 2e-7, 5e-7, 5e-7),
+    current_resistance_error_correlations=(0.0, 0.0, 0.2, 0.2),
+)
+
+print(eiv_fit.evidence.current_squared_standard_uncertainties_a2)
+print(eiv_fit.evidence.errors_in_variables_effective_weights)
+print(eiv_fit.evidence.chi_squared)
+```
 
 ## `assess_zero_power_extrapolation`
 
@@ -230,13 +255,19 @@ residual_standard_deviation_ohms: float
 fitted_resistances_ohms: tuple[float, ...]
 context: SelfHeatingExperimentContext | None
 resistance_standard_uncertainties_ohms: tuple[float, ...] | None
+measurement_current_standard_uncertainties_a: tuple[float, ...] | None
+current_resistance_error_correlations: tuple[float, ...] | None
+current_squared_standard_uncertainties_a2: tuple[float, ...] | None
 effective_weights: tuple[float, ...] | None
+errors_in_variables_effective_weights: tuple[float, ...] | None
+errors_in_variables_iteration_count: int | None
 chi_squared: float | None
 reduced_chi_squared: float | None
 weighted_rms_residual_ohms: float | None
 method: (
     "ordinary_least_squares_resistance_vs_current_squared"
     | "inverse_variance_weighted_least_squares_resistance_vs_current_squared"
+    | "york_errors_in_variables_resistance_vs_current_squared"
 )
 ```
 
@@ -262,13 +293,14 @@ Estimates fitted-parameter covariance using the statistical model retained by th
 fit. For an unweighted fit, the calculation uses residual variance
 `SSE / residual_degrees_of_freedom` and ordinary-least-squares covariance. For an
 inverse-variance weighted fit, covariance comes directly from the supplied absolute
-resistance standard uncertainties and is not rescaled by residual scatter or
-reduced chi-square. Measurement-current-squared coordinates remain fixed/exact in
-both cases.
+resistance standard uncertainties. For a York errors-in-variables fit, covariance
+comes from the York adjusted coordinates and the supplied current/resistance
+coordinate uncertainty model. Neither absolute-uncertainty path is rescaled by
+residual scatter or reduced chi-square.
 
-Measurement-current uncertainty and correlated observation errors still require a
-different or larger statistical model. Fitted RTD-model covariance also remains
-separate.
+The York path can represent correlation between current and resistance errors
+within each observation. Correlation between separate observations still requires a
+larger covariance model. Fitted RTD-model covariance also remains separate.
 
 ## `ZeroPowerResistanceFitUncertaintyResult`
 
@@ -355,9 +387,10 @@ propagate_zero_power_fit_temperature_uncertainty(
 
 Propagates the full retained covariance of the fitted zero-power resistance and
 ``dR/d(I²)`` slope through the supplied RTD model. The covariance may come from
-residual-scatter OLS or from supplied absolute resistance uncertainties in the
-weighted fit. The result reports fit-covariance uncertainty for the zero-power
-temperature, each fitted temperature, and each fitted temperature rise.
+residual-scatter OLS, supplied absolute resistance uncertainties in the weighted
+fit, or a York errors-in-variables coordinate-uncertainty model. The result reports
+fit-parameter-covariance uncertainty for the zero-power temperature, each fitted
+temperature, and each fitted temperature rise.
 
 At sampled ``x = I²``, fitted resistance depends on the retained parameters as
 ``R0 + k*x``. The fitted-temperature sensitivity vector is the local ``dT/dR``
@@ -365,9 +398,12 @@ times ``(1, x)``. Temperature-rise sensitivities subtract the zero-power
 temperature sensitivity first, preserving the shared fitted intercept and the
 intercept/slope covariance.
 
-This is first-order/local propagation. The RTD model is treated as fixed and no
-measurement-current uncertainty, additional resistance uncertainty, model-parameter
-covariance, or correlated experiment effects are inserted automatically.
+This is first-order/local propagation. For a York fit, measurement-current
+uncertainty has already influenced the fitted-parameter covariance, but no separate
+direct uncertainty term is added for the nominal sampled current coordinate used to
+report each fitted point. The RTD model is treated as fixed and no additional
+resistance uncertainty, model-parameter covariance, or cross-observation correlated
+experiment effects are inserted automatically.
 
 ## `ZeroPowerResistanceFitTemperatureUncertaintyResult`
 
@@ -418,6 +454,14 @@ positive coefficient reporting.
 The two-current correction path is intentionally not accepted here. Its two points
 exactly determine the resistance line, so the named context-bound characterization
 remains on the larger-observation path with residual diagnostics and fit covariance.
+
+The current coefficient calculation also rejects York errors-in-variables fits.
+When measurement-current uncertainty is material, fitted ``I²R`` power depends
+directly on an uncertain current coordinate; propagating only the fitted intercept/
+slope covariance would omit that dependence. The EIV fit can still be used for the
+zero-power extrapolation and its temperature interpretation, but coefficient
+characterization remains on the fixed-current OLS/WLS paths until that downstream
+uncertainty model is defined.
 
 ## `SelfHeatingCoefficientResult`
 
