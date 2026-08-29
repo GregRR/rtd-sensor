@@ -290,9 +290,11 @@ rejected or silently relabeled as valid self-heating.
 **Introduced in:** rtd-sensor 0.8.0
 
 The evidence preserves the observations in caller-supplied order and retains one
-residual for each observation. Derived diagnostics include:
+residual for each observation. Fields and read-only derived properties include:
 
 ```text
+observations: tuple[SelfHeatingObservation, ...]
+residuals_ohms: tuple[float, ...]
 observation_count: int
 fitted_parameter_count: int                # always 2
 residual_degrees_of_freedom: int           # observation_count - 2
@@ -671,7 +673,18 @@ should also be small enough for that local linearization to be meaningful. In
 particular, a current uncertainty that is large relative to the separation between
 the two current levels needs more careful treatment.
 
-The fixed sensitivity-vector order is:
+Fields and read-only derived properties:
+
+```text
+low_current_standard_uncertainty_a: float
+low_resistance_standard_uncertainty_ohms: float
+high_current_standard_uncertainty_a: float
+high_resistance_standard_uncertainty_ohms: float
+input_parameter_names: tuple[str, str, str, str]
+standard_uncertainty_vector: tuple[float, float, float, float]
+```
+
+`input_parameter_names` fixes the sensitivity-vector and covariance-matrix order as:
 
 ```text
 low_current_a
@@ -679,6 +692,9 @@ low_resistance_ohms
 high_current_a
 high_resistance_ohms
 ```
+
+`standard_uncertainty_vector` returns the four supplied standard uncertainties in
+that same order.
 
 ## `TwoCurrentInputCorrelationMatrix`
 
@@ -695,6 +711,15 @@ symmetric, positive semidefinite, and have unit diagonal. Supply it only when th
 input dependence is known from the measurement model or supporting evidence;
 `rtd-sensor` does not infer correlation from shared hardware or from the order in
 which readings were collected.
+
+Read-only property:
+
+```text
+input_parameter_names: tuple[str, str, str, str]
+```
+
+The returned names use the same fixed order as
+`TwoCurrentInputStandardUncertainties.input_parameter_names`.
 
 `covariance_matrix(standard_uncertainties)` combines the dimensionless
 correlations with a `TwoCurrentInputStandardUncertainties` object and returns the
@@ -719,10 +744,32 @@ therefore contribute to the zero-power resistance uncertainty. Omitting
 `input_correlation_matrix` preserves the independent-input calculation. Supplying
 one uses the full covariance form of the propagation law.
 
-`TwoCurrentZeroPowerUncertaintyResult` retains the input uncertainties, optional
-correlation matrix, covariance matrix actually used, zero-power-resistance
-sensitivity vector, propagated variance, standard uncertainty, and a method label
-of either `first_order_independent_inputs` or `first_order_correlated_inputs`.
+## `TwoCurrentZeroPowerUncertaintyResult`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+Fields and read-only derived properties:
+
+```text
+zero_power_result: TwoCurrentZeroPowerResult
+input_standard_uncertainties: TwoCurrentInputStandardUncertainties
+input_correlation_matrix: TwoCurrentInputCorrelationMatrix | None
+input_parameter_names: tuple[str, str, str, str]
+input_covariance_matrix: tuple[tuple[float, ...], ...]
+zero_power_resistance_input_sensitivity_vector: tuple[float, float, float, float]
+zero_power_resistance_variance_ohms_squared: float
+zero_power_resistance_standard_uncertainty_ohms: float
+propagation_method: (
+    "first_order_independent_inputs"
+    | "first_order_correlated_inputs"
+)
+```
+
+`input_covariance_matrix` is the actual 4 x 4 covariance matrix used by the
+propagation. With no correlation matrix it is diagonal; with a supplied correlation
+matrix it contains the corresponding covariance terms. The parameter names and
+zero-power-resistance sensitivity vector use exactly the fixed four-input order
+shown above.
 
 ## `propagate_two_current_temperature_uncertainty`
 
@@ -750,12 +797,46 @@ uncertainty with the zero-power-temperature uncertainty, because those derived
 quantities share the same resistance observations and are therefore not
 independent.
 
-`TwoCurrentSelfHeatingTemperatureUncertaintyResult` retains the input sensitivity
-vectors, variances, standard uncertainties, the corresponding zero-power
-resistance-uncertainty result, and the same independent/correlated propagation
-method label. Known correlations therefore propagate directly into temperatures
-and temperature rises instead of being discarded. Fitted-model covariance and
-other uncertainty-budget components remain separate.
+Known correlations therefore propagate directly into temperatures and temperature
+rises instead of being discarded. Fitted-model covariance and other
+uncertainty-budget components remain separate.
+
+## `TwoCurrentSelfHeatingTemperatureUncertaintyResult`
+
+**Introduced in:** rtd-sensor 0.8.0
+
+Fields and read-only derived properties:
+
+```text
+temperature_result: TwoCurrentSelfHeatingTemperatureResult
+zero_power_uncertainty: TwoCurrentZeroPowerUncertaintyResult
+input_parameter_names: tuple[str, str, str, str]
+zero_power_temperature_input_sensitivity_vector: tuple[float, float, float, float]
+low_current_temperature_input_sensitivity_vector: tuple[float, float, float, float]
+high_current_temperature_input_sensitivity_vector: tuple[float, float, float, float]
+low_current_temperature_rise_input_sensitivity_vector: tuple[float, float, float, float]
+high_current_temperature_rise_input_sensitivity_vector: tuple[float, float, float, float]
+zero_power_temperature_variance_celsius_squared: float
+zero_power_temperature_standard_uncertainty_c: float
+low_current_temperature_variance_celsius_squared: float
+low_current_temperature_standard_uncertainty_c: float
+high_current_temperature_variance_celsius_squared: float
+high_current_temperature_standard_uncertainty_c: float
+low_current_temperature_rise_variance_celsius_squared: float
+low_current_temperature_rise_standard_uncertainty_c: float
+high_current_temperature_rise_variance_celsius_squared: float
+high_current_temperature_rise_standard_uncertainty_c: float
+propagation_method: (
+    "first_order_independent_inputs"
+    | "first_order_correlated_inputs"
+)
+```
+
+All five sensitivity vectors use `input_parameter_names` in the same fixed order as
+the two-current resistance propagation. The variances and standard uncertainties
+are retained separately so callers can combine these results with other explicitly
+modeled uncertainty-budget components without reconstructing them from presentation
+values.
 
 ## `TwoCurrentZeroPowerResult`
 
@@ -774,10 +855,12 @@ high_current_resistance_rise_ohms: float
 
 **Introduced in:** rtd-sensor 0.8.0
 
-The immutable evidence retains the low- and high-current observations. Derived
-properties expose:
+The immutable evidence retains the normalized low- and high-current observations.
+Fields and read-only derived properties expose:
 
 ```text
+low_current_observation: SelfHeatingObservation
+high_current_observation: SelfHeatingObservation
 current_ratio: float
 current_squared_change_a2: float
 resistance_change_ohms: float
