@@ -218,6 +218,7 @@ def test_exceptions_public_api() -> None:
     assert set(exceptions.__all__) == {
         "InvalidPortableModelDefinitionError",
         "InvalidRTDModelError",
+        "RTDExperimentDesignError",
         "RTDFitError",
         "RTDError",
         "RTDModelSelectionError",

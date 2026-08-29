@@ -17,6 +17,7 @@ def test_public_exception_inheritance_preserves_legacy_catch_types() -> None:
     assert issubclass(exceptions.RTDOutOfRangeError, ValueError)
     assert issubclass(exceptions.InvalidPortableModelDefinitionError, ValueError)
     assert issubclass(exceptions.InvalidRTDModelError, ValueError)
+    assert issubclass(exceptions.RTDExperimentDesignError, ValueError)
     assert issubclass(exceptions.RTDFitError, ValueError)
     assert issubclass(exceptions.RTDModelSelectionError, ValueError)
 
@@ -25,6 +26,7 @@ def test_public_exception_inheritance_preserves_legacy_catch_types() -> None:
         exceptions.RTDOutOfRangeError,
         exceptions.InvalidPortableModelDefinitionError,
         exceptions.InvalidRTDModelError,
+        exceptions.RTDExperimentDesignError,
         exceptions.RTDFitError,
         exceptions.RTDModelSelectionError,
     ):

@@ -16,6 +16,7 @@ __all__ = [
     "InvalidPortableModelDefinitionError",
     "InvalidRTDModelError",
     "RTDError",
+    "RTDExperimentDesignError",
     "RTDFitError",
     "RTDModelSelectionError",
     "RTDOutOfRangeError",
@@ -45,6 +46,10 @@ class InvalidPortableModelDefinitionError(RTDError, ValueError):
 
 class InvalidRTDModelError(RTDError, ValueError):
     """Raised when a custom RTD model configuration is mathematically invalid."""
+
+
+class RTDExperimentDesignError(RTDError, ValueError):
+    """Raised when calibration experiment planning cannot produce a valid design."""
 
 
 class RTDFitError(RTDError, ValueError):

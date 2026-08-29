@@ -476,6 +476,31 @@ def _validate_degree(degree: int) -> int:
     return degree
 
 
+def _normalized_inverse_variance_weights(
+    uncertainties: tuple[float, ...],
+) -> tuple[float, tuple[float, ...]]:
+    """Return fitter-compatible normalized inverse-variance weights.
+
+    If ``u_min`` is the smallest supplied standard uncertainty, the normalized
+    row weights are ``(u_min / u_i)^2``. The caller may separately use
+    ``u_min^2`` as the absolute covariance scale. Keeping those operations
+    separate preserves the fitter's existing behavior: an extreme common
+    uncertainty scale may still define a valid weighted fit even when the
+    resulting covariance itself is not finitely representable.
+    """
+
+    minimum_uncertainty = min(uncertainties)
+    effective_weights = tuple(
+        (minimum_uncertainty / uncertainty) ** 2 for uncertainty in uncertainties
+    )
+    if not all(math.isfinite(weight) and weight > 0.0 for weight in effective_weights):
+        raise ValueError(
+            "Standard uncertainties have an unrepresentable inverse-variance "
+            "weighting range"
+        )
+    return minimum_uncertainty, effective_weights
+
+
 def _effective_weights(
     observations: tuple[CalibrationObservation, ...],
 ) -> tuple[_WeightingMethod, tuple[float, ...] | None]:
@@ -518,17 +543,12 @@ def _effective_weights(
             uncertainty = observation.standard_uncertainty_ohms
             assert uncertainty is not None
             uncertainties.append(uncertainty)
-        minimum_uncertainty = min(uncertainties)
-        effective_weights = tuple(
-            (minimum_uncertainty / uncertainty) ** 2 for uncertainty in uncertainties
-        )
-        if not all(
-            math.isfinite(weight) and weight > 0.0 for weight in effective_weights
-        ):
-            raise RTDFitError(
-                "Standard uncertainties have an unrepresentable inverse-variance "
-                "weighting range"
+        try:
+            _, effective_weights = _normalized_inverse_variance_weights(
+                tuple(uncertainties)
             )
+        except ValueError as error:
+            raise RTDFitError(str(error)) from error
         return (
             "normalized_inverse_variance_from_standard_uncertainty",
             effective_weights,
@@ -536,14 +556,26 @@ def _effective_weights(
     return "unweighted", None
 
 
-def _householder_least_squares(
+def _householder_qr_upper(
     matrix: list[list[float]],
-    vector: list[float],
-) -> tuple[tuple[float, ...], float, tuple[tuple[float, ...], ...]]:
+    vector: list[float] | None = None,
+) -> tuple[
+    tuple[tuple[float, ...], ...],
+    float,
+    tuple[float, ...] | None,
+]:
+    """Reduce one weighted design matrix to its Householder ``R`` factor.
+
+    ``vector`` is optional so prospective experiment design can reuse the exact
+    fitted-system geometry without fabricating response observations. When it is
+    supplied, the same reflectors are applied to the right-hand side and the
+    transformed vector is returned for least-squares back substitution.
+    """
+
     row_count = len(matrix)
     column_count = len(matrix[0])
     transformed = [row[:] for row in matrix]
-    rhs = vector[:]
+    rhs = None if vector is None else vector[:]
 
     for column in range(column_count):
         norm = 0.0
@@ -569,11 +601,13 @@ def _householder_least_squares(
             for offset, value in enumerate(reflector):
                 transformed[column + offset][target_column] -= projection * value
 
-        rhs_projection = beta * math.fsum(
-            reflector[offset] * rhs[column + offset] for offset in range(len(reflector))
-        )
-        for offset, value in enumerate(reflector):
-            rhs[column + offset] -= rhs_projection * value
+        if rhs is not None:
+            rhs_projection = beta * math.fsum(
+                reflector[offset] * rhs[column + offset]
+                for offset in range(len(reflector))
+            )
+            for offset, value in enumerate(reflector):
+                rhs[column + offset] -= rhs_projection * value
 
         transformed[column][column] = alpha
         for row in range(column + 1, row_count):
@@ -590,14 +624,27 @@ def _householder_least_squares(
             f"{_MAX_SCALED_SYSTEM_CONDITION_NUMBER:.6g})"
         )
 
-    coefficients = _back_substitute(upper, rhs[:column_count])
+    return (
+        tuple(tuple(value for value in row) for row in upper),
+        condition_number,
+        None if rhs is None else tuple(rhs),
+    )
+
+
+def _householder_least_squares(
+    matrix: list[list[float]],
+    vector: list[float],
+) -> tuple[tuple[float, ...], float, tuple[tuple[float, ...], ...]]:
+    upper, condition_number, transformed_rhs = _householder_qr_upper(matrix, vector)
+    assert transformed_rhs is not None
+
+    coefficients = _back_substitute(
+        [list(row) for row in upper],
+        list(transformed_rhs[: len(upper)]),
+    )
     if not all(math.isfinite(value) for value in coefficients):
         raise RTDFitError("Least-squares fit produced non-finite coefficients")
-    return (
-        tuple(coefficients),
-        condition_number,
-        tuple(tuple(value for value in row) for row in upper),
-    )
+    return (tuple(coefficients), condition_number, upper)
 
 
 def _back_substitute(
@@ -689,9 +736,16 @@ def _covariance_scale_and_method(
             observation.standard_uncertainty_ohms for observation in observations
         )
         assert all(uncertainty is not None for uncertainty in uncertainties)
-        minimum_uncertainty = min(
-            uncertainty for uncertainty in uncertainties if uncertainty is not None
-        )
+        try:
+            minimum_uncertainty, _ = _normalized_inverse_variance_weights(
+                tuple(
+                    uncertainty
+                    for uncertainty in uncertainties
+                    if uncertainty is not None
+                )
+            )
+        except ValueError:
+            return (None, None, "covariance_not_finitely_representable")
         covariance_scale = minimum_uncertainty * minimum_uncertainty
         if not math.isfinite(covariance_scale) or covariance_scale <= 0.0:
             return (None, None, "covariance_not_finitely_representable")

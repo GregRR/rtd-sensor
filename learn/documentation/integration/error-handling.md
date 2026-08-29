@@ -13,7 +13,8 @@ RTD model's range.
 translate arbitrary acquisition failures into model errors.
 
 **Public exception taxonomy available since:** rtd-sensor 0.5.0. Portable-model
-and calibration-fitting exceptions were added in 0.6.0.
+and calibration-fitting exceptions were added in 0.6.0; calibration
+experiment-design failures are added in 0.9.0.
 
 ## Catch a specific conversion problem
 
@@ -50,6 +51,7 @@ errors without also catching unrelated hardware exceptions.
 | `InvalidRTDModelError` | Custom model definition fails scientific/numerical validation |
 | `InvalidPortableModelDefinitionError` | Portable artifact is malformed, unsupported, or invalid |
 | `RTDFitError` | Calibration fit cannot produce an acceptable model |
+| `RTDExperimentDesignError` | Calibration experiment planning cannot produce a valid design |
 | `RTDModelSelectionError` | Conflicting or unsupported model-selection declarations |
 
 Several retain compatibility with conventional Python exception families: for

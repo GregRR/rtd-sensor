@@ -5,14 +5,16 @@ description: Quick API reference for rtd-sensor public exceptions, inheritance, 
 
 # `rtd_sensor.exceptions`
 
-The public exception taxonomy began in **rtd-sensor 0.5.0** and was extended in
-0.6.0 for fitting and portable-model failures.
+The public exception taxonomy began in **rtd-sensor 0.5.0**, was extended in
+0.6.0 for fitting and portable-model failures, and adds experiment-design
+failures in 0.9.0.
 
 ```text
 RTDError(Exception)
 ├── RTDOutOfRangeError(ValueError)
 ├── InvalidPortableModelDefinitionError(ValueError)
 ├── InvalidRTDModelError(ValueError)
+├── RTDExperimentDesignError(ValueError)
 ├── RTDFitError(ValueError)
 ├── RTDModelSelectionError(ValueError)
 └── UnknownRTDModelError(KeyError)
@@ -27,6 +29,7 @@ RTDError(Exception)
 | `RTDModelSelectionError` | rtd-sensor 0.5.0 |
 | `InvalidPortableModelDefinitionError` | rtd-sensor 0.6.0 |
 | `RTDFitError` | rtd-sensor 0.6.0 |
+| `RTDExperimentDesignError` | rtd-sensor 0.9.0 |
 
 Use `RTDError` to catch package-owned RTD domain failures broadly while leaving
 unrelated acquisition/hardware exceptions untouched.

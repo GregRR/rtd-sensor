@@ -86,6 +86,7 @@ Important public exceptions include:
 - `InvalidRTDModelError` — a custom model definition is scientifically invalid.
 - `InvalidPortableModelDefinitionError` — a portable artifact is malformed, unsupported, or scientifically invalid.
 - `RTDFitError` — calibration fitting cannot produce an acceptable model.
+- `RTDExperimentDesignError` — calibration experiment planning cannot produce a valid design.
 - `RTDModelSelectionError` — model selection declarations conflict or are incomplete.
 
 All package-owned RTD domain exceptions derive from `RTDError`. Acquisition
