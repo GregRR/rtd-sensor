@@ -1209,6 +1209,1042 @@ No universal residual acceptance criterion is encoded: the retained residual,
 chi-square, repeatability, and geometry diagnostics are evidence for a caller's
 experiment-specific requirement rather than a package-defined pass/fail rule.
 
+#### Provisional 0.9.0 calibration experiment design
+
+This section records the **provisional scientific and numerical contract** for the
+0.9.0 calibration experiment planner. It is intentionally being reviewed before a
+public API or production implementation is frozen. The initial implementation is a
+planning and analysis layer only: it recommends calibration temperatures and reports
+prospective fitted-model uncertainty; it does not control baths, bridges, ADCs,
+current sources, GPIO, acquisition hardware, or other experimental equipment.
+
+The initial fitted-model family is the existing polynomial calibration model. A
+nominal RTD model is nevertheless required because the design criterion translates
+prospective resistance-domain fit uncertainty into local temperature-equivalent
+uncertainty. Supplying that scientific model does not weaken the hardware-neutral
+boundary: the planner remains acquisition-neutral.
+
+##### Prediction-oriented objective
+
+The primary criterion is a continuous **sensitivity-weighted I-optimal** criterion.
+The optimum-design literature is not perfectly uniform about the name: Atkinson
+(2015, sections 8-9) notes that designs minimizing average prediction variance over
+an integration region are variously called **I-optimal** or **V-optimal**. This
+project uses **I-optimal** consistently for the continuous integrated criterion so
+it is not confused with the discrete V-optimal terminology used in the NIST
+Engineering Statistics Handbook. This is a terminology choice for clarity, not a
+claim that ``V-optimal`` is an incorrect name in the broader literature. The same
+terminology note should appear in the user-facing calibration-design documentation
+and API reference when that planner becomes public.
+
+For a polynomial fit with parameter vector ``theta`` and basis vector ``phi(T)``, let
+``C_theta`` be the prospective fitted-parameter covariance. The prospective
+resistance-domain fitted-curve variance is
+
+```text
+v_R(T) = phi(T)^T C_theta phi(T)
+```
+
+For the supplied nominal RTD model, let
+
+```text
+s(T) = dT/dR
+```
+
+at temperature ``T``. First-order local propagation gives
+
+```text
+v_T(T) ~= s(T)^2 v_R(T)
+```
+
+where ``v_T(T)`` is the prospective fitted-model contribution to temperature
+variance. This is a local first-order model, not a complete calibration uncertainty
+budget. In particular, the 0.9.0 criterion does not silently add reference-
+temperature uncertainty, resistance acquisition uncertainty outside the supplied
+prospective response uncertainties, drift, self-heating, or fitted-model inadequacy.
+
+For a declared fitted operating range ``Omega`` and nonnegative operating-priority
+density ``w(T)``, define
+
+```text
+W = integral_Omega w(T) dT
+```
+
+and
+
+```text
+J_T = integral_Omega w(T) s(T)^2 phi(T)^T C_theta phi(T) dT / W
+```
+
+``J_T`` has units of °C². Its square root is the **weighted RMS predicted
+fitted-curve standard uncertainty** in °C; it is not the weighted arithmetic mean of
+local standard uncertainties.
+
+Define the sensitivity-weighted moment matrix
+
+```text
+M_T = integral_Omega w(T) s(T)^2 phi(T) phi(T)^T dT / W
+```
+
+Then the same criterion is evaluated by the standard trace identity
+
+```text
+J_T = trace(C_theta M_T)
+```
+
+The moment-matrix form is used because ``M_T`` depends only on the declared operating
+priorities, polynomial basis, and frozen nominal-model sensitivity. It can therefore
+be constructed once and reused while candidate designs change ``C_theta``. The
+criterion is an adaptation of established I-optimal prediction-variance design to
+RTD calibration by weighting prediction variance with the local ``dT/dR``
+sensitivity required to express the objective in temperature-equivalent units.
+Atkinson (2015, equations 24-27) gives the classical average-prediction-variance
+integral, its trace rearrangement, and the corresponding model moment matrix;
+``rtd-sensor`` adds the RTD-specific ``s(T)^2`` and operating-priority density.
+Atkinson, Donev, and Tobias (2007) is the broader primary optimum-design source;
+NIST Engineering Statistics Handbook sections 5.5.2 and 5.5.2.1 provide
+corroborating candidate-set and model-dependent optimal-design context.
+
+``C_theta`` and ``M_T`` **must use exactly the same polynomial parameter basis and
+reference-temperature convention**. The existing fitter solves in a scaled internal
+coordinate system for numerical stability and then exposes covariance in the
+unnormalized resistance power-series basis
+
+```text
+x = T - reference_temperature_c
+phi(T) = (1, x, x^2, ...)
+```
+
+For one planning request, the common planning reference temperature is fixed at the
+midpoint of the complete declared fitted range ``Omega``:
+
+```text
+planning_reference_temperature_c = (Omega_min + Omega_max) / 2
+```
+
+``M_T`` is constructed once in the corresponding ``x = T -
+planning_reference_temperature_c`` basis. Every candidate design's prospective
+covariance is transformed into that **same fixed planning basis before it is scored**,
+not only after a winning design is selected. The candidate's internal QR scaling
+center and half-range still come from that candidate design's actual temperature span,
+matching ``fit_polynomial()``'s numerical scaling strategy; the final covariance
+re-centering is a separate change of basis.
+
+This deliberately decouples the planning basis from an in-progress design's observed
+span. A one-step augmented design may not yet span ``Omega``, but that does not change
+the coordinate system in which it is compared with other candidates. Span coverage is
+reported separately as feasibility/completion evidence. For a completed design that
+does span ``Omega`` and is later fitted with ``Omega`` as its declared fitted range,
+the fixed planning reference temperature is exactly the reference-temperature
+convention already used by ``fit_polynomial()``.
+
+The prospective covariance builder must therefore make the corresponding
+candidate-specific scaled-to-fixed-basis transformation before ``trace(C_theta M_T)``
+is evaluated. Combining matrices expressed in different parameterizations would make
+the trace criterion meaningless while still producing a superficially plausible
+finite number.
+
+The planner does not expose a separate resistance-domain optimization mode in the
+initial 0.9.0 public contract. The resistance-domain quantities remain inspectable as
+intermediate evidence, while the primary scientific objective is the stated
+temperature-equivalent prediction criterion.
+
+##### Prospective covariance and uncertainty assumptions
+
+Prospective covariance is constructed from candidate temperatures, polynomial degree,
+and caller-supplied **absolute resistance standard uncertainties**. No measured
+resistance values or post-fit residuals exist yet and no ``FitResult`` is fabricated.
+The builder reuses the fitter's candidate-span scaling, Householder QR strategy, rank
+handling, and covariance machinery so prospective planning and retrospective fitting
+have one numerical notion of identifiability and feasibility. After that solve, every
+candidate covariance is re-centered into the fixed planning reference basis defined
+above; incomplete one-step designs do not substitute their own span midpoint as the
+public comparison basis.
+
+Relative weights alone determine information geometry only up to an unknown common
+scale. They can therefore rank some designs, but they cannot establish an absolute
+prospective covariance or predicted physical standard uncertainty before observations
+exist. The primary 0.9.0 planner consequently requires absolute ``u(R)`` inputs rather
+than exposing a relative-weight-only public mode.
+
+Planned observations are modeled as **conditionally independent resistance
+measurements given their supplied absolute standard uncertainties**. Correlation is
+never inferred merely because observations share instrumentation, calibration,
+measurement sequence, or environment. The initial planner does not model prospective
+cross-observation covariance. Evidence must state this independence assumption and
+warn that shared systematic effects can make the true information gain from repeated
+measurements smaller than the independent-observation model predicts.
+
+Reference-temperature uncertainty is not folded into candidate ``u(R)`` values and
+is not modeled in the initial design criterion. This is consistent with the current
+polynomial-fitting contract in which temperature is the independent variable unless a
+separate errors-in-variables analysis explicitly says otherwise.
+
+##### Explicit finite candidate set
+
+The core planner receives a finite explicit set of candidate calibration temperatures.
+This follows the standard computer-aided design framing in which treatment runs are
+chosen from a caller-defined candidate set. The initial 0.9.0 planner does not perform
+continuous arbitrary-temperature optimization.
+
+A separate deterministic convenience helper may materialize an explicit candidate
+list from a range and spacing. The generated values must be retained as the actual
+candidate evidence; no hidden scoring grid may influence a recommendation.
+
+Each candidate temperature is unique and carries the absolute resistance standard
+uncertainty anticipated for **one new observation** at that temperature. A convenience
+input may broadcast one common standard uncertainty across candidates, but the
+materialized evidence remains a per-candidate table. A candidate uncertainty must be
+finite and strictly positive. Two entries at exactly the same temperature with
+different prospective uncertainties would represent different experimental procedures
+or run types and are outside the initial 0.9.0 contract.
+
+Candidate temperatures and the fitted operating range are different concepts. A
+candidate may lie outside the region where prediction quality is prioritized when it
+is still inside the nominal-sensitivity validity domain. This permits endpoint or
+exterior calibration observations to improve a fit whose declared use range is
+narrower than the full observed calibration span.
+
+##### Operating-priority density
+
+Operating priorities are a complete ordered non-overlapping piecewise-constant
+partition of the entire declared fitted range. Each interval carries a finite
+nonnegative **relative importance density per unit temperature**.
+
+A weight of 2 means that prediction variance at each temperature in that interval
+contributes twice as strongly to the objective as prediction variance at a
+temperature in an interval with weight 1. This density interpretation makes the
+objective invariant to harmless subdivision: replacing one interval by two adjacent
+intervals with the same weight does not alter ``J_T``.
+
+Only weight ratios matter because the criterion divides by ``W``. Multiplying every
+weight by the same positive constant cannot change ``M_T``, ``J_T``, or the selected
+design. Interval width still matters. For example, a 10 °C interval with density 2
+has total unnormalized priority mass 20, while a 90 °C interval with density 1 has
+mass 90.
+
+Zero-weight intervals are permitted as an explicit refinement of the earlier common-
+case description that prioritized intervals may simply receive greater positive
+weight. A zero-weight interval remains part of the declared fitted range but does not
+directly contribute to the optimization objective. This avoids forcing an artificial
+tiny positive weight when a caller genuinely does not want one region to drive point
+placement. Evidence must make clear that prediction precision there was not directly
+optimized.
+
+The priority partition must cover the complete fitted range without gaps or overlaps.
+Intervals may touch at boundaries, each interval must have positive width, all
+weights must be finite and nonnegative, and at least one interval must have positive
+weight. Overlap is rejected rather than assigned additive, replacement, or precedence
+semantics. Missing regions are rejected rather than silently interpreted as zero
+weight.
+
+The full-range calibration-span requirement is independent of operating weight. Even
+if an interior region has zero weight, a complete design intended to support a
+declared fitted range must still contain calibration observations whose overall span
+brackets that **entire** range, because ``fit_polynomial()`` cannot later declare a
+valid fitted range wider than the observed calibration span.
+
+##### Complete-design and next-observation operations
+
+The initial planner answers two distinct scientific questions.
+
+**Complete-design planning** jointly selects a fixed requested number ``N`` of actual
+experimental runs from the finite candidate set. The selected experiment is a
+multiset of runs, not merely a set of unique temperatures. Joint optimization asks
+for the minimum ``J_T`` over the complete admissible design space under the stated
+repeat policy.
+
+**Next-observation planning** holds an existing experiment fixed, evaluates every
+eligible candidate for exactly one additional run, and returns the candidate or exact
+tied candidates with the smallest augmented ``J_T``. Because the finite candidate
+list is exhaustively evaluated, the recommendation is globally best among the
+supplied admissible one-step augmentations.
+
+Repeated calls to the one-step operation form a **greedy sequential procedure**.
+They are not equivalent to joint ``N``-run optimization. In particular, a repeat at
+an already informative temperature can be the best immediate improvement even when a
+different jointly optimized allocation would be better over several remaining runs.
+A caller with several uncommitted runs must not be told that looping the one-step API
+solves the joint remainder problem. Joint optimization of several remaining runs
+conditional on an already-started experiment is a legitimate future extension and is
+not part of the initial 0.9.0 contract. NIST Engineering Statistics Handbook section
+5.1.4 supports the broader iterative-experiment context; this project-specific API
+still keeps the joint and one-step optimization questions distinct.
+
+Execution ordering of a jointly selected fixed set is also a separate problem. A
+caller who fears that an experiment may end early may reasonably want an order that
+prioritizes the most useful runs under truncation risk, but that is not the same as
+retroactively assigning marginal credit to points in an unordered joint design. Such
+execution-order optimization is deferred.
+
+##### Repeat policy and run semantics
+
+``repeat_policy`` is a required input with **no default**. The caller must explicitly
+choose whether repeated calibration temperatures are allowed or whether every
+selected run must use a distinct candidate temperature. The package does not guess
+what ``N`` calibration runs means for this scientific decision, just as it does not
+invent a default observation uncertainty.
+
+With repeats allowed, selecting the same candidate multiple times adds multiple rows
+to the prospective weighted design matrix; observations are never deduplicated.
+Every new run uses that candidate's prospective ``u(R)``. Custom per-temperature
+repetition caps are deferred beyond the initial 0.9.0 scope.
+
+Repeated observations can reduce prediction variance while worsening the spread of
+the weighted-system singular directions. A repeat is therefore neither preferred nor
+penalized by rule of thumb: it competes through ``J_T`` subject to the same numerical
+feasibility guardrail as every other design. Repetition cannot replace the
+``degree + 1`` distinct temperatures required to identify a degree-``d`` polynomial.
+
+##### Existing observations for one-step planning
+
+An existing completed run is represented for planning by exactly the information that
+changes the prospective information geometry:
+
+```text
+temperature_c
+standard_uncertainty_ohms
+```
+
+Measured resistance and fitted residual are deliberately absent. Under the initial
+prospective criterion, the realized response value does not change the information
+matrix. Requiring it would imply data dependence that the algorithm does not have and
+would invite future accidental mixing of model-checking diagnostics into the design
+criterion.
+
+Existing repeated runs remain separate entries and may carry different standard
+uncertainties. The uncertainty on an existing run is the **best presently justified
+caller-supplied absolute standard uncertainty assigned to that completed resistance
+observation**. It need not equal the uncertainty anticipated before that observation
+was made. The package never derives or revises this value from replicate scatter,
+residuals, or acquisition context; the caller explicitly supplies it. Prospective
+candidate uncertainty remains a separate assumption and is not inherited from an
+existing run at the same temperature.
+
+Adaptive planning in response to surprising realized resistances, residuals,
+outliers, apparent model inadequacy, or newly discovered heteroscedasticity is a
+legitimate but separate future model-checking capability. The initial planner remains
+response-independent.
+
+##### Structural feasibility before scoring
+
+Request feasibility is distinct from design scoring. The planner must fail explicitly
+when hard constraints prove that no admissible design can satisfy the request rather
+than returning a best-effort design that violates the declared experiment.
+
+For complete-design planning, preflight includes at least:
+
+- the candidate set's overall span must bracket the complete declared fitted range;
+- the requested run count must be sufficient for ``degree + 1`` distinct-temperature
+  identifiability;
+- the candidate set must itself contain at least ``degree + 1`` temperatures;
+- with distinct-only repeats, ``N`` cannot exceed the number of candidates; and
+- there must exist an allowed ``N``-run selection whose span brackets the complete
+  fitted range.
+
+The candidate-set span failure diagnostic should name the missing low and/or high
+coverage rather than hiding the rule as a search filter.
+
+One-step planning has a separate identifiability precondition. If the existing design
+has ``k`` distinct temperatures and the polynomial needs ``d + 1``:
+
+- when ``k < d``, one additional observation cannot make the fit identifiable, so the
+  operation fails before scoring and reports the shortfall;
+- when ``k == d``, only candidates at genuinely new temperatures can make the
+  augmented design identifiable, so repeat candidates are explicitly inadmissible;
+- when ``k >= d + 1``, repeat and new candidates may both be considered subject to
+  the stated repeat policy and numerical guardrail.
+
+A one-step result also reports whether the augmented design spans the complete fitted
+range. An in-progress experiment is allowed not to span it yet; the evidence must not
+let one good next point imply that the calibration program is already complete.
+
+Package-owned failures of a planning operation use a dedicated
+``RTDExperimentDesignError`` (a public ``RTDError``/``ValueError`` subclass) rather
+than ``RTDFitError``: no retrospective fit is being attempted. Invalid scalar/value-
+object construction continues to use ordinary ``ValueError`` in the same style as
+``CalibrationObservation``. ``RTDExperimentDesignError`` covers structural
+infeasibility, inability to obtain an identifiable/numerically admissible planned
+design, deterministic quadrature failure, and the exhaustive-search resource limit.
+Third-party model exceptions continue to propagate unchanged rather than being
+translated into package-owned planning failures.
+
+##### Numerical conditioning
+
+Conditioning is a **numerical feasibility guardrail and diagnostic**, not an
+optimization criterion, calibration-quality score, or hidden tie breaker.
+
+The planner reuses exactly the fitter's current conditioning calculation: the
+**infinity-norm condition number of the Householder ``R`` factor** from the same
+scaled, weighted polynomial system, together with the existing severe-conditioning
+limit ``1.0e10``. It must not substitute a 2-norm condition number of the design
+matrix or condition the normal/information matrix. The latter would also square the
+2-norm condition number and would not reproduce the existing fitter's numerical
+contract.
+
+The conditioning calculation intentionally occurs in the fitter's internal scaled
+coordinates. This is distinct from the public unnormalized coefficient basis in
+which ``C_theta`` and ``M_T`` must agree for ``trace(C_theta M_T)``.
+
+A design that violates the existing fitting guardrail is inadmissible; it does not
+receive a large objective penalty and continue competing. For one-step planning,
+every candidate is examined and the planner can conclusively report when no supplied
+candidate yields an identifiable, numerically acceptable augmentation.
+
+No caller-selected replacement condition threshold is exposed in the initial
+planner. Callers may inspect the retained condition number and apply their own
+application requirement outside the optimization, but the package does not turn a
+condition number into a universal scientific pass/fail quality score.
+
+The ``1.0e10`` guardrail is a **per-design** numerical admissibility test. Evaluating
+many candidate designs does not tighten or reinterpret that threshold and does not
+turn it into a search-wide accuracy guarantee. Search-wide comparison of numerically
+close admissible designs is governed by the separate floating-point evidence and
+validation rules below.
+
+##### Diminishing returns
+
+The package quantifies marginal improvement but does not invent a universal stopping
+threshold. There is no built-in rule such as "less than 5% improvement means stop."
+
+For an admissible current experiment ``D`` and selected next observation ``T*``:
+
+```text
+Delta J_next = J_T(D) - J_T(D + {T*})
+```
+
+and the corresponding user-facing RMS reduction is
+
+```text
+Delta U_RMS = sqrt(J_T(D)) - sqrt(J_T(D + {T*}))
+```
+
+A fractional objective reduction may also be reported when the baseline ``J_T(D)``
+is defined and positive. If the current design is rank-deficient or violates the
+conditioning guardrail, its baseline prospective covariance is not admissible and no
+infinite baseline, percentage improvement, or fabricated marginal value is reported.
+
+For experiment planning from scratch, diminishing returns are represented by a
+**run-budget profile**. Complete designs are independently optimized at successive
+feasible run counts:
+
+```text
+J_N* = min_{|D| = N} J_T(D)
+```
+
+and
+
+```text
+Delta J_N* = J_N* - J_(N+1)*
+```
+
+The ``N + 1`` design need not contain the ``N`` design. A budget profile must not be
+constructed by greedily appending a point to the preceding row.
+
+Adding an independent observation contributes a positive-semidefinite information
+update. Therefore, whenever two budgets are both globally solved under the same
+candidate set and assumptions,
+
+```text
+J_(N+1)* <= J_N*
+```
+
+More generally, the globally optimal objective cannot increase as additional allowed
+runs are added. This Loewner-order monotonicity is a **provable implementation and
+test invariant**, not merely a descriptive expectation. An increase beyond the
+settled floating-point invariant allowance indicates an implementation or
+optimality-status error. Equality is permitted and represents a genuine computed
+plateau rather than a requirement that every extra run strictly improve the
+criterion.
+
+##### Result and evidence contract
+
+Planning follows the package's existing **small result, rich immutable evidence**
+pattern. Evidence retains the complete materialized scientific question and the
+numerical state that actually produced the recommendation.
+
+Shared request evidence includes at least:
+
+- fitted model family and polynomial degree;
+- complete declared fitted range;
+- complete materialized candidate-temperature / prospective-``u(R)`` table;
+- complete operating-priority partition with the caller's original weights;
+- required repeat policy;
+- nominal-sensitivity validity domain and declared breakpoints;
+- criterion identity and first-order temperature-equivalent interpretation;
+- prospective independence assumption; and
+- explicit exclusion of reference-temperature uncertainty from the initial
+  criterion.
+
+Complete-design evidence additionally retains requested run count. One-step evidence
+instead retains every existing run separately with its caller-supplied current
+absolute resistance standard uncertainty.
+
+Criterion evidence for a selected design retains:
+
+- prospective ``C_theta``;
+- ``M_T``;
+- the common polynomial basis and reference temperature;
+- deterministic moment-integration method and error evidence;
+- ``J_T``;
+- ``sqrt(J_T)`` with its RMS meaning stated explicitly;
+- rank and distinct-temperature count;
+- selected calibration span and whether it covers the complete fitted range;
+- the exact Householder-``R`` infinity-norm condition number and guardrail; and
+- the full-range maximum predicted fitted-curve standard uncertainty when that
+  maximum can be established analytically under the nominal-model contract.
+
+A complete jointly selected design is an unordered multiset. Its serialized/display
+run tuple is canonicalized in ascending temperature order with repeats adjacent. This
+canonical order does **not** recommend experiment execution order.
+
+Complete-design evidence retains the winning design and bounded search provenance,
+not every losing design or intermediate search step. One-step evidence, by contrast,
+retains every candidate augmentation because the comparison is only linear in the
+explicit candidate count. Each one-step candidate record identifies whether it is a
+repeat or new temperature, admissibility and reason, augmented distinct count and
+span status, conditioning when defined, ``J_T`` when admissible, and marginal
+improvement when a valid baseline exists. This directly establishes why the returned
+candidate was best among the supplied admissible choices.
+
+Measured resistances, residuals, and fictitious fitted coefficients are not retained
+as planning evidence because the initial criterion does not use them.
+
+##### Frozen nominal-model evidence
+
+The nominal RTD model may continue to satisfy the package's structural uncertainty-
+model protocol rather than inheriting from a package base class. The live model
+object is **not authoritative evidence**.
+
+All sensitivity-derived numerical state is computed exactly once at planning time
+from the model's state at that moment. ``M_T``, one-sided breakpoint sensitivity
+values used by diagnostics, and other criterion-defining model-derived values are
+then frozen into immutable evidence and are never lazily recomputed from a retained
+live object. If a model reference or identity is kept for display/convenience, it is
+explicitly non-authoritative. Mutating a third-party object after planning cannot
+change the recommendation or its retained evidence.
+
+For a non-portable third-party model, the frozen numerical evidence can reconstruct
+how the model affected the completed criterion even when it cannot reconstruct the
+external model's complete physical behavior or provenance.
+
+##### Deterministic floating-point ordering and ties
+
+Designs are ranked by strict ordering of their deterministically computed binary64
+``J_T`` values. The planner defines no fuzzy or approximate scientific tie threshold.
+Two designs are tied for optimization purposes only when their computed objective
+values are exactly equal.
+
+This prevents an arbitrary ``isclose`` tolerance from becoming a hidden practical-
+equivalence criterion and avoids non-transitive approximate tie classes. A one-ULP
+winner means only that the stated deterministic computation produced a smaller
+**computed** objective; it does not imply a practically important experimental
+improvement or prove that the exact real-arithmetic objectives are ordered at that
+scale. Evidence should therefore retain score separation where practical.
+
+That distinction matters because candidate covariance must be transformed from the
+candidate's scaled QR basis into the fixed planning basis. The 0.6.0 independent
+polynomial-fitting review measured about ``1.9e-10`` worst-case relative error at
+degree 12 for the related point-coefficient binomial re-centering transform. The
+covariance transformation uses the same change-of-basis matrix, but its end-to-end
+error in ``J_T`` has **not** yet been established and the earlier coefficient result
+must not be treated as a bound for covariance scoring. Before implementation is
+accepted, a dedicated degree-12 numerical study must compare the production
+covariance transformation and resulting ``J_T`` against an independent higher-
+precision/reference calculation, including deliberately close candidate scores and
+admissible systems near the conditioning guardrail. The measured envelope and margin
+become numerical validation evidence; they do not become a fuzzy optimization-tie
+threshold.
+
+One-step results retain all exact tied best candidates. If a convenience
+representative is needed, the lowest-temperature tied candidate is chosen only as a
+canonical representation rule. Complete-design results retain one canonical
+lexicographically smallest run tuple and the total number of exactly equal computed
+global minima established by exhaustive search. Lower temperature, lower condition
+number, smaller maximum uncertainty, fewer repeats, or prettier spacing do not become
+hidden secondary optimization criteria.
+
+Caller input order never acts as a tie breaker. Mathematically identical run
+multisets are sorted before numerical construction so they follow the same floating-
+point evaluation path.
+
+Roundoff tolerances are reserved for numerical consistency and provable-invariant
+checks; they do not redefine ranking. For the trace calculation, let the number of
+products be
+
+```text
+n_terms = (d + 1)^2
+```
+
+and compute
+
+```text
+absolute_sum = fsum(abs(C_ij * M_ji) for all i, j)
+```
+
+The project reuses the cancellation-aware convention already implemented by
+``_covariance_quadratic_form``:
+
+```text
+tau_J = 8 * n_terms * ulp(absolute_sum)    if absolute_sum > 0
+tau_J = 0                                  otherwise
+```
+
+The implementation should compute ``J_T`` through one canonical deterministic trace
+helper. Re-evaluating that helper over the exact same frozen binary64 matrices is
+expected to be bit-identical, so a runtime check of that exact path should require
+exact equality. ``tau_J`` is retained only for an audit/invariant path that evaluates
+the mathematically identical trace with a deliberately different deterministic
+accumulation order or representation. It is not permission for two checks to use
+different covariance or moment inputs, and it is not a tolerance for basis-
+transformation or quadrature error.
+
+The stronger direct-integral-versus-trace comparison is therefore a test-suite
+requirement. Its acceptance budget includes the scalar quadrature error estimate,
+the propagated ``M_T`` integration-error contribution, and trace roundoff rather
+than asking ``tau_J`` to cover all three effects.
+
+The true globally solved budget curve is non-increasing, but finite-precision QR,
+covariance re-centering, moment integration, and trace evaluation can perturb the
+computed values by more than ``tau_J`` alone. Before release, the same end-to-end
+numerical study required above must establish a fixed documented **budget-
+monotonicity invariant allowance** with an explicit margin. That allowance is used
+only to test the mathematical monotonicity invariant; it never changes candidate
+ranking or exact-tie semantics. An apparent globally solved increase beyond the fixed
+end-to-end allowance is an internal invariant failure.
+
+##### Nominal sensitivity domain and structural models
+
+The planner obtains local sensitivity directly from
+``temperature_sensitivity_celsius_per_ohm(T)``. It does not finite-difference
+``resistance_to_celsius`` or ``celsius_to_resistance``, derive a reciprocal when the
+model already supplies the direct sensitivity operation, or inspect arbitrary
+third-party private coefficients to manufacture a derivative.
+
+The existing structural model protocol deliberately does not promise model identity,
+descriptive metadata, or valid-range discovery. Planning therefore adds an explicit
+**nominal-sensitivity validity domain** without expanding that general protocol. The
+fitted range and all candidate temperatures must lie inside this declared domain.
+
+Nominal ``dT/dR`` must be finite and strictly positive over the planning domain. For
+package-owned models this property is already established by their authoritative
+construction/validation logic over the complete supported range. For arbitrary
+third-party structural models, the package cannot analytically prove a global
+positivity claim from a black-box callable. The caller therefore asserts positivity
+and continuity between declared breakpoints; the planner can reject violations it
+encounters at evaluated points but cannot guarantee that an undeclared adverse feature
+never occurs between them. This limitation must remain explicit in evidence.
+
+Package-owned CVD, global polynomial, piecewise-polynomial, and tabulated models may
+all serve as nominal sensitivity models even though the **planned fitted model** in
+the initial 0.9.0 feature remains polynomial. The nominal model supplies ``dT/dR``
+for the temperature-equivalent objective; it is not necessarily the same
+representation being fitted.
+
+At package-owned piecewise-polynomial or tabulated boundaries, the public model
+operation follows the existing right-hand-owns-the-boundary convention. Isolated
+knot values have zero measure and therefore do not bias ``M_T``. Known formula
+boundaries still split the numerical integration so quadrature never knowingly
+crosses a sensitivity discontinuity or piecewise change.
+
+For full-range maximum diagnostics, package code uses privileged access to the same
+internal segment/table representations that define the package model. It evaluates
+the analytical sensitivities of the adjacent pieces **at the shared boundary
+directly**. It does not approximate one-sided limits by ``T +/- epsilon`` or
+``math.nextafter`` probing. This internal cooperation does not enlarge the public
+``RTDModel`` protocol.
+
+For third-party nonsmooth models, declared breakpoint temperatures split the
+integration and the package does not infer those boundaries by sampling. The initial
+third-party criterion uses only the public
+``temperature_sensitivity_celsius_per_ohm(T)`` operation. Because a black-box
+third-party model cannot establish the full-range maximum under this contract, the
+planner does **not** combine an independently implemented third-party
+``resistance_sensitivity_ohms_per_celsius(T)`` with ``dT/dR`` and does not require the
+two arbitrary methods to prove reciprocal consistency. Package-owned analytical
+models may use their internal ``dR/dT`` representation for the established
+full-range maximum because those implementations already define ``dT/dR`` as its
+reciprocal. A future third-party analytical-extrema contract would need to specify
+that relationship explicitly before it could claim an established maximum.
+
+##### Deterministic moment integration
+
+``M_T`` is constructed with a dependency-free deterministic adaptive **15-point
+Gauss / 31-point Kronrod** procedure. This retains the package's no-runtime-
+dependency numerical style while using a standard one-dimensional adaptive
+quadrature method documented by QUADPACK and the Gauss-Kronrod literature.
+
+Before quadrature, the complete fitted range is split at the union of:
+
+- fitted-range endpoints;
+- operating-priority boundaries; and
+- declared nominal-sensitivity breakpoints.
+
+Every initial piece therefore has constant priority density and one continuous
+nominal-sensitivity branch. Zero-weight intervals contribute exactly zero to ``M_T``
+and need not be numerically integrated, though they remain part of full-range
+diagnostics.
+
+The 15/31 pair is not an arbitrary high-order choice. The current polynomial fitting
+limit is degree 12, so entries of ``phi(T) phi(T)^T`` have degree at most 24. On a
+tabulated nominal-model interval, ``s(T)`` and ``w(T)`` are constant. Each moment
+integrand is therefore a polynomial of degree at most 24, while a 15-point Gauss
+rule is exact through degree 29 in exact arithmetic. The associated 31-point Kronrod
+extension has still higher polynomial precision; Rabinowitz (1980) gives degree 47
+for the ordinary unweighted ``n = 15`` case. Thus both members of the chosen pair
+cover the supported tabulated-interval moment degree in exact arithmetic.
+
+That exactness statement is **limited to tabulated pieces**. For CVD and analytical
+polynomial nominal models, ``s(T) = 1 / (dR/dT)`` is generally rational rather than
+polynomial, so the moment integrand is not degree-24 polynomial data. Those pieces
+are supported by the adaptive 15/31 error-control procedure, not by a claim of exact
+Gaussian polynomial integration.
+
+All upper-triangular matrix components are evaluated together on one shared adaptive
+subdivision tree. At each quadrature temperature the implementation evaluates
+``s(T)`` once, constructs ``phi(T)`` once, and forms the upper triangle of
+
+```text
+G(T) = w(T) s(T)^2 phi(T) phi(T)^T
+```
+
+The accepted upper triangle is mirrored to make matrix symmetry structural rather
+than dependent on independent quadrature runs.
+
+The retained approximation is the 31-point Kronrod result with a QUADPACK-style
+adjusted embedded error estimate from the 15/31 pair. For each matrix component on
+an accepted leaf, require
+
+```text
+E_ij <= 1e-12 * A_ij
+```
+
+where ``E_ij`` is the adjusted absolute-error estimate and ``A_ij`` estimates the
+integral of ``abs(G_ij(T))`` over that leaf. If ``A_ij`` is zero, the component must
+have zero reported integration error. Scaling against the absolute integral avoids a
+meaningless relative-error denominator when a signed off-diagonal moment nearly
+cancels to zero. ``1e-12`` is a fixed numerical integration target; it is not a
+design-equivalence or scientific acceptance threshold.
+
+Using the same local condition on every accepted leaf gives the corresponding global
+componentwise bound after summing leaf errors and absolute integrals. Adaptive
+subdivision uses deterministic bisection and traversal ordering.
+
+The normalization
+
+```text
+W = sum_k weight_k * interval_width_k
+```
+
+is evaluated directly from the piecewise-constant priority partition using
+``math.fsum``. Quadrature constructs the unnormalized numerator matrix first; both
+that matrix and its estimated error are divided by the exactly specified ``W`` to
+obtain ``M_T`` and its normalized error evidence.
+
+The integrator has a finite deterministic implementation resource guard. Failure to
+meet the fixed numerical target within that budget is a planning failure. The
+package does not silently relax the target, change algorithms, or return a
+best-effort moment matrix. The exact resource ceiling is a named implementation
+constant selected and benchmarked during implementation rather than a scientific
+constant frozen in this design document.
+
+Moment evidence retains the method identifier, fixed relative error target,
+normalized estimated error matrix, initial structural partition, final accepted
+subinterval count, nominal-sensitivity evaluation count, and whether adaptive
+subdivision beyond the structural partition was required. It does not retain every
+quadrature node or recursion step.
+
+##### Full-range maximum predicted uncertainty
+
+The maximum diagnostic covers the **entire declared fitted range**, including every
+zero-weight interval, because its purpose is precisely to reveal a weak region that
+the integrated objective may not prioritize.
+
+For one selected design define
+
+```text
+q(T) = phi(T)^T C_theta phi(T)
+r(T) = dR/dT > 0
+v_T(T) = q(T) / r(T)^2
+```
+
+Within one smooth package-owned analytical model piece,
+
+```text
+dv_T/dT = (q'(T) r(T) - 2 q(T) r'(T)) / r(T)^3
+```
+
+so, because ``r(T) > 0``, stationary points are exactly the roots of
+
+```text
+h(T) = q'(T) r(T) - 2 q(T) r'(T)
+```
+
+For a degree-``d`` fitted polynomial, ``q`` has degree at most ``2d``. For a
+nominal polynomial piece of degree ``m``, ``r`` has degree at most ``m - 1`` and
+``h`` has degree at most
+
+```text
+2d + m - 2
+```
+
+which is at most 34 under the current ``d <= 12`` and ``m <= 12`` limits. For a
+tabulated nominal model, ``r`` is constant on each table interval and the stationary
+condition reduces to ``q'(T) = 0``, degree at most 23. The CVD branches likewise
+reduce to bounded-degree polynomial stationary equations because their resistance
+slopes are polynomial on each branch.
+
+The implementation must not replace this calculation with a hidden temperature grid.
+It reuses the package's existing no-grid polynomial-extrema strategy: recursively
+partition derivative-root problems and apply bounded deterministic bisection so a
+narrow interior extremum cannot hide between arbitrary sample points. The
+stationary polynomial must be constructed in a numerically suitable local coordinate
+for each piece rather than unnecessarily expanding high powers of raw Celsius values.
+For ``q(x) = phi(x)^T C_theta phi(x)``, its local power coefficient at degree ``k``
+is the deterministic anti-diagonal sum of covariance elements with ``i + j = k``;
+polynomial differentiation and multiplication then construct ``q' r - 2 q r'`` in
+the same local coordinate using cancellation-aware summation where coefficients are
+combined.
+
+The existing production root machinery has been exercised for polynomial-model
+validation through degree 12, whereas this stationary equation can reach degree 34.
+That reuse is therefore conditional on a dedicated top-degree validation probe, not
+an assumption that previous degree-12 testing automatically extrapolates. Before the
+planner ships, a checked-in independently derived high-precision reference case must
+exercise a degree-12 fitted covariance and degree-12 nominal polynomial piece whose
+``h`` approaches degree 34, including a numerically difficult but admissible case;
+the production roots and resulting maximum must agree with that reference within a
+documented numerical envelope.
+
+For every smooth structural piece, the maximum search evaluates ordinary endpoints
+and every interior root of ``h``. At declared nonsmooth boundaries it additionally
+evaluates both one-sided limiting sensitivities settled above. Final variance values
+are evaluated from the frozen covariance quadratic form and authoritative nominal
+sensitivity, not from the root-locating polynomial itself. The diagnostic retains
+
+```text
+maximum_predicted_standard_uncertainty_c
+maximum_location_temperature_c
+```
+
+with every exact tied maximum location when more than one exists. The quantity is a
+predicted standard uncertainty, not an observed error.
+
+An arbitrary third-party black-box sensitivity model does not provide enough
+analytical structure to prove that a narrow interior maximum was not missed. Such a
+model may still be used for the integrated ``J_T`` objective under its declared
+continuity/breakpoint assumptions, but the full-range maximum status is
+``not_established`` unless the package possesses an analytical representation from
+which all stationary points can be established. The package does not report the
+largest sampled value as a pseudo-worst-case maximum.
+
+##### Exhaustive complete-design search in 0.9.0
+
+The initial 0.9.0 complete-design planner uses **deterministic exhaustive finite
+enumeration only**. A non-exhaustive exchange/Fedorov-style search is deliberately
+not part of the first public contract. This keeps the meaning of "best complete
+design" strong: a successful result establishes the globally minimum computed
+``J_T`` over every admissible design in the supplied finite design space.
+
+For ``M`` unique candidate temperatures and ``N`` requested runs, the unfiltered
+finite design-space counts are
+
+```text
+C(M, N)
+```
+
+when repeats are disallowed and
+
+```text
+C(M + N - 1, N)
+```
+
+when repeats are allowed. These raw counts are useful evidence, but the exhaustive-
+search resource ceiling must **not** reject a request merely because the raw multiset
+space contains many designs that the already-known distinct-temperature/span rules
+prove structurally inadmissible.
+
+Let ``p = degree + 1`` and let ``S_k`` be the number of ``k``-temperature candidate
+support sets whose minimum and maximum bracket the complete declared fitted range.
+Then the number of structurally eligible designs before rank/conditioning checks is
+
+```text
+eligible_count = S_N                                  # distinct_only
+eligible_count = sum(S_k * C(N - 1, k - 1),
+                     k = p .. min(M, N))              # repeats_allowed
+```
+
+because ``C(N - 1, k - 1)`` is the number of positive multiplicity allocations of
+``N`` runs over one selected ``k``-temperature support set. If ``L`` candidates are
+at or below ``Omega_min`` and ``H`` candidates are at or above ``Omega_max``, then
+``Omega_min < Omega_max`` makes those endpoint-support groups disjoint and the
+span-bracketing support-set count is available directly by inclusion-exclusion:
+
+```text
+S_k = C(M, k)
+      - C(M - L, k)
+      - C(M - H, k)
+      + C(M - L - H, k)
+```
+
+with ``C(a, b) = 0`` when ``b > a``. Thus ``S_k`` is calculated deterministically
+from the ordered finite candidate set rather than discovered by enumerating all raw
+multisets. The search generator then visits each structurally eligible canonical
+design exactly once in lexicographic order. Rank/conditioning feasibility is checked
+before ``J_T`` is evaluated.
+
+The implementation search-space ceiling applies to this exactly calculated
+**structurally eligible count**, while evidence may retain both raw and eligible
+counts. This is important for high-degree planning: when ``N`` is close to the
+``degree + 1`` identifiability minimum, most repeat-containing raw multisets may be
+provably inadmissible and must not cause a false resource-limit rejection.
+
+Complete-design planning in the initial release is intentionally a **small curated
+candidate-set** capability, not a promise to optimize dense 1–5 °C grids across
+hundreds of degrees. The range/spacing convenience helper may materialize a candidate
+list that is perfectly valid for one-step planning yet too large for exhaustive joint
+planning; in that case the complete-design operation fails explicitly at its search
+limit rather than silently thinning the grid. The intended launch scale is candidate
+sets in the low tens with run budgets in the single digits to low teens, subject to
+the actual structurally eligible design count.
+
+Before the public API is declared implementation-ready, benchmarks on the supported
+Python runtime range must publish the exact tested envelope and choose the named
+search-space ceiling. The benchmark gate must include representative distinct-only,
+repeats-allowed, and high-degree-near-identifiability cases. If those benchmarks show
+that only toy-sized curated searches are practical, the exhaustive-only scope must be
+revisited **before** release rather than shipping a headline complete-design feature
+whose normal documented inputs mostly hit the resource ceiling.
+
+If the structurally eligible count exceeds the fixed implementation search-space
+ceiling, planning fails **before search** with an explicit diagnostic containing the
+calculated eligible count, raw count, and supported limit. The package does not
+silently coarsen candidates, sample designs, truncate enumeration, or switch to a
+heuristic. Exceeding this limit is an implementation resource limit, not scientific
+infeasibility. As with the quadrature resource guard, the numerical ceiling is a
+named implementation constant selected from benchmarks rather than a scientific
+constant frozen here.
+
+The initial complete-design outcome taxonomy therefore distinguishes:
+
+- structural infeasibility established before search;
+- exact search not attempted because the supported search-space ceiling was
+  exceeded;
+- exhaustive proof that no numerically admissible design exists; and
+- globally solved complete design.
+
+There is no ``best_found`` or local-optimum status in the initial 0.9.0 public
+contract. Such evidence semantics remain appropriate for a future non-exhaustive
+search extension, but are not frozen before an implementation needs them. Atkinson
+(2015, section 7) describes exact-design exchange algorithms over candidate sets,
+including repeated searches from random starting points; NIST Engineering Statistics
+Handbook sections 5.5.2.1 and 4.3.4 independently document computer-aided exchange
+search and the absence of a general guarantee that a generated design is the true
+global optimum. Together they support the conservative exhaustive-only initial
+scope without requiring those heuristic-search policies to be frozen before they
+are needed.
+
+Successful exhaustive complete-design evidence retains the complete exact-tie count
+for globally equal computed minima. It does not retain every losing design.
+
+Budget profiles must preserve an important repeat-policy asymmetry in search-limit
+status using the **structurally eligible** counts above. Under
+``repeat_policy = distinct_only``, the number of span-bracketing ``N``-temperature
+support sets is not guaranteed to increase with ``N``; it can peak and later fall as
+``N`` approaches ``M``. Ceiling-exceeded rows can therefore be **noncontiguous**, and
+a later budget must not be skipped merely because an earlier one exceeded the limit.
+Under ``repeat_policy = repeats_allowed``, once at least one eligible support set
+exists, every eligible support set has at least ``p >= 2`` temperatures and its
+positive-composition count ``C(N - 1, k - 1)`` increases with ``N``. The total
+structurally eligible count therefore increases with run budget; once the exhaustive-
+search ceiling is exceeded, all larger run budgets also exceed it. Budget-profile
+evidence and iteration logic must reflect this difference explicitly so a hole in a
+distinct-only profile is not mistaken for an internal error.
+
+Globally solved rows on either side of an unavailable budget remain comparable under
+the monotonic information argument: increasing the allowed run budget cannot increase
+the globally minimum ``J_T`` when a valid larger design exists under the same
+assumptions.
+
+##### Required numerical and scientific validation
+
+The implementation must be validated against independently derived references and
+provable invariants rather than only self-comparison between two code paths. Required
+coverage includes at least:
+
+- closed-form constant-sensitivity polynomial moments for complete ``M_T`` matrices;
+- tabulated-model piecewise analytic moments, including the maximum supported
+  polynomial degree;
+- independent direct scalar integration of the original ``J_T`` definition versus
+  ``trace(C_theta M_T)`` with the combined quadrature-plus-roundoff error budget;
+- fixed-planning-basis covariance re-centering for every candidate, including
+  incomplete one-step spans and independently checked basis-equivalent scores;
+- a degree-12 end-to-end covariance-transform/``J_T`` probe against an independent
+  higher-precision reference, including close-score candidates and admissible systems
+  near the conditioning guardrail, used to establish the documented numerical
+  invariant allowance rather than an optimization-tie threshold;
+- priority-partition splitting invariance when adjacent pieces have the same weight;
+- invariance to common positive rescaling of all priority weights;
+- deterministic quadrature repeatability and structural breakpoint splitting;
+- finite/positive sensitivity failures and forced quadrature non-convergence;
+- matrix symmetry and expected positive-semidefinite behavior within documented
+  numerical allowances;
+- analytically derived worst-case extrema for constant-sensitivity, tabulated,
+  polynomial, and CVD cases;
+- an independently derived high-precision top-degree stationary-polynomial fixture
+  exercising a near-degree-34 ``h(T)`` and a numerically difficult admissible case;
+- a deliberately narrow interior maximum that a coarse grid would miss;
+- left- versus right-side maxima at a nonsmooth package-model boundary;
+- a full-range maximum located inside a zero-weight interval;
+- exact tied maximum locations;
+- third-party maximum status ``not_established`` rather than a sampled pseudo-max;
+- exact candidate-list exhaustive one-step comparison;
+- complete-design exhaustive enumeration against small independently enumerated
+  reference spaces;
+- exact structurally eligible design-count formulas and evidence, including a
+  high-degree case where the raw repeat-multiset count greatly exceeds the actually
+  identifiable search space;
+- pre-release performance benchmarks that publish the tested complete-design
+  candidate/run envelope and justify the implementation search-space ceiling;
+- exact tie counts and canonical representative invariance to caller input order;
+- globally solved budget-profile non-increasing ``J_T`` behavior;
+- noncontiguous exhaustive-search-limit gaps under distinct-only designs; and
+- monotonic search-space ceiling behavior under repeats-allowed designs.
+
+The no-grid root strategy used for the full-range maximum should also receive direct
+boundary and narrow-extremum tests, following the same principle already used by the
+package's polynomial monotonicity validation.
+
+##### Equation and implementation provenance requirement
+
+The equations in this subsection are part of the scientific design contract, not
+mere explanatory notation. Production numerical helpers implementing them must carry
+concise comments or docstrings that identify the corresponding equation/purpose and
+point back to this design section and ``docs/REFERENCES.md``. In particular, code
+should not leave the following as unexplained matrix algebra:
+
+- ``v_R(T) = phi^T C_theta phi``;
+- ``v_T(T) ~= (dT/dR)^2 v_R(T)``;
+- the normalized sensitivity-weighted ``M_T`` integral;
+- ``J_T = trace(C_theta M_T)``, including the classical I-optimal trace/moment-
+  matrix derivation and the project's added RTD sensitivity/priority weighting;
+- marginal ``Delta J`` and RMS reductions;
+- the positive-semidefinite information-update monotonicity invariant;
+- the fixed Householder-``R`` conditioning guardrail;
+- the cancellation-aware ``tau_J`` trace-audit allowance and the distinct
+  end-to-end numerical allowance used only for provable invariants;
+- the 15/31 Gauss-Kronrod moment construction and its ``1e-12`` numerical target;
+- ``h(T) = q'(T) r(T) - 2 q(T) r'(T)`` for full-range extrema; and
+- the raw and structurally eligible finite-design combinatorial counts used for
+  exhaustive-search preflight.
+
+The comments should explain **why** each equation is used, not merely restate its
+syntax. Where a rule is a project design decision rather than something prescribed
+by a cited source, the documentation must say so explicitly. This preserves the
+project's established distinction between external scientific provenance and local
+API/numerical policy.
+
+
 #### Portable model-definition format decision
 
 The 0.6.0 portable model definition is a **separate artifact type and schema**

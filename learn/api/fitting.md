@@ -10,6 +10,19 @@ adds characterized IEC 60751 `R0` fitting, selected custom Callendar–Van Dusen
 parameter fitting, fitted-parameter covariance/diagnostics, calibration provenance,
 and explicit reference-temperature uncertainty handling.
 
+!!! note "Planned 0.9 experiment-design terminology"
+    The prospective calibration experiment planner described in the 0.9 roadmap is
+    still under design review and is **not part of this public API yet**. Its
+    provisional continuous average-prediction-variance criterion is documented as
+    **I-optimal**. Some optimal-design literature also calls this kind of criterion
+    **V-optimal**; Atkinson (2015) explicitly uses both names. `rtd-sensor` uses
+    I-optimal for the continuous operating-range integral to distinguish it from
+    NIST's discrete V-optimal wording, not because V-optimal is considered
+    incorrect. The provisional complete-design operation is exhaustive and intended
+    for small curated candidate sets; dense grids may exceed its explicit search
+    limit, while one-step planning remains linear in candidate count. See
+    [Calibration fitting](../documentation/custom-models/calibration-fitting.md#i-optimal-versus-v-optimal-terminology).
+
 ## `CalibrationObservation`
 
 **Introduced in:** rtd-sensor 0.6.0

@@ -18,6 +18,59 @@ The API deliberately returns two things together:
 
 **Available since:** rtd-sensor 0.6.0.
 
+## Planned 0.9 calibration experiment design
+
+The current fitting API analyzes calibration observations that already exist. The
+0.9 roadmap separately plans a **prospective calibration experiment designer** that
+will help choose calibration temperatures before or during an experiment. That
+planner is still under design review and is **not part of the current public API**.
+
+The provisional criterion is prediction-oriented: it minimizes a weighted integral
+of predicted fitted-curve variance over the declared operating range, after
+translating resistance-domain fit uncertainty into first-order
+temperature-equivalent uncertainty through a nominal RTD model. The engineering
+design document records the full equations, assumptions, candidate-set semantics,
+repeat policy, numerical integration, conditioning, and evidence requirements.
+
+### I-optimal versus V-optimal terminology
+
+Optimal-design terminology is not perfectly uniform. [Atkinson
+(2015)](https://doi.org/10.1002/9781118445112.stat04090.pub2) explicitly notes that
+designs minimizing **average prediction variance over a region** are variously
+called **I-optimal** or **V-optimal**. [NIST's Engineering Statistics
+Handbook](https://www.itl.nist.gov/div898/handbook/pri/section5/pri52.htm) uses
+**V-optimal** for an average-prediction-variance criterion over a specified set of
+points.
+
+`rtd-sensor` will use **I-optimal** consistently for the planned continuous
+integral over the fitted operating range. This is a documentation choice intended
+to distinguish that continuous region-of-interest formulation from NIST's discrete
+V-optimal wording. It does **not** mean that V-optimal is wrong terminology in the
+broader experimental-design literature.
+
+The planned `rtd-sensor` criterion is more specifically **sensitivity-weighted
+I-optimal** because it adds the local RTD `dT/dR` sensitivity needed to express
+predicted fitted-curve uncertainty in temperature-equivalent units. That
+RTD-specific weighting is a project design decision built on the classical
+I/V-optimal average-prediction-variance framework.
+
+### Initial complete-design search scope
+
+The provisional 0.9 complete-design operation is intentionally an **exact search over
+a small, explicit candidate set**. It is aimed at curated candidate temperatures in
+the low tens with run budgets in the single digits to low teens, not at silently
+searching every 1–5 °C grid point across a very wide range. A range/spacing helper
+may materialize a denser list, but that does not guarantee that the resulting joint
+design problem fits inside the implementation's exhaustive-search limit.
+
+If a complete-design request is too large, the planner will report the calculated
+search size and fail explicitly rather than thinning the candidate set or switching
+to an unannounced heuristic. The one-step/next-observation operation remains a
+different case: it evaluates each supplied candidate once and can therefore remain
+useful with substantially denser candidate lists. Exact tested candidate/run
+envelopes will be published with the implementation after benchmarking rather than
+being guessed before code exists.
+
 ## Fit a characterized IEC 60751 `R0`
 
 **Introduced in:** rtd-sensor 0.7.0.

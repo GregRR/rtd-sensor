@@ -279,6 +279,123 @@ https://doi.org/10.1016/0263-2241(96)00019-X
 design, including point location, point count, repetitions, and fitted-curve
 uncertainty.
 
+Atkinson, A. C., Donev, A. N., & Tobias, R. D. (2007). *Optimum
+experimental designs, with SAS*. Oxford University Press.
+https://doi.org/10.1093/oso/9780199296590.001.0001
+
+**Project use:** Primary statistical-design reference for the 0.9.0 calibration
+experiment planner. The book provides the optimum-design framework used to justify
+prediction-oriented exact designs, model-dependent optimality criteria, and the
+distinction between exact finite designs and continuous designs. `rtd-sensor` uses a
+continuous sensitivity-weighted I-optimal prediction-variance criterion over the
+fitted operating range while restricting actual calibration runs to an explicit
+finite candidate set. The RTD-specific `dT/dR` weighting, public evidence semantics,
+and exhaustive-only initial search scope are project design choices built on that
+framework rather than claims that the source prescribes this exact API.
+
+Atkinson, A. C. (2015). Optimal design. *Wiley StatsRef: Statistics
+Reference Online*. John Wiley & Sons.
+https://doi.org/10.1002/9781118445112.stat04090.pub2
+
+**Project use:** Direct corroborating reference for several parts of the provisional
+0.9.0 calibration experiment-design contract. Sections 8-9 define minimization of
+average prediction variance over a specified region as I-optimality, note that the
+same criterion is also called V-optimality in parts of the literature, and derive the
+trace/moment-matrix form in equations 24-27. `rtd-sensor` therefore uses
+**I-optimal** consistently for its continuous integrated criterion while documenting
+that V-optimal is also established terminology; this avoids confusion with the NIST
+handbook's discrete V-optimal wording without declaring that alternate terminology
+incorrect. The project-specific `dT/dR` sensitivity weighting and operating-priority
+density extend the classical moment matrix rather than coming from this source.
+
+Section 7 also describes exact-design exchange algorithms over finite candidate sets,
+including repeated searches from random starting points. This supports the design
+review's distinction between globally established exhaustive results and future
+non-exhaustive `best found` semantics. The initial 0.9.0 implementation deliberately
+uses exhaustive enumeration instead. The article's I-optimal examples also show that
+reducing average prediction variance can increase variance in some parts of the
+region, corroborating the decision to retain a separate full-range maximum predicted
+uncertainty diagnostic.
+
+National Institute of Standards and Technology. (n.d.). *What are the steps of
+DOE?* NIST/SEMATECH Engineering Statistics Handbook, section 5.1.4.
+https://www.itl.nist.gov/div898/handbook/pri/section1/pri14.htm
+
+**Project use:** Corroborating design source for treating experimentation as an
+iterative process in which completed observations can inform later experimental
+work. It supports the legitimacy of a separate one-next-observation planning
+operation, while `rtd-sensor` explicitly does **not** equate repeated greedy
+one-step recommendations with a jointly optimized multi-run design.
+
+National Institute of Standards and Technology. (n.d.). *What is a computer-aided
+design?* NIST/SEMATECH Engineering Statistics Handbook, section 5.5.2.
+https://www.itl.nist.gov/div898/handbook/pri/section5/pri52.htm
+
+**Project use:** Corroborating basis for the 0.9.0 planner's explicit finite
+candidate-set contract and for documenting that optimality is conditional on the
+specified fitted model and criterion. The section also defines standard D-, A-, G-,
+and V-optimal prediction/parameter criteria. Terminology is not uniform across the
+literature: Atkinson (2015) explicitly notes that average-prediction-variance designs
+are variously called I-optimal or V-optimal. `rtd-sensor` deliberately uses
+**I-optimal** for its continuous integrated operating-range criterion to distinguish
+that formulation from the NIST handbook's discrete V-optimal wording; it does not
+claim that V-optimal is an incorrect name in other sources.
+
+National Institute of Standards and Technology. (n.d.). *D-optimal designs*.
+NIST/SEMATECH Engineering Statistics Handbook, section 5.5.2.1.
+https://www.itl.nist.gov/div898/handbook/pri/section5/pri521.htm
+
+**Project use:** Corroborating source for choosing treatment runs from an explicit
+candidate set and for the caution that exchange/stepping computer algorithms do not
+generally prove a true global optimum. This supports the initial 0.9.0 decision to
+use exhaustive finite enumeration only, so a successful complete-design result can
+make a global-minimum claim over the supplied admissible finite design space. A
+future exchange-style search would require weaker `best found` evidence semantics.
+
+National Institute of Standards and Technology. (n.d.). *I've heard some people
+refer to "optimal" designs, shouldn't I use those?* NIST/SEMATECH Engineering
+Statistics Handbook, section 4.3.4.
+https://www.itl.nist.gov/div898/handbook/pmd/section3/pmd34.htm
+
+**Project use:** Corroborating source for two bounded-search decisions in the 0.9.0
+planner: fine candidate grids can make optimal-design search computationally
+challenging, and computer-aided optimization does not provide an iron-clad guarantee
+of the true optimum in general. `rtd-sensor` therefore preflights the exact
+combinatorial search size and fails explicitly when its supported exhaustive-search
+budget is exceeded rather than silently coarsening the candidate set or switching to
+a heuristic.
+
+Piessens, R., de Doncker-Kapenga, E., Überhuber, C. W., & Kahaner, D. K. (1983).
+*QUADPACK: A subroutine package for automatic integration*. Springer.
+https://doi.org/10.1007/978-3-642-61786-7
+
+**Project use:** Primary numerical-integration reference for the provisional 0.9.0
+sensitivity-weighted moment-matrix construction. The planner adopts a deterministic
+adaptive Gauss-Kronrod finite-interval strategy, explicitly splits known priority and
+nominal-sensitivity boundaries before quadrature, retains an embedded error estimate,
+and fails rather than returning a best-effort result when its fixed numerical target
+cannot be established. The exact vector-valued shared-subdivision implementation,
+`1e-12` componentwise target relative to the estimated absolute integral, and
+resource-limit policy are project numerical-design choices.
+
+Rabinowitz, P. (1980). The exact degree of precision of generalized Gauss-Kronrod
+integration rules. *Mathematics of Computation, 35*(152), 1275–1283.
+https://doi.org/10.1090/S0025-5718-1980-0583504-6
+
+**Project use:** Peer-reviewed reference for the polynomial precision of generalized
+Gauss-Kronrod extensions. Rabinowitz's stated precision result gives degree
+`3n + 2` for odd `n`; the ordinary unweighted Legendre case is obtained with the
+paper's weight parameter `mu = 1/2`, so the `n = 15` Gauss rule's 31-point Kronrod
+extension has degree 47 in exact arithmetic. The project's tabulated-model argument
+actually needs only the elementary 15-point Gauss degree-29 fact: with maximum fitted
+polynomial degree 12 and constant operating priority / `dT/dR` on one tabulated
+interval, each `phi(T) phi(T)^T` entry has degree at most 24. The Rabinowitz result
+therefore provides stronger corroborating precision for the Kronrod member of the
+selected pair, while QUADPACK remains the primary source for the adaptive method and
+error-estimation strategy. None of these exactness statements applies to general CVD
+or analytical-polynomial nominal-sensitivity pieces, whose `dT/dR` makes the moment
+integrand non-polynomial and therefore dependent on adaptive error control.
+
 Bartel, T. W., Stoudt, S., & Possolo, A. (2016). Force calibrations using
 errors-in-variables regression and Monte Carlo uncertainty evaluations.
 *Metrologia, 53*(3), 965–980. https://doi.org/10.1088/0026-1394/53/3/965
