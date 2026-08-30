@@ -16,7 +16,10 @@ from rtd_sensor._experiment_design import (
     _OperatingPriorityInterval,
     _prospective_polynomial_covariance,
     _ProspectivePolynomialCovariance,
+    _score_polynomial_design,
+    _selected_polynomial_design_diagnostics,
     _sensitivity_weighted_moment_matrix,
+    _sensitivity_weighted_trace_objective,
     _stationary_roots_in_interval,
 )
 from rtd_sensor.exceptions import RTDExperimentDesignError
@@ -1385,3 +1388,279 @@ def test_degree_12_fit_and_degree_12_nominal_model_maximum_high_precision() -> N
     # design-score tie thresholds or physical accuracy claims.
     assert root_error < Decimal("5e-12")
     assert relative_variance_error < Decimal("5e-11")
+
+
+def test_trace_score_matches_canonical_manual_trace() -> None:
+    model = TabulatedRTDModel(
+        points=(
+            TabulatedRTDPoint(temperature_c=-10.0, resistance_ohms=90.0),
+            TabulatedRTDPoint(temperature_c=0.0, resistance_ohms=100.0),
+            TabulatedRTDPoint(temperature_c=20.0, resistance_ohms=140.0),
+        )
+    )
+    moment = _sensitivity_weighted_moment_matrix(
+        model,
+        degree=3,
+        planning_reference_temperature_c=5.0,
+        fitted_minimum_temperature_c=-10.0,
+        fitted_maximum_temperature_c=20.0,
+        nominal_minimum_temperature_c=-10.0,
+        nominal_maximum_temperature_c=20.0,
+        priority_intervals=(_OperatingPriorityInterval(-10.0, 20.0, 1.0),),
+        sensitivity_breakpoints_c=(0.0,),
+    )
+    covariance = _prospective_polynomial_covariance(
+        (-10.0, -2.0, 8.0, 20.0),
+        (0.02, 0.015, 0.025, 0.018),
+        degree=3,
+        planning_reference_temperature_c=5.0,
+    )
+
+    trace = _sensitivity_weighted_trace_objective(covariance, moment)
+    expected = math.fsum(
+        covariance.covariance_matrix[row][column] * moment.moment_matrix[column][row]
+        for row in range(4)
+        for column in range(4)
+    )
+
+    assert trace.objective_variance_c2 == expected
+    assert trace.weighted_rms_standard_uncertainty_c == math.sqrt(expected)
+    assert trace.audit_difference_c2 <= trace.roundoff_audit_allowance_c2
+    assert trace.moment_error_contribution_c2 >= 0.0
+    assert trace.trace_method == "row_major_fsum"
+    assert trace.audit_method == "row_blocked_fsum"
+
+
+def test_trace_score_rejects_nonfinite_products() -> None:
+    covariance = experiment_design._ProspectivePolynomialCovariance(
+        covariance_matrix=((1.0e308, -1.0e308), (-1.0e308, 1.0e308)),
+        parameter_names=("a0", "a1"),
+        reference_temperature_c=0.0,
+        scaled_temperature_center_c=0.0,
+        scaled_temperature_half_range_c=1.0,
+        scaled_system_condition_number=1.0,
+        scaled_system_condition_limit=1.0e10,
+        conditioning_method="infinity_norm_of_householder_r",
+        solver="householder_qr",
+    )
+    moment = experiment_design._SensitivityWeightedMomentMatrix(
+        moment_matrix=((2.0, 2.0), (2.0, 2.0)),
+        normalized_estimated_error_matrix=((0.0, 0.0), (0.0, 0.0)),
+        parameter_names=("a0", "a1"),
+        reference_temperature_c=0.0,
+        priority_normalization_c=1.0,
+        structural_partition_c=(-1.0, 1.0),
+        accepted_subinterval_count=1,
+        sensitivity_evaluation_count=31,
+        adaptive_subdivision_occurred=False,
+        integration_method="adaptive_gauss_kronrod_15_31",
+        relative_error_target=1.0e-12,
+    )
+
+    with pytest.raises(
+        RTDExperimentDesignError,
+        match="not finitely representable",
+    ):
+        _sensitivity_weighted_trace_objective(covariance, moment)
+
+
+def test_trace_score_rejects_mismatched_fixed_basis() -> None:
+    covariance = _prospective_polynomial_covariance(
+        (-10.0, 0.0, 20.0),
+        (0.01, 0.01, 0.01),
+        degree=2,
+        planning_reference_temperature_c=5.0,
+    )
+    moment = _sensitivity_weighted_moment_matrix(
+        TabulatedRTDModel(
+            points=(
+                TabulatedRTDPoint(temperature_c=-10.0, resistance_ohms=90.0),
+                TabulatedRTDPoint(temperature_c=20.0, resistance_ohms=120.0),
+            )
+        ),
+        degree=2,
+        planning_reference_temperature_c=4.0,
+        fitted_minimum_temperature_c=-10.0,
+        fitted_maximum_temperature_c=20.0,
+        nominal_minimum_temperature_c=-10.0,
+        nominal_maximum_temperature_c=20.0,
+        priority_intervals=(_OperatingPriorityInterval(-10.0, 20.0, 1.0),),
+    )
+
+    with pytest.raises(
+        RTDExperimentDesignError,
+        match="same reference temperature",
+    ):
+        _sensitivity_weighted_trace_objective(covariance, moment)
+
+
+def test_polynomial_design_score_canonicalizes_runs_and_reports_span() -> None:
+    moment = _sensitivity_weighted_moment_matrix(
+        pt100,
+        degree=2,
+        planning_reference_temperature_c=50.0,
+        fitted_minimum_temperature_c=0.0,
+        fitted_maximum_temperature_c=100.0,
+        nominal_minimum_temperature_c=-200.0,
+        nominal_maximum_temperature_c=850.0,
+        priority_intervals=(_OperatingPriorityInterval(0.0, 100.0, 1.0),),
+        sensitivity_breakpoints_c=(0.0,),
+    )
+
+    score = _score_polynomial_design(
+        (80.0, 20.0, 50.0),
+        (0.03, 0.01, 0.02),
+        degree=2,
+        fitted_minimum_temperature_c=0.0,
+        fitted_maximum_temperature_c=100.0,
+        moment=moment,
+    )
+    reversed_score = _score_polynomial_design(
+        (50.0, 20.0, 80.0),
+        (0.02, 0.01, 0.03),
+        degree=2,
+        fitted_minimum_temperature_c=0.0,
+        fitted_maximum_temperature_c=100.0,
+        moment=moment,
+    )
+
+    assert score == reversed_score
+    assert score.run_temperatures_c == (20.0, 50.0, 80.0)
+    assert score.standard_uncertainties_ohms == (0.01, 0.02, 0.03)
+    assert score.parameter_rank == 3
+    assert score.distinct_temperature_count == 3
+    assert score.fitted_minimum_temperature_c == 0.0
+    assert score.fitted_maximum_temperature_c == 100.0
+    assert score.minimum_calibration_temperature_c == 20.0
+    assert score.maximum_calibration_temperature_c == 80.0
+    assert score.covers_complete_fitted_range is False
+    assert score.criterion == "sensitivity_weighted_i_optimal"
+
+
+def test_polynomial_design_score_requires_request_wide_midpoint_basis() -> None:
+    moment = _sensitivity_weighted_moment_matrix(
+        pt100,
+        degree=2,
+        planning_reference_temperature_c=40.0,
+        fitted_minimum_temperature_c=0.0,
+        fitted_maximum_temperature_c=100.0,
+        nominal_minimum_temperature_c=-200.0,
+        nominal_maximum_temperature_c=850.0,
+        priority_intervals=(_OperatingPriorityInterval(0.0, 100.0, 1.0),),
+        sensitivity_breakpoints_c=(0.0,),
+    )
+
+    with pytest.raises(
+        RTDExperimentDesignError,
+        match="midpoint of the complete fitted range",
+    ):
+        _score_polynomial_design(
+            (0.0, 50.0, 100.0),
+            (0.01, 0.01, 0.01),
+            degree=2,
+            fitted_minimum_temperature_c=0.0,
+            fitted_maximum_temperature_c=100.0,
+            moment=moment,
+        )
+
+
+def test_polynomial_design_score_defers_nonranking_maximum_diagnostic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    moment = _sensitivity_weighted_moment_matrix(
+        pt100,
+        degree=2,
+        planning_reference_temperature_c=50.0,
+        fitted_minimum_temperature_c=0.0,
+        fitted_maximum_temperature_c=100.0,
+        nominal_minimum_temperature_c=-200.0,
+        nominal_maximum_temperature_c=850.0,
+        priority_intervals=(_OperatingPriorityInterval(0.0, 100.0, 1.0),),
+        sensitivity_breakpoints_c=(0.0,),
+    )
+
+    def fail_if_called(*args: object, **kwargs: object) -> object:
+        raise AssertionError("full-range maximum must not participate in ranking")
+
+    monkeypatch.setattr(
+        experiment_design,
+        "_full_range_maximum_predicted_temperature_uncertainty",
+        fail_if_called,
+    )
+
+    score = _score_polynomial_design(
+        (0.0, 50.0, 100.0),
+        (0.01, 0.01, 0.01),
+        degree=2,
+        fitted_minimum_temperature_c=0.0,
+        fitted_maximum_temperature_c=100.0,
+        moment=moment,
+    )
+
+    assert score.trace.objective_variance_c2 > 0.0
+
+
+def test_selected_design_diagnostics_adds_full_range_maximum() -> None:
+    moment = _sensitivity_weighted_moment_matrix(
+        pt100,
+        degree=2,
+        planning_reference_temperature_c=50.0,
+        fitted_minimum_temperature_c=0.0,
+        fitted_maximum_temperature_c=100.0,
+        nominal_minimum_temperature_c=-200.0,
+        nominal_maximum_temperature_c=850.0,
+        priority_intervals=(_OperatingPriorityInterval(0.0, 100.0, 1.0),),
+        sensitivity_breakpoints_c=(0.0,),
+    )
+    score = _score_polynomial_design(
+        (0.0, 50.0, 100.0),
+        (0.01, 0.01, 0.01),
+        degree=2,
+        fitted_minimum_temperature_c=0.0,
+        fitted_maximum_temperature_c=100.0,
+        moment=moment,
+    )
+
+    diagnostics = _selected_polynomial_design_diagnostics(pt100, score)
+
+    assert diagnostics.score is score
+    assert diagnostics.full_range_maximum.status == "established"
+    assert diagnostics.full_range_maximum.maximum_standard_uncertainty_c is not None
+    assert diagnostics.full_range_maximum.maximum_standard_uncertainty_c > 0.0
+
+
+def test_trace_audit_differs_but_stays_bounded_near_guardrail() -> None:
+    temperatures = _near_guardrail_temperatures(2.5e-6)
+    model = TabulatedRTDModel(
+        points=(
+            TabulatedRTDPoint(temperature_c=-1.0, resistance_ohms=99.0),
+            TabulatedRTDPoint(temperature_c=1.0, resistance_ohms=101.0),
+        )
+    )
+    moment = _sensitivity_weighted_moment_matrix(
+        model,
+        degree=12,
+        planning_reference_temperature_c=0.0,
+        fitted_minimum_temperature_c=-1.0,
+        fitted_maximum_temperature_c=1.0,
+        nominal_minimum_temperature_c=-1.0,
+        nominal_maximum_temperature_c=1.0,
+        priority_intervals=(_OperatingPriorityInterval(-1.0, 1.0, 1.0),),
+    )
+
+    score = _score_polynomial_design(
+        temperatures,
+        (0.01,) * 13,
+        degree=12,
+        fitted_minimum_temperature_c=-1.0,
+        fitted_maximum_temperature_c=1.0,
+        moment=moment,
+    )
+
+    assert (
+        0.9 * score.covariance.scaled_system_condition_limit
+        < score.covariance.scaled_system_condition_number
+        < score.covariance.scaled_system_condition_limit
+    )
+    assert score.trace.audit_difference_c2 > 0.0
+    assert score.trace.audit_difference_c2 <= score.trace.roundoff_audit_allowance_c2

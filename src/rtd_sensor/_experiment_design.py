@@ -8,8 +8,9 @@ The public experiment-planning API is intentionally not introduced in this slice
 These helpers establish prospective polynomial information/covariance using the
 same scaled weighted Householder system as :mod:`rtd_sensor.fitting`, while
 expressing every covariance in one caller-specified planning reference basis. They
-also construct the deterministic sensitivity-weighted moment matrix used by the
-reviewed 0.9 I-optimal criterion.
+also construct the deterministic sensitivity-weighted moment matrix, analytical
+full-range uncertainty diagnostic, and private score used by the reviewed 0.9
+I-optimal criterion.
 """
 
 from __future__ import annotations
@@ -1363,4 +1364,295 @@ def _full_range_maximum_predicted_temperature_uncertainty(
         analytical_piece_count=len(pieces),
         stationary_root_count=stationary_root_count,
         maximum_stationary_polynomial_degree=maximum_stationary_degree,
+    )
+
+
+_I_OPTIMAL_CRITERION = "sensitivity_weighted_i_optimal"
+_TRACE_METHOD = "row_major_fsum"
+_TRACE_AUDIT_METHOD = "row_blocked_fsum"
+
+
+@dataclass(frozen=True, slots=True)
+class _SensitivityWeightedTraceObjective:
+    """Deterministic trace evaluation and numerical-audit evidence."""
+
+    objective_variance_c2: float
+    weighted_rms_standard_uncertainty_c: float
+    absolute_product_sum_c2: float
+    roundoff_audit_allowance_c2: float
+    audit_objective_variance_c2: float
+    audit_difference_c2: float
+    moment_error_contribution_c2: float
+    trace_method: str
+    audit_method: str
+
+
+@dataclass(frozen=True, slots=True)
+class _PolynomialDesignScore:
+    """Private score for one admissible prospective polynomial design."""
+
+    run_temperatures_c: tuple[float, ...]
+    standard_uncertainties_ohms: tuple[float, ...]
+    covariance: _ProspectivePolynomialCovariance
+    trace: _SensitivityWeightedTraceObjective
+    criterion: str
+    parameter_rank: int
+    distinct_temperature_count: int
+    fitted_minimum_temperature_c: float
+    fitted_maximum_temperature_c: float
+    minimum_calibration_temperature_c: float
+    maximum_calibration_temperature_c: float
+    covers_complete_fitted_range: bool
+
+
+@dataclass(frozen=True, slots=True)
+class _SelectedPolynomialDesignDiagnostics:
+    """Diagnostics that are needed only after a design has been selected."""
+
+    score: _PolynomialDesignScore
+    full_range_maximum: _MaximumPredictedTemperatureUncertainty
+
+
+def _validated_trace_inputs(
+    covariance: _ProspectivePolynomialCovariance,
+    moment: _SensitivityWeightedMomentMatrix,
+) -> int:
+    """Validate the shared fixed polynomial basis required by ``trace(C M)``."""
+
+    if covariance.parameter_names != moment.parameter_names:
+        raise RTDExperimentDesignError(
+            "Prospective covariance and moment matrix must use the same parameter basis"
+        )
+    if covariance.reference_temperature_c != moment.reference_temperature_c:
+        raise RTDExperimentDesignError(
+            "Prospective covariance and moment matrix must use the same reference "
+            "temperature"
+        )
+
+    dimension = len(covariance.parameter_names)
+    if dimension == 0:
+        raise RTDExperimentDesignError(
+            "Experiment-design trace matrices must be nonempty"
+        )
+    matrices = (
+        ("Prospective covariance", covariance.covariance_matrix),
+        ("Sensitivity-weighted moment", moment.moment_matrix),
+        (
+            "Sensitivity-weighted moment error",
+            moment.normalized_estimated_error_matrix,
+        ),
+    )
+    for name, matrix in matrices:
+        if len(matrix) != dimension or any(len(row) != dimension for row in matrix):
+            raise RTDExperimentDesignError(f"{name} matrix has the wrong dimensions")
+        if not all(math.isfinite(value) for row in matrix for value in row):
+            raise RTDExperimentDesignError(f"{name} matrix must remain finite")
+        if any(
+            matrix[row][column] != matrix[column][row]
+            for row in range(dimension)
+            for column in range(row + 1, dimension)
+        ):
+            raise RTDExperimentDesignError(f"{name} matrix must be exactly symmetric")
+    if any(
+        value < 0.0 for row in moment.normalized_estimated_error_matrix for value in row
+    ):
+        raise RTDExperimentDesignError(
+            "Sensitivity-weighted moment error estimates must be nonnegative"
+        )
+    return dimension
+
+
+def _sensitivity_weighted_trace_objective(
+    covariance: _ProspectivePolynomialCovariance,
+    moment: _SensitivityWeightedMomentMatrix,
+) -> _SensitivityWeightedTraceObjective:
+    """Evaluate ``J_T = trace(C_theta M_T)`` with deterministic audit evidence.
+
+    Ranking uses one canonical row-major ``math.fsum`` over the frozen binary64
+    matrices. Re-evaluating that exact path must be bit-identical. A deliberately
+    different upper-triangle representation is checked only as a numerical
+    invariant using the cancellation-aware ULP allowance documented in DESIGN.md;
+    that allowance never changes ranking or exact-tie semantics.
+    """
+
+    dimension = _validated_trace_inputs(covariance, moment)
+    try:
+        products = tuple(
+            covariance.covariance_matrix[row][column]
+            * moment.moment_matrix[column][row]
+            for row in range(dimension)
+            for column in range(dimension)
+        )
+        if not all(math.isfinite(value) for value in products):
+            raise RTDExperimentDesignError(
+                "Sensitivity-weighted I-optimal objective is not finitely representable"
+            )
+        objective = math.fsum(products)
+        repeated_objective = math.fsum(products)
+        absolute_sum = math.fsum(abs(value) for value in products)
+        audit_row_sums = tuple(
+            math.fsum(products[row * dimension : (row + 1) * dimension])
+            for row in range(dimension)
+        )
+        audit_objective = math.fsum(audit_row_sums)
+        moment_error_contribution = math.fsum(
+            abs(covariance.covariance_matrix[row][column])
+            * moment.normalized_estimated_error_matrix[column][row]
+            for row in range(dimension)
+            for column in range(dimension)
+        )
+    except OverflowError as error:
+        raise RTDExperimentDesignError(
+            "Sensitivity-weighted I-optimal objective is not finitely representable"
+        ) from error
+
+    if repeated_objective != objective:
+        raise RTDExperimentDesignError(
+            "Canonical sensitivity-weighted trace evaluation is not deterministic"
+        )
+    if not all(
+        math.isfinite(value)
+        for value in (
+            objective,
+            absolute_sum,
+            audit_objective,
+            moment_error_contribution,
+        )
+    ):
+        raise RTDExperimentDesignError(
+            "Sensitivity-weighted I-optimal objective is not finitely representable"
+        )
+    if objective < 0.0:
+        raise RTDExperimentDesignError(
+            "Sensitivity-weighted I-optimal objective produced a negative variance"
+        )
+
+    term_count = dimension * dimension
+    roundoff_allowance = (
+        8.0 * term_count * math.ulp(absolute_sum) if absolute_sum > 0.0 else 0.0
+    )
+    audit_difference = abs(audit_objective - objective)
+    if audit_difference > roundoff_allowance:
+        raise RTDExperimentDesignError(
+            "Independent trace audit exceeded the deterministic roundoff allowance"
+        )
+
+    return _SensitivityWeightedTraceObjective(
+        objective_variance_c2=objective,
+        weighted_rms_standard_uncertainty_c=math.sqrt(objective),
+        absolute_product_sum_c2=absolute_sum,
+        roundoff_audit_allowance_c2=roundoff_allowance,
+        audit_objective_variance_c2=audit_objective,
+        audit_difference_c2=audit_difference,
+        moment_error_contribution_c2=moment_error_contribution,
+        trace_method=_TRACE_METHOD,
+        audit_method=_TRACE_AUDIT_METHOD,
+    )
+
+
+def _score_polynomial_design(
+    temperatures_c: tuple[float, ...],
+    standard_uncertainties_ohms: tuple[float, ...],
+    *,
+    degree: int,
+    fitted_minimum_temperature_c: float,
+    fitted_maximum_temperature_c: float,
+    moment: _SensitivityWeightedMomentMatrix,
+) -> _PolynomialDesignScore:
+    """Score one admissible design without computing non-ranking diagnostics.
+
+    Exhaustive search may call this helper many times, so it computes only the
+    quantities needed for strict ``J_T`` ordering plus compact winning evidence.
+    The full-range maximum is deliberately deferred until a selected design is
+    finalized because it is diagnostic and never a hidden tie breaker.
+    """
+
+    degree = _validate_degree(degree)
+    fitted_minimum = _as_planning_float(
+        fitted_minimum_temperature_c,
+        name="Fitted-range minimum temperature",
+    )
+    fitted_maximum = _as_planning_float(
+        fitted_maximum_temperature_c,
+        name="Fitted-range maximum temperature",
+    )
+    if fitted_maximum <= fitted_minimum:
+        raise ValueError("Fitted range must have positive width")
+    planning_reference = fitted_minimum + 0.5 * (fitted_maximum - fitted_minimum)
+    if moment.reference_temperature_c != planning_reference:
+        raise RTDExperimentDesignError(
+            "Sensitivity-weighted moment matrix must use the midpoint of the "
+            "complete fitted range as the fixed planning reference"
+        )
+    expected_parameter_names = tuple(f"a{power}" for power in range(degree + 1))
+    if moment.parameter_names != expected_parameter_names:
+        raise RTDExperimentDesignError(
+            "Sensitivity-weighted moment matrix does not match the requested "
+            "polynomial degree"
+        )
+
+    covariance = _prospective_polynomial_covariance(
+        temperatures_c,
+        standard_uncertainties_ohms,
+        degree=degree,
+        planning_reference_temperature_c=planning_reference,
+    )
+    trace = _sensitivity_weighted_trace_objective(covariance, moment)
+
+    canonical_runs = tuple(
+        sorted(
+            (
+                _as_planning_float(temperature, name="Temperature"),
+                _as_planning_float(
+                    uncertainty,
+                    name="Resistance standard uncertainty",
+                ),
+            )
+            for temperature, uncertainty in zip(
+                temperatures_c,
+                standard_uncertainties_ohms,
+                strict=True,
+            )
+        )
+    )
+    run_temperatures = tuple(temperature for temperature, _ in canonical_runs)
+    run_uncertainties = tuple(uncertainty for _, uncertainty in canonical_runs)
+    distinct_temperature_count = len(set(run_temperatures))
+    minimum_temperature = run_temperatures[0]
+    maximum_temperature = run_temperatures[-1]
+
+    return _PolynomialDesignScore(
+        run_temperatures_c=run_temperatures,
+        standard_uncertainties_ohms=run_uncertainties,
+        covariance=covariance,
+        trace=trace,
+        criterion=_I_OPTIMAL_CRITERION,
+        parameter_rank=degree + 1,
+        distinct_temperature_count=distinct_temperature_count,
+        fitted_minimum_temperature_c=fitted_minimum,
+        fitted_maximum_temperature_c=fitted_maximum,
+        minimum_calibration_temperature_c=minimum_temperature,
+        maximum_calibration_temperature_c=maximum_temperature,
+        covers_complete_fitted_range=(
+            minimum_temperature <= fitted_minimum
+            and maximum_temperature >= fitted_maximum
+        ),
+    )
+
+
+def _selected_polynomial_design_diagnostics(
+    model: object,
+    score: _PolynomialDesignScore,
+) -> _SelectedPolynomialDesignDiagnostics:
+    """Attach diagnostics that do not participate in design ranking."""
+
+    maximum = _full_range_maximum_predicted_temperature_uncertainty(
+        model,
+        score.covariance,
+        fitted_minimum_temperature_c=score.fitted_minimum_temperature_c,
+        fitted_maximum_temperature_c=score.fitted_maximum_temperature_c,
+    )
+    return _SelectedPolynomialDesignDiagnostics(
+        score=score,
+        full_range_maximum=maximum,
     )
