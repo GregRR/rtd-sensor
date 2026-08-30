@@ -9,9 +9,15 @@ from decimal import Decimal, localcontext
 
 import pytest
 
-from rtd_sensor._experiment_design import _prospective_polynomial_covariance
+from rtd_sensor import pt100
+from rtd_sensor._experiment_design import (
+    _OperatingPriorityInterval,
+    _prospective_polynomial_covariance,
+    _sensitivity_weighted_moment_matrix,
+)
 from rtd_sensor.exceptions import RTDExperimentDesignError
 from rtd_sensor.fitting import CalibrationObservation, fit_polynomial
+from rtd_sensor.models import TabulatedRTDModel, TabulatedRTDPoint
 
 
 def _power_series_variance(
@@ -594,3 +600,418 @@ def test_degree_12_close_scores_are_characterized_without_fuzzy_tie() -> None:
     assert 0.0 < reference_relative_separation < 5.0e-7
     assert first_error < 5.0e-7
     assert second_error < 5.0e-7
+
+
+class _ConstantSensitivityModel:
+    def __init__(self, sensitivity_celsius_per_ohm: float) -> None:
+        self.sensitivity_celsius_per_ohm = sensitivity_celsius_per_ohm
+        self.evaluated_temperatures: list[float] = []
+
+    def resistance_to_celsius(self, resistance_ohms: float) -> float:
+        return resistance_ohms
+
+    def temperature_sensitivity_celsius_per_ohm(
+        self,
+        temperature_c: float,
+    ) -> float:
+        self.evaluated_temperatures.append(temperature_c)
+        return self.sensitivity_celsius_per_ohm
+
+
+class _OscillatorySensitivityModel(_ConstantSensitivityModel):
+    def temperature_sensitivity_celsius_per_ohm(
+        self,
+        temperature_c: float,
+    ) -> float:
+        self.evaluated_temperatures.append(temperature_c)
+        return 1.0 + 0.4 * math.sin(1000.0 * temperature_c)
+
+
+def _piecewise_constant_sensitivity_moment(
+    intervals: tuple[tuple[float, float, float, float], ...],
+    *,
+    degree: int,
+    reference_temperature_c: float,
+) -> tuple[tuple[float, ...], ...]:
+    normalization = math.fsum(
+        weight * (upper - lower) for lower, upper, weight, _ in intervals
+    )
+    rows: list[tuple[float, ...]] = []
+    for row in range(degree + 1):
+        values: list[float] = []
+        for column in range(degree + 1):
+            power = row + column
+            numerator = math.fsum(
+                weight
+                * sensitivity
+                * sensitivity
+                * (
+                    (upper - reference_temperature_c) ** (power + 1)
+                    - (lower - reference_temperature_c) ** (power + 1)
+                )
+                / (power + 1)
+                for lower, upper, weight, sensitivity in intervals
+            )
+            values.append(numerator / normalization)
+        rows.append(tuple(values))
+    return tuple(rows)
+
+
+def test_moment_matrix_matches_closed_form_degree_12_constant_sensitivity() -> None:
+    model = _ConstantSensitivityModel(0.25)
+    result = _sensitivity_weighted_moment_matrix(
+        model,
+        degree=12,
+        planning_reference_temperature_c=0.0,
+        fitted_minimum_temperature_c=-2.0,
+        fitted_maximum_temperature_c=2.0,
+        nominal_minimum_temperature_c=-2.0,
+        nominal_maximum_temperature_c=2.0,
+        priority_intervals=(_OperatingPriorityInterval(-2.0, 2.0, 3.0),),
+    )
+    expected = _piecewise_constant_sensitivity_moment(
+        ((-2.0, 2.0, 3.0, 0.25),),
+        degree=12,
+        reference_temperature_c=0.0,
+    )
+
+    for actual_row, expected_row in zip(
+        result.moment_matrix,
+        expected,
+        strict=True,
+    ):
+        assert actual_row == pytest.approx(expected_row, rel=2.0e-14, abs=1.0e-15)
+
+    assert result.integration_method == "adaptive_gauss_kronrod_15_31"
+    assert result.relative_error_target == 1.0e-12
+    assert result.priority_normalization_c == 12.0
+    assert result.structural_partition_c == (-2.0, 2.0)
+    assert result.accepted_subinterval_count == 1
+    assert result.sensitivity_evaluation_count == 31
+    assert result.adaptive_subdivision_occurred is False
+    assert result.parameter_names == tuple(f"a{power}" for power in range(13))
+    assert result.moment_matrix == tuple(
+        tuple(result.moment_matrix[column][row] for column in range(13))
+        for row in range(13)
+    )
+
+
+def test_moment_matrix_tabulated_breakpoint_matches_analytic_piecewise_result() -> None:
+    from rtd_sensor._experiment_design import (
+        _OperatingPriorityInterval,
+        _sensitivity_weighted_moment_matrix,
+    )
+
+    model = TabulatedRTDModel(
+        points=(
+            TabulatedRTDPoint(temperature_c=-10.0, resistance_ohms=90.0),
+            TabulatedRTDPoint(temperature_c=0.0, resistance_ohms=100.0),
+            TabulatedRTDPoint(temperature_c=20.0, resistance_ohms=140.0),
+        )
+    )
+    result = _sensitivity_weighted_moment_matrix(
+        model,
+        degree=3,
+        planning_reference_temperature_c=5.0,
+        fitted_minimum_temperature_c=-10.0,
+        fitted_maximum_temperature_c=20.0,
+        nominal_minimum_temperature_c=-10.0,
+        nominal_maximum_temperature_c=20.0,
+        priority_intervals=(_OperatingPriorityInterval(-10.0, 20.0, 1.0),),
+        sensitivity_breakpoints_c=(0.0,),
+    )
+    expected = _piecewise_constant_sensitivity_moment(
+        (
+            (-10.0, 0.0, 1.0, 1.0),
+            (0.0, 20.0, 1.0, 0.5),
+        ),
+        degree=3,
+        reference_temperature_c=5.0,
+    )
+
+    for actual_row, expected_row in zip(
+        result.moment_matrix,
+        expected,
+        strict=True,
+    ):
+        assert actual_row == pytest.approx(expected_row, rel=2.0e-14, abs=1.0e-13)
+    assert result.structural_partition_c == (-10.0, 0.0, 20.0)
+    assert result.accepted_subinterval_count == 2
+    assert result.sensitivity_evaluation_count == 62
+    assert result.adaptive_subdivision_occurred is False
+
+
+def test_moment_matrix_priority_scale_and_split_are_invariant() -> None:
+    model = _ConstantSensitivityModel(0.4)
+    unsplit = _sensitivity_weighted_moment_matrix(
+        model,
+        degree=4,
+        planning_reference_temperature_c=0.0,
+        fitted_minimum_temperature_c=-5.0,
+        fitted_maximum_temperature_c=5.0,
+        nominal_minimum_temperature_c=-5.0,
+        nominal_maximum_temperature_c=5.0,
+        priority_intervals=(_OperatingPriorityInterval(-5.0, 5.0, 2.0),),
+    )
+    scaled_and_split = _sensitivity_weighted_moment_matrix(
+        model,
+        degree=4,
+        planning_reference_temperature_c=0.0,
+        fitted_minimum_temperature_c=-5.0,
+        fitted_maximum_temperature_c=5.0,
+        nominal_minimum_temperature_c=-5.0,
+        nominal_maximum_temperature_c=5.0,
+        priority_intervals=(
+            _OperatingPriorityInterval(-5.0, -1.0, 34.0),
+            _OperatingPriorityInterval(-1.0, 5.0, 34.0),
+        ),
+    )
+
+    for row in range(5):
+        for column in range(5):
+            difference = abs(
+                scaled_and_split.moment_matrix[row][column]
+                - unsplit.moment_matrix[row][column]
+            )
+            combined_estimated_error = (
+                scaled_and_split.normalized_estimated_error_matrix[row][column]
+                + unsplit.normalized_estimated_error_matrix[row][column]
+            )
+            assert difference <= combined_estimated_error
+
+
+def test_moment_matrix_skips_zero_weight_intervals() -> None:
+    class PositiveOnlyModel(_ConstantSensitivityModel):
+        def temperature_sensitivity_celsius_per_ohm(
+            self,
+            temperature_c: float,
+        ) -> float:
+            if temperature_c < 0.0:
+                raise AssertionError("zero-weight interval must not be evaluated")
+            return super().temperature_sensitivity_celsius_per_ohm(temperature_c)
+
+    model = PositiveOnlyModel(0.5)
+    result = _sensitivity_weighted_moment_matrix(
+        model,
+        degree=2,
+        planning_reference_temperature_c=0.0,
+        fitted_minimum_temperature_c=-1.0,
+        fitted_maximum_temperature_c=1.0,
+        nominal_minimum_temperature_c=-1.0,
+        nominal_maximum_temperature_c=1.0,
+        priority_intervals=(
+            _OperatingPriorityInterval(-1.0, 0.0, 0.0),
+            _OperatingPriorityInterval(0.0, 1.0, 1.0),
+        ),
+    )
+
+    assert result.structural_partition_c == (-1.0, 0.0, 1.0)
+    assert result.accepted_subinterval_count == 1
+    assert all(temperature >= 0.0 for temperature in model.evaluated_temperatures)
+
+
+def test_moment_matrix_rejects_incomplete_priority_partition() -> None:
+    with pytest.raises(
+        RTDExperimentDesignError,
+        match="complete non-overlapping partition",
+    ):
+        _sensitivity_weighted_moment_matrix(
+            _ConstantSensitivityModel(1.0),
+            degree=1,
+            planning_reference_temperature_c=0.0,
+            fitted_minimum_temperature_c=-1.0,
+            fitted_maximum_temperature_c=1.0,
+            nominal_minimum_temperature_c=-1.0,
+            nominal_maximum_temperature_c=1.0,
+            priority_intervals=(
+                _OperatingPriorityInterval(-1.0, -0.25, 1.0),
+                _OperatingPriorityInterval(0.25, 1.0, 1.0),
+            ),
+        )
+
+
+def test_moment_matrix_rejects_fitted_range_outside_nominal_domain() -> None:
+    with pytest.raises(
+        RTDExperimentDesignError,
+        match="must lie inside the nominal-sensitivity domain",
+    ):
+        _sensitivity_weighted_moment_matrix(
+            _ConstantSensitivityModel(1.0),
+            degree=1,
+            planning_reference_temperature_c=0.0,
+            fitted_minimum_temperature_c=-2.0,
+            fitted_maximum_temperature_c=2.0,
+            nominal_minimum_temperature_c=-1.0,
+            nominal_maximum_temperature_c=2.0,
+            priority_intervals=(_OperatingPriorityInterval(-2.0, 2.0, 1.0),),
+        )
+
+
+def test_moment_matrix_rejects_nonpositive_nominal_sensitivity() -> None:
+    with pytest.raises(
+        RTDExperimentDesignError,
+        match="finite and strictly positive",
+    ):
+        _sensitivity_weighted_moment_matrix(
+            _ConstantSensitivityModel(0.0),
+            degree=1,
+            planning_reference_temperature_c=0.0,
+            fitted_minimum_temperature_c=-1.0,
+            fitted_maximum_temperature_c=1.0,
+            nominal_minimum_temperature_c=-1.0,
+            nominal_maximum_temperature_c=1.0,
+            priority_intervals=(_OperatingPriorityInterval(-1.0, 1.0, 1.0),),
+        )
+
+
+def test_moment_matrix_resource_limit_fails_instead_of_relaxing_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import rtd_sensor._experiment_design as experiment_design
+
+    monkeypatch.setattr(experiment_design, "_MAX_MOMENT_INTERVAL_EVALUATIONS", 1)
+    with pytest.raises(
+        RTDExperimentDesignError,
+        match="resource limit",
+    ):
+        experiment_design._sensitivity_weighted_moment_matrix(
+            _OscillatorySensitivityModel(1.0),
+            degree=2,
+            planning_reference_temperature_c=0.0,
+            fitted_minimum_temperature_c=-1.0,
+            fitted_maximum_temperature_c=1.0,
+            nominal_minimum_temperature_c=-1.0,
+            nominal_maximum_temperature_c=1.0,
+            priority_intervals=(
+                experiment_design._OperatingPriorityInterval(-1.0, 1.0, 1.0),
+            ),
+        )
+
+
+def test_moment_matrix_adapts_deterministically_for_smooth_black_box() -> None:
+    class SmoothModel(_ConstantSensitivityModel):
+        def temperature_sensitivity_celsius_per_ohm(
+            self,
+            temperature_c: float,
+        ) -> float:
+            self.evaluated_temperatures.append(temperature_c)
+            return 1.0 + 0.2 * math.sin(5.0 * temperature_c)
+
+    first = _sensitivity_weighted_moment_matrix(
+        SmoothModel(1.0),
+        degree=4,
+        planning_reference_temperature_c=0.0,
+        fitted_minimum_temperature_c=-1.0,
+        fitted_maximum_temperature_c=1.0,
+        nominal_minimum_temperature_c=-1.0,
+        nominal_maximum_temperature_c=1.0,
+        priority_intervals=(_OperatingPriorityInterval(-1.0, 1.0, 1.0),),
+    )
+    second = _sensitivity_weighted_moment_matrix(
+        SmoothModel(1.0),
+        degree=4,
+        planning_reference_temperature_c=0.0,
+        fitted_minimum_temperature_c=-1.0,
+        fitted_maximum_temperature_c=1.0,
+        nominal_minimum_temperature_c=-1.0,
+        nominal_maximum_temperature_c=1.0,
+        priority_intervals=(_OperatingPriorityInterval(-1.0, 1.0, 1.0),),
+    )
+
+    assert first == second
+    assert first.adaptive_subdivision_occurred is True
+    assert first.accepted_subinterval_count == 2
+    assert first.sensitivity_evaluation_count == 93
+
+
+def test_trace_objective_matches_direct_piecewise_analytic_integral() -> None:
+    model = TabulatedRTDModel(
+        points=(
+            TabulatedRTDPoint(temperature_c=-10.0, resistance_ohms=90.0),
+            TabulatedRTDPoint(temperature_c=0.0, resistance_ohms=100.0),
+            TabulatedRTDPoint(temperature_c=20.0, resistance_ohms=140.0),
+        )
+    )
+    moment = _sensitivity_weighted_moment_matrix(
+        model,
+        degree=3,
+        planning_reference_temperature_c=5.0,
+        fitted_minimum_temperature_c=-10.0,
+        fitted_maximum_temperature_c=20.0,
+        nominal_minimum_temperature_c=-10.0,
+        nominal_maximum_temperature_c=20.0,
+        priority_intervals=(_OperatingPriorityInterval(-10.0, 20.0, 1.0),),
+        sensitivity_breakpoints_c=(0.0,),
+    )
+    covariance = _prospective_polynomial_covariance(
+        (-10.0, -2.0, 8.0, 20.0),
+        (0.02, 0.015, 0.025, 0.018),
+        degree=3,
+        planning_reference_temperature_c=5.0,
+    ).covariance_matrix
+
+    trace_objective = math.fsum(
+        covariance[row][column] * moment.moment_matrix[column][row]
+        for row in range(4)
+        for column in range(4)
+    )
+    exact_piecewise_moment = _piecewise_constant_sensitivity_moment(
+        (
+            (-10.0, 0.0, 1.0, 1.0),
+            (0.0, 20.0, 1.0, 0.5),
+        ),
+        degree=3,
+        reference_temperature_c=5.0,
+    )
+    direct_analytic_objective = math.fsum(
+        covariance[row][column] * exact_piecewise_moment[row][column]
+        for row in range(4)
+        for column in range(4)
+    )
+    propagated_integration_error = math.fsum(
+        abs(covariance[row][column])
+        * moment.normalized_estimated_error_matrix[row][column]
+        for row in range(4)
+        for column in range(4)
+    )
+
+    assert abs(trace_objective - direct_analytic_objective) <= (
+        propagated_integration_error + 8.0 * math.ulp(abs(direct_analytic_objective))
+    )
+
+
+def test_moment_matrix_is_deterministic() -> None:
+    from rtd_sensor._experiment_design import (
+        _OperatingPriorityInterval,
+        _sensitivity_weighted_moment_matrix,
+    )
+
+    priority_intervals = (
+        _OperatingPriorityInterval(-200.0, 0.0, 0.5),
+        _OperatingPriorityInterval(0.0, 850.0, 1.0),
+    )
+    first = _sensitivity_weighted_moment_matrix(
+        pt100,
+        degree=5,
+        planning_reference_temperature_c=325.0,
+        fitted_minimum_temperature_c=-200.0,
+        fitted_maximum_temperature_c=850.0,
+        nominal_minimum_temperature_c=-200.0,
+        nominal_maximum_temperature_c=850.0,
+        priority_intervals=priority_intervals,
+        sensitivity_breakpoints_c=(0.0,),
+    )
+    second = _sensitivity_weighted_moment_matrix(
+        pt100,
+        degree=5,
+        planning_reference_temperature_c=325.0,
+        fitted_minimum_temperature_c=-200.0,
+        fitted_maximum_temperature_c=850.0,
+        nominal_minimum_temperature_c=-200.0,
+        nominal_maximum_temperature_c=850.0,
+        priority_intervals=priority_intervals,
+        sensitivity_breakpoints_c=(0.0,),
+    )
+
+    assert second == first
+    assert first.structural_partition_c == (-200.0, 0.0, 850.0)
