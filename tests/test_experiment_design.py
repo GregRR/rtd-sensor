@@ -9,15 +9,26 @@ from decimal import Decimal, localcontext
 
 import pytest
 
+import rtd_sensor._experiment_design as experiment_design
 from rtd_sensor import pt100
 from rtd_sensor._experiment_design import (
+    _full_range_maximum_predicted_temperature_uncertainty,
     _OperatingPriorityInterval,
     _prospective_polynomial_covariance,
+    _ProspectivePolynomialCovariance,
     _sensitivity_weighted_moment_matrix,
+    _stationary_roots_in_interval,
 )
 from rtd_sensor.exceptions import RTDExperimentDesignError
 from rtd_sensor.fitting import CalibrationObservation, fit_polynomial
-from rtd_sensor.models import TabulatedRTDModel, TabulatedRTDPoint
+from rtd_sensor.models import (
+    IEC60751RTDModel,
+    PiecewisePolynomialRTDModel,
+    PiecewisePolynomialSegment,
+    PolynomialRTDModel,
+    TabulatedRTDModel,
+    TabulatedRTDPoint,
+)
 
 
 def _power_series_variance(
@@ -1015,3 +1026,362 @@ def test_moment_matrix_is_deterministic() -> None:
 
     assert second == first
     assert first.structural_partition_c == (-200.0, 0.0, 850.0)
+
+
+def _test_covariance(
+    covariance_matrix: tuple[tuple[float, ...], ...],
+    *,
+    reference_temperature_c: float,
+) -> _ProspectivePolynomialCovariance:
+    return _ProspectivePolynomialCovariance(
+        covariance_matrix=covariance_matrix,
+        parameter_names=tuple(f"a{power}" for power in range(len(covariance_matrix))),
+        reference_temperature_c=reference_temperature_c,
+        scaled_temperature_center_c=reference_temperature_c,
+        scaled_temperature_half_range_c=1.0,
+        scaled_system_condition_number=1.0,
+        scaled_system_condition_limit=1.0e10,
+        conditioning_method="test",
+        solver="test",
+    )
+
+
+def test_full_range_maximum_is_not_established_for_black_box_model() -> None:
+    model = _ConstantSensitivityModel(0.5)
+    covariance = _test_covariance(
+        ((1.0, 0.0), (0.0, 1.0)),
+        reference_temperature_c=0.0,
+    )
+
+    result = _full_range_maximum_predicted_temperature_uncertainty(
+        model,
+        covariance,
+        fitted_minimum_temperature_c=-1.0,
+        fitted_maximum_temperature_c=1.0,
+    )
+
+    assert result.status == "not_established"
+    assert result.maximum_standard_uncertainty_c is None
+    assert result.maximum_variance_c2 is None
+    assert result.locations == ()
+    assert result.method is None
+    assert result.reason is not None
+    assert "package-owned analytical sensitivity pieces" in result.reason
+    assert model.evaluated_temperatures == []
+
+
+def test_full_range_maximum_requires_shared_midpoint_planning_basis() -> None:
+    covariance = _test_covariance(
+        ((1.0, 0.0), (0.0, 1.0)),
+        reference_temperature_c=0.25,
+    )
+    model = TabulatedRTDModel(
+        points=(
+            TabulatedRTDPoint(temperature_c=-1.0, resistance_ohms=99.0),
+            TabulatedRTDPoint(temperature_c=1.0, resistance_ohms=101.0),
+        )
+    )
+
+    with pytest.raises(
+        RTDExperimentDesignError,
+        match="fixed planning basis at the midpoint",
+    ):
+        _full_range_maximum_predicted_temperature_uncertainty(
+            model,
+            covariance,
+            fitted_minimum_temperature_c=-1.0,
+            fitted_maximum_temperature_c=1.0,
+        )
+
+
+def test_full_range_maximum_respects_narrowed_package_model_range() -> None:
+    model = IEC60751RTDModel(
+        r0_ohms=100.0,
+        minimum_temperature_c=-50.0,
+        maximum_temperature_c=50.0,
+    )
+    covariance = _test_covariance(
+        ((1.0, 0.0), (0.0, 1.0)),
+        reference_temperature_c=0.0,
+    )
+
+    with pytest.raises(
+        RTDExperimentDesignError,
+        match="inside the nominal-model range",
+    ):
+        _full_range_maximum_predicted_temperature_uncertainty(
+            model,
+            covariance,
+            fitted_minimum_temperature_c=-100.0,
+            fitted_maximum_temperature_c=100.0,
+        )
+
+
+def test_full_range_maximum_retains_exact_tied_endpoint_locations() -> None:
+    covariance = _test_covariance(
+        ((1.0, 0.0), (0.0, 1.0)),
+        reference_temperature_c=0.0,
+    )
+    model = TabulatedRTDModel(
+        points=(
+            TabulatedRTDPoint(temperature_c=-1.0, resistance_ohms=99.0),
+            TabulatedRTDPoint(temperature_c=1.0, resistance_ohms=101.0),
+        )
+    )
+
+    result = _full_range_maximum_predicted_temperature_uncertainty(
+        model,
+        covariance,
+        fitted_minimum_temperature_c=-1.0,
+        fitted_maximum_temperature_c=1.0,
+    )
+
+    assert result.status == "established"
+    assert result.maximum_variance_c2 == 2.0
+    assert result.maximum_standard_uncertainty_c == math.sqrt(2.0)
+    assert result.locations == (
+        experiment_design._MaximumUncertaintyLocation(-1.0, "point"),
+        experiment_design._MaximumUncertaintyLocation(1.0, "point"),
+    )
+    assert result.analytical_piece_count == 1
+    assert result.stationary_root_count == 1
+
+
+def test_full_range_maximum_checks_both_one_sided_tabulated_limits() -> None:
+    covariance = _test_covariance(
+        ((1.0, 0.1), (0.1, 0.02)),
+        reference_temperature_c=0.0,
+    )
+    model = TabulatedRTDModel(
+        points=(
+            TabulatedRTDPoint(temperature_c=-1.0, resistance_ohms=99.99),
+            TabulatedRTDPoint(temperature_c=0.0, resistance_ohms=100.0),
+            TabulatedRTDPoint(temperature_c=1.0, resistance_ohms=101.0),
+        )
+    )
+
+    result = _full_range_maximum_predicted_temperature_uncertainty(
+        model,
+        covariance,
+        fitted_minimum_temperature_c=-1.0,
+        fitted_maximum_temperature_c=1.0,
+    )
+
+    # q(T) is increasing across the left interval and that interval has a
+    # 0.01-ohm/°C slope. The supremum at the join therefore comes from the
+    # left-hand sensitivity, even though the public tabulated convention routes
+    # the exact knot through the right-hand interval.
+    assert result.status == "established"
+    assert result.maximum_variance_c2 == pytest.approx(10000.0)
+    assert result.locations == (
+        experiment_design._MaximumUncertaintyLocation(0.0, "left_limit"),
+    )
+    assert result.analytical_piece_count == 2
+
+
+def test_full_range_maximum_recognizes_builtin_cvd_module() -> None:
+    covariance = _test_covariance(
+        ((1.0, 0.0), (0.0, 1.0e-4)),
+        reference_temperature_c=0.0,
+    )
+
+    result = _full_range_maximum_predicted_temperature_uncertainty(
+        pt100,
+        covariance,
+        fitted_minimum_temperature_c=-100.0,
+        fitted_maximum_temperature_c=100.0,
+    )
+
+    assert result.status == "established"
+    assert result.method == "analytical_sensitivity_stationary_polynomial"
+    assert result.analytical_piece_count == 2
+    assert result.maximum_variance_c2 is not None
+    assert result.maximum_variance_c2 > 0.0
+
+
+def test_full_range_maximum_uses_piecewise_polynomial_sides() -> None:
+    model = PiecewisePolynomialRTDModel(
+        reference_resistance_ohms=100.0,
+        segments=(
+            PiecewisePolynomialSegment(
+                minimum_temperature_c=-1.0,
+                maximum_temperature_c=0.0,
+                coefficients=(1.0, 0.001),
+            ),
+            PiecewisePolynomialSegment(
+                minimum_temperature_c=0.0,
+                maximum_temperature_c=1.0,
+                coefficients=(1.0, 0.01),
+            ),
+        ),
+        maximum_continuity_adjustment_ratio=0.01,
+    )
+    covariance = _test_covariance(
+        ((1.0, 0.1), (0.1, 0.02)),
+        reference_temperature_c=0.0,
+    )
+
+    result = _full_range_maximum_predicted_temperature_uncertainty(
+        model,
+        covariance,
+        fitted_minimum_temperature_c=-1.0,
+        fitted_maximum_temperature_c=1.0,
+    )
+
+    assert result.status == "established"
+    assert result.locations == (
+        experiment_design._MaximumUncertaintyLocation(0.0, "left_limit"),
+    )
+    assert result.analytical_piece_count == 2
+
+
+def test_degree_34_stationary_root_solver_against_high_precision_reference() -> None:
+    # h(x)=x^34-1/2 is a direct top-degree validation of the recursive
+    # derivative/Rolle partition used by the maximum diagnostic. Its two simple
+    # roots are independently located below with Decimal bisection.
+    coefficients = (-0.5, *(0.0 for _ in range(33)), 1.0)
+    roots = _stationary_roots_in_interval(coefficients, -1.0, 1.0)
+
+    with localcontext() as context:
+        context.prec = 110
+        lower = Decimal(0)
+        upper = Decimal(1)
+        target = Decimal("0.5")
+        for _ in range(400):
+            midpoint = (lower + upper) / 2
+            if midpoint**34 < target:
+                lower = midpoint
+            else:
+                upper = midpoint
+        positive_reference = (lower + upper) / 2
+
+    assert len(roots) == 2
+    assert abs(Decimal.from_float(roots[0]) + positive_reference) < Decimal("5e-16")
+    assert abs(Decimal.from_float(roots[1]) - positive_reference) < Decimal("5e-16")
+
+
+def _decimal_polynomial_product(
+    left: list[Decimal],
+    right: list[Decimal],
+) -> list[Decimal]:
+    result = [Decimal(0)] * (len(left) + len(right) - 1)
+    for left_power, left_coefficient in enumerate(left):
+        for right_power, right_coefficient in enumerate(right):
+            result[left_power + right_power] += left_coefficient * right_coefficient
+    return result
+
+
+def _decimal_polynomial_value(
+    coefficients: list[Decimal],
+    x: Decimal,
+) -> Decimal:
+    result = Decimal(0)
+    for coefficient in reversed(coefficients):
+        result = result * x + coefficient
+    return result
+
+
+def test_degree_12_fit_and_degree_12_nominal_model_maximum_high_precision() -> None:
+    temperatures = _near_guardrail_temperatures(2.5e-6)
+    covariance = _prospective_polynomial_covariance(
+        temperatures,
+        (0.01,) * 13,
+        degree=12,
+        planning_reference_temperature_c=0.0,
+    )
+    model = PolynomialRTDModel(
+        reference_resistance_ohms=100.0,
+        coefficients=(0.004, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0e-8),
+        minimum_temperature_c=-1.0,
+        maximum_temperature_c=1.0,
+    )
+
+    result = _full_range_maximum_predicted_temperature_uncertainty(
+        model,
+        covariance,
+        fitted_minimum_temperature_c=-1.0,
+        fitted_maximum_temperature_c=1.0,
+    )
+
+    assert (
+        0.9 * covariance.scaled_system_condition_limit
+        < (covariance.scaled_system_condition_number)
+        < covariance.scaled_system_condition_limit
+    )
+    assert result.status == "established"
+    assert result.maximum_stationary_polynomial_degree == 34
+    assert result.stationary_root_count > 0
+    assert result.maximum_variance_c2 is not None
+    assert len(result.locations) == 1
+    assert result.locations[0].side == "point"
+    maximum_temperature = result.locations[0].temperature_c
+    assert -0.96 < maximum_temperature < -0.93
+
+    # Independent 120-digit arithmetic starts from the exact binary64 covariance
+    # entries but does not reuse the production polynomial construction, root
+    # search, or variance evaluation. The fixture exercises the reviewed worst
+    # supported stationary degree: q has degree 24 and dR/dT degree 11, so h has
+    # degree 34.
+    with localcontext() as context:
+        context.prec = 120
+        decimal_covariance = [
+            [Decimal.from_float(value) for value in row]
+            for row in covariance.covariance_matrix
+        ]
+        q = [Decimal(0)] * 25
+        for row in range(13):
+            for column in range(13):
+                q[row + column] += decimal_covariance[row][column]
+
+        resistance_sensitivity = [Decimal(0)] * 12
+        resistance_scale = Decimal.from_float(100.0)
+        resistance_sensitivity[0] = resistance_scale * Decimal.from_float(0.004)
+        resistance_sensitivity[11] = (
+            resistance_scale * Decimal(12) * Decimal.from_float(1.0e-8)
+        )
+        q_prime = [Decimal(power) * q[power] for power in range(1, len(q))]
+        r_prime = [
+            Decimal(power) * resistance_sensitivity[power]
+            for power in range(1, len(resistance_sensitivity))
+        ]
+        first = _decimal_polynomial_product(q_prime, resistance_sensitivity)
+        second = _decimal_polynomial_product(q, r_prime)
+        h = [Decimal(0)] * max(len(first), len(second))
+        for power in range(len(h)):
+            h[power] = (first[power] if power < len(first) else Decimal(0)) - Decimal(
+                2
+            ) * (second[power] if power < len(second) else Decimal(0))
+
+        lower = Decimal("-0.96")
+        upper = Decimal("-0.93")
+        lower_value = _decimal_polynomial_value(h, lower)
+        upper_value = _decimal_polynomial_value(h, upper)
+        assert (lower_value < 0) != (upper_value < 0)
+        for _ in range(500):
+            midpoint = (lower + upper) / 2
+            midpoint_value = _decimal_polynomial_value(h, midpoint)
+            if (lower_value < 0) == (midpoint_value < 0):
+                lower = midpoint
+                lower_value = midpoint_value
+            else:
+                upper = midpoint
+        reference_temperature = (lower + upper) / 2
+        reference_q = _decimal_polynomial_value(q, reference_temperature)
+        reference_r = _decimal_polynomial_value(
+            resistance_sensitivity,
+            reference_temperature,
+        )
+        reference_variance = reference_q / (reference_r * reference_r)
+
+    root_error = abs(Decimal.from_float(maximum_temperature) - reference_temperature)
+    relative_variance_error = (
+        abs(Decimal.from_float(result.maximum_variance_c2) - reference_variance)
+        / reference_variance
+    )
+
+    # On the reviewed near-guardrail fixture the binary64 root is within about
+    # 1e-13 °C and the final variance within about 1e-12 relative of the
+    # independent arithmetic. These are numerical regression envelopes, not
+    # design-score tie thresholds or physical accuracy claims.
+    assert root_error < Decimal("5e-12")
+    assert relative_variance_error < Decimal("5e-11")

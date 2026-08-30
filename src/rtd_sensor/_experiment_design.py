@@ -16,9 +16,28 @@ from __future__ import annotations
 
 import math
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from types import ModuleType
+from typing import Literal
 
+from . import models as _public_models
+from ._curves import (
+    CallendarVanDusenCurve as _CallendarVanDusenCurve,
+)
+from ._curves import (
+    PiecewisePolynomialRTDCurve as _PiecewisePolynomialRTDCurve,
+)
+from ._curves import (
+    PolynomialRTDCurve as _PolynomialRTDCurve,
+)
+from ._curves import (
+    _polynomial_derivative,
+    _polynomial_roots_in_interval,
+    _polynomial_value,
+    _trim_polynomial,
+)
+from ._models import RTDModel as _InternalRTDModel
 from ._protocols import RTDUncertaintyModel
 from .exceptions import RTDExperimentDesignError, RTDFitError
 from .fitting import (
@@ -33,6 +52,7 @@ from .fitting import (
     _upper_triangular_information_inverse,
     _validate_degree,
 )
+from .uncertainty import _covariance_quadratic_form
 
 
 @dataclass(frozen=True, slots=True)
@@ -772,4 +792,575 @@ def _sensitivity_weighted_moment_matrix(
         adaptive_subdivision_occurred=adaptive_subdivision_occurred,
         integration_method=_MOMENT_INTEGRATION_METHOD,
         relative_error_target=_MOMENT_RELATIVE_ERROR_TARGET,
+    )
+
+
+_MAXIMUM_UNCERTAINTY_METHOD = "analytical_sensitivity_stationary_polynomial"
+_MAX_STATIONARY_POLYNOMIAL_DEGREE = 34
+
+
+@dataclass(frozen=True, slots=True)
+class _ResistanceSensitivityPiece:
+    """One package-owned analytical dR/dT polynomial over a closed interval."""
+
+    minimum_temperature_c: float
+    maximum_temperature_c: float
+    local_origin_temperature_c: float
+    coefficients_ohms_per_celsius: tuple[float, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _MaximumUncertaintyLocation:
+    """One exact computed maximizer or one-sided limiting location."""
+
+    temperature_c: float
+    side: Literal["point", "left_limit", "right_limit"]
+
+
+@dataclass(frozen=True, slots=True)
+class _MaximumPredictedTemperatureUncertainty:
+    """Frozen result of the package-model full-range maximum diagnostic."""
+
+    status: Literal["established", "not_established"]
+    maximum_standard_uncertainty_c: float | None
+    maximum_variance_c2: float | None
+    locations: tuple[_MaximumUncertaintyLocation, ...]
+    method: str | None
+    reason: str | None
+    analytical_piece_count: int
+    stationary_root_count: int
+    maximum_stationary_polynomial_degree: int | None
+
+
+def _translate_polynomial_coefficients(
+    coefficients: Sequence[float],
+    *,
+    source_origin_temperature_c: float,
+    target_origin_temperature_c: float,
+) -> tuple[float, ...]:
+    """Translate an ascending-power polynomial into a new local coordinate."""
+
+    shift = target_origin_temperature_c - source_origin_temperature_c
+    translated_terms: list[list[float]] = [[] for _ in range(len(coefficients))]
+    try:
+        for source_power, coefficient in enumerate(coefficients):
+            for target_power in range(source_power + 1):
+                translated_terms[target_power].append(
+                    coefficient
+                    * math.comb(source_power, target_power)
+                    * shift ** (source_power - target_power)
+                )
+        translated = tuple(math.fsum(terms) for terms in translated_terms)
+    except OverflowError as error:
+        raise RTDExperimentDesignError(
+            "Analytical sensitivity polynomial is not finitely representable"
+        ) from error
+    if not all(math.isfinite(value) for value in translated):
+        raise RTDExperimentDesignError(
+            "Analytical sensitivity polynomial is not finitely representable"
+        )
+    return _trim_polynomial(translated)
+
+
+def _localized_sensitivity_piece(
+    *,
+    minimum_temperature_c: float,
+    maximum_temperature_c: float,
+    source_origin_temperature_c: float,
+    source_coefficients_ohms_per_celsius: Sequence[float],
+) -> _ResistanceSensitivityPiece:
+    local_origin = minimum_temperature_c + 0.5 * (
+        maximum_temperature_c - minimum_temperature_c
+    )
+    coefficients = _translate_polynomial_coefficients(
+        source_coefficients_ohms_per_celsius,
+        source_origin_temperature_c=source_origin_temperature_c,
+        target_origin_temperature_c=local_origin,
+    )
+    return _ResistanceSensitivityPiece(
+        minimum_temperature_c=minimum_temperature_c,
+        maximum_temperature_c=maximum_temperature_c,
+        local_origin_temperature_c=local_origin,
+        coefficients_ohms_per_celsius=coefficients,
+    )
+
+
+def _package_internal_model(model: object) -> _InternalRTDModel | None:
+    """Return the package-owned internal model behind a supported public object."""
+
+    if isinstance(model, _InternalRTDModel):
+        return model
+
+    if isinstance(model, _public_models.IEC60751RTDModel):
+        return model._model
+    if isinstance(model, _public_models.CallendarVanDusenRTDModel):
+        return model._model
+    if isinstance(model, _public_models.PolynomialRTDModel):
+        return model._model
+    if isinstance(model, _public_models.PiecewisePolynomialRTDModel):
+        return model._model
+
+    # Built-in convenience modules such as ``rtd_sensor.pt100`` are package-owned
+    # model façades. Do not recognize arbitrary third-party modules merely because
+    # they happen to expose an attribute named ``_MODEL``.
+    if isinstance(model, ModuleType) and model.__name__.startswith("rtd_sensor."):
+        internal = getattr(model, "_MODEL", None)
+        if isinstance(internal, _InternalRTDModel):
+            return internal
+
+    return None
+
+
+def _package_sensitivity_pieces(
+    model: object,
+    *,
+    fitted_minimum_temperature_c: float,
+    fitted_maximum_temperature_c: float,
+) -> tuple[_ResistanceSensitivityPiece, ...] | None:
+    """Freeze package analytical dR/dT pieces, or return ``None`` for black boxes."""
+
+    pieces: list[_ResistanceSensitivityPiece] = []
+    if isinstance(model, _public_models.TabulatedRTDModel):
+        if (
+            fitted_minimum_temperature_c < model.minimum_temperature_c
+            or fitted_maximum_temperature_c > model.maximum_temperature_c
+        ):
+            raise RTDExperimentDesignError(
+                "The complete fitted range must lie inside the nominal-model range"
+            )
+
+        temperatures = model._temperatures_c
+        slopes = model._slopes_ohms_per_celsius
+        for index, slope in enumerate(slopes):
+            lower = max(fitted_minimum_temperature_c, temperatures[index])
+            upper = min(fitted_maximum_temperature_c, temperatures[index + 1])
+            if lower >= upper:
+                continue
+            pieces.append(
+                _localized_sensitivity_piece(
+                    minimum_temperature_c=lower,
+                    maximum_temperature_c=upper,
+                    source_origin_temperature_c=lower,
+                    source_coefficients_ohms_per_celsius=(slope,),
+                )
+            )
+        return tuple(pieces)
+
+    internal = _package_internal_model(model)
+    if internal is None:
+        return None
+
+    declared_minimum = internal.minimum_temperature_c
+    declared_maximum = internal.maximum_temperature_c
+    if isinstance(
+        model,
+        (
+            _public_models.IEC60751RTDModel,
+            _public_models.CallendarVanDusenRTDModel,
+            _public_models.PolynomialRTDModel,
+            _public_models.PiecewisePolynomialRTDModel,
+        ),
+    ):
+        declared_minimum = model.minimum_temperature_c
+        declared_maximum = model.maximum_temperature_c
+    if (
+        fitted_minimum_temperature_c < declared_minimum
+        or fitted_maximum_temperature_c > declared_maximum
+    ):
+        raise RTDExperimentDesignError(
+            "The complete fitted range must lie inside the nominal-model range"
+        )
+
+    curve = internal.curve
+    resistance_scale = internal.reference_resistance_ohms
+    pieces = []
+
+    if isinstance(curve, _CallendarVanDusenCurve):
+        source_pieces: list[tuple[float, float, tuple[float, ...]]] = []
+        negative_upper = min(fitted_maximum_temperature_c, 0.0)
+        if fitted_minimum_temperature_c < negative_upper:
+            source_pieces.append(
+                (
+                    fitted_minimum_temperature_c,
+                    negative_upper,
+                    (
+                        resistance_scale * curve.a,
+                        resistance_scale * 2.0 * curve.b,
+                        resistance_scale * -300.0 * curve.c,
+                        resistance_scale * 4.0 * curve.c,
+                    ),
+                )
+            )
+        positive_lower = max(fitted_minimum_temperature_c, 0.0)
+        if positive_lower < fitted_maximum_temperature_c:
+            source_pieces.append(
+                (
+                    positive_lower,
+                    fitted_maximum_temperature_c,
+                    (
+                        resistance_scale * curve.a,
+                        resistance_scale * 2.0 * curve.b,
+                    ),
+                )
+            )
+        # A range ending or beginning exactly at 0 °C still needs one analytical
+        # piece. The applicable derivative is the side present inside the range.
+        if not source_pieces:
+            fallback_coefficients: tuple[float, ...] = (
+                resistance_scale * curve.a,
+                resistance_scale * 2.0 * curve.b,
+            )
+            source_pieces.append(
+                (
+                    fitted_minimum_temperature_c,
+                    fitted_maximum_temperature_c,
+                    fallback_coefficients,
+                )
+            )
+        for lower, upper, coefficients in source_pieces:
+            pieces.append(
+                _localized_sensitivity_piece(
+                    minimum_temperature_c=lower,
+                    maximum_temperature_c=upper,
+                    source_origin_temperature_c=0.0,
+                    source_coefficients_ohms_per_celsius=coefficients,
+                )
+            )
+        return tuple(pieces)
+
+    if isinstance(curve, _PolynomialRTDCurve):
+        source_coefficients = tuple(
+            resistance_scale * power * coefficient
+            for power, coefficient in enumerate(curve.coefficients, start=1)
+        )
+        return (
+            _localized_sensitivity_piece(
+                minimum_temperature_c=fitted_minimum_temperature_c,
+                maximum_temperature_c=fitted_maximum_temperature_c,
+                source_origin_temperature_c=curve.reference_temperature_c,
+                source_coefficients_ohms_per_celsius=source_coefficients,
+            ),
+        )
+
+    if isinstance(curve, _PiecewisePolynomialRTDCurve):
+        for segment in curve.segments:
+            lower = max(fitted_minimum_temperature_c, segment.minimum_temperature_c)
+            upper = min(fitted_maximum_temperature_c, segment.maximum_temperature_c)
+            if lower >= upper:
+                continue
+            source_coefficients = tuple(
+                resistance_scale * power * coefficient
+                for power, coefficient in enumerate(segment.coefficients[1:], start=1)
+            )
+            pieces.append(
+                _localized_sensitivity_piece(
+                    minimum_temperature_c=lower,
+                    maximum_temperature_c=upper,
+                    source_origin_temperature_c=segment.temperature_origin_c,
+                    source_coefficients_ohms_per_celsius=source_coefficients,
+                )
+            )
+        return tuple(pieces)
+
+    # A future package model family does not silently inherit an analytical
+    # maximum claim. It must explicitly define the exact piece semantics first.
+    return None
+
+
+def _variance_polynomial_in_local_coordinate(
+    covariance_matrix: tuple[tuple[float, ...], ...],
+    *,
+    planning_reference_temperature_c: float,
+    local_origin_temperature_c: float,
+) -> tuple[float, ...]:
+    """Return q(T)=phi(T).T C phi(T) in one local temperature coordinate."""
+
+    dimension = len(covariance_matrix)
+    maximum_power = 2 * (dimension - 1)
+    coefficient_terms: list[list[float]] = [[] for _ in range(maximum_power + 1)]
+    shift = local_origin_temperature_c - planning_reference_temperature_c
+    try:
+        for row in range(dimension):
+            for column in range(dimension):
+                source_power = row + column
+                covariance = covariance_matrix[row][column]
+                for target_power in range(source_power + 1):
+                    coefficient_terms[target_power].append(
+                        covariance
+                        * math.comb(source_power, target_power)
+                        * shift ** (source_power - target_power)
+                    )
+        coefficients = tuple(math.fsum(terms) for terms in coefficient_terms)
+    except OverflowError as error:
+        raise RTDExperimentDesignError(
+            "Predicted fitted-curve variance polynomial is not finitely representable"
+        ) from error
+    if not all(math.isfinite(value) for value in coefficients):
+        raise RTDExperimentDesignError(
+            "Predicted fitted-curve variance polynomial is not finitely representable"
+        )
+    return _trim_polynomial(coefficients)
+
+
+def _multiply_polynomials(
+    left: Sequence[float],
+    right: Sequence[float],
+) -> tuple[float, ...]:
+    if not left or not right:
+        return (0.0,)
+    terms: list[list[float]] = [[] for _ in range(len(left) + len(right) - 1)]
+    try:
+        for left_power, left_coefficient in enumerate(left):
+            for right_power, right_coefficient in enumerate(right):
+                terms[left_power + right_power].append(
+                    left_coefficient * right_coefficient
+                )
+        result = tuple(math.fsum(component_terms) for component_terms in terms)
+    except OverflowError as error:
+        raise RTDExperimentDesignError(
+            "Stationary-point polynomial is not finitely representable"
+        ) from error
+    if not all(math.isfinite(value) for value in result):
+        raise RTDExperimentDesignError(
+            "Stationary-point polynomial is not finitely representable"
+        )
+    return _trim_polynomial(result)
+
+
+def _stationary_polynomial(
+    variance_coefficients: Sequence[float],
+    sensitivity_coefficients: Sequence[float],
+) -> tuple[float, ...]:
+    """Build h=q'r-2qr', whose interior roots locate extrema of q/r^2."""
+
+    first = _multiply_polynomials(
+        _polynomial_derivative(variance_coefficients),
+        sensitivity_coefficients,
+    )
+    second = _multiply_polynomials(
+        variance_coefficients,
+        _polynomial_derivative(sensitivity_coefficients),
+    )
+    size = max(len(first), len(second))
+    result = tuple(
+        math.fsum(
+            (
+                first[power] if power < len(first) else 0.0,
+                -2.0 * second[power] if power < len(second) else 0.0,
+            )
+        )
+        for power in range(size)
+    )
+    if not all(math.isfinite(value) for value in result):
+        raise RTDExperimentDesignError(
+            "Stationary-point polynomial is not finitely representable"
+        )
+    return _trim_polynomial(result)
+
+
+def _stationary_roots_in_interval(
+    coefficients: Sequence[float],
+    lower: float,
+    upper: float,
+) -> tuple[float, ...]:
+    """Locate roots of a validated degree-at-most-34 stationary polynomial."""
+
+    polynomial = _trim_polynomial(coefficients)
+    degree = len(polynomial) - 1
+    if degree > _MAX_STATIONARY_POLYNOMIAL_DEGREE:
+        raise RTDExperimentDesignError(
+            "Stationary-point polynomial exceeds the validated degree limit"
+        )
+    try:
+        roots = tuple(_polynomial_roots_in_interval(polynomial, lower, upper))
+    except (OverflowError, ValueError) as error:
+        raise RTDExperimentDesignError(
+            "Stationary-point root calculation did not remain finite"
+        ) from error
+    if not all(math.isfinite(root) and lower < root < upper for root in roots):
+        raise RTDExperimentDesignError(
+            "Stationary-point root calculation produced an invalid root"
+        )
+    return roots
+
+
+def _predicted_temperature_variance_at_piece_temperature(
+    covariance: _ProspectivePolynomialCovariance,
+    piece: _ResistanceSensitivityPiece,
+    temperature_c: float,
+) -> float:
+    x = temperature_c - covariance.reference_temperature_c
+    basis = [1.0]
+    for _ in range(len(covariance.covariance_matrix) - 1):
+        basis.append(basis[-1] * x)
+    try:
+        resistance_variance = _covariance_quadratic_form(
+            tuple(basis),
+            covariance.covariance_matrix,
+        )
+        local_temperature = temperature_c - piece.local_origin_temperature_c
+        resistance_sensitivity = _polynomial_value(
+            piece.coefficients_ohms_per_celsius,
+            local_temperature,
+        )
+    except (OverflowError, ValueError) as error:
+        raise RTDExperimentDesignError(
+            "Predicted fitted-curve temperature variance is not finitely representable"
+        ) from error
+    if not math.isfinite(resistance_sensitivity) or resistance_sensitivity <= 0.0:
+        raise RTDExperimentDesignError(
+            "Package analytical resistance sensitivity must remain finite and "
+            "strictly positive"
+        )
+    try:
+        inverse_sensitivity = 1.0 / resistance_sensitivity
+        variance = resistance_variance * inverse_sensitivity * inverse_sensitivity
+    except OverflowError as error:
+        raise RTDExperimentDesignError(
+            "Predicted fitted-curve temperature variance is not finitely representable"
+        ) from error
+    if not math.isfinite(variance) or variance < 0.0:
+        raise RTDExperimentDesignError(
+            "Predicted fitted-curve temperature variance is not finitely representable"
+        )
+    return variance
+
+
+def _full_range_maximum_predicted_temperature_uncertainty(
+    model: object,
+    covariance: _ProspectivePolynomialCovariance,
+    *,
+    fitted_minimum_temperature_c: float,
+    fitted_maximum_temperature_c: float,
+) -> _MaximumPredictedTemperatureUncertainty:
+    """Establish the full-range maximum fitted-curve uncertainty when possible.
+
+    Package-owned CVD, polynomial, piecewise-polynomial, and tabulated models expose
+    exact analytical dR/dT pieces internally. On each piece, with resistance-domain
+    fitted-curve variance ``q(T)`` and resistance sensitivity ``r(T)=dR/dT``, the
+    temperature-domain variance is ``v_T=q/r**2``. Its interior stationary points
+    are the real roots of ``h=q' r - 2 q r'``. For degree-12 fits and degree-12
+    nominal polynomial pieces, ``h`` has degree at most 34.
+
+    Arbitrary structural third-party models are deliberately not sampled in search
+    of a pseudo-maximum. Their integrated I-optimal criterion may still use dT/dR,
+    but this diagnostic returns ``not_established`` unless the package owns the
+    analytical piece semantics.
+    """
+
+    fitted_minimum = _as_planning_float(
+        fitted_minimum_temperature_c,
+        name="Fitted-range minimum temperature",
+    )
+    fitted_maximum = _as_planning_float(
+        fitted_maximum_temperature_c,
+        name="Fitted-range maximum temperature",
+    )
+    if fitted_maximum <= fitted_minimum:
+        raise ValueError("Fitted range must have positive width")
+    planning_midpoint = fitted_minimum + 0.5 * (fitted_maximum - fitted_minimum)
+    if covariance.reference_temperature_c != planning_midpoint:
+        raise RTDExperimentDesignError(
+            "Full-range maximum uncertainty requires the fixed planning basis "
+            "at the midpoint of the complete fitted range"
+        )
+
+    pieces = _package_sensitivity_pieces(
+        model,
+        fitted_minimum_temperature_c=fitted_minimum,
+        fitted_maximum_temperature_c=fitted_maximum,
+    )
+    if pieces is None:
+        return _MaximumPredictedTemperatureUncertainty(
+            status="not_established",
+            maximum_standard_uncertainty_c=None,
+            maximum_variance_c2=None,
+            locations=(),
+            method=None,
+            reason=(
+                "The nominal model does not expose package-owned analytical "
+                "sensitivity pieces for a proof-oriented full-range maximum"
+            ),
+            analytical_piece_count=0,
+            stationary_root_count=0,
+            maximum_stationary_polynomial_degree=None,
+        )
+    if not pieces:
+        raise RTDExperimentDesignError(
+            "No analytical nominal-model sensitivity piece covers the fitted range"
+        )
+
+    evaluations: list[tuple[float, _MaximumUncertaintyLocation]] = []
+    stationary_root_count = 0
+    maximum_stationary_degree = 0
+
+    for piece_index, piece in enumerate(pieces):
+        variance_coefficients = _variance_polynomial_in_local_coordinate(
+            covariance.covariance_matrix,
+            planning_reference_temperature_c=covariance.reference_temperature_c,
+            local_origin_temperature_c=piece.local_origin_temperature_c,
+        )
+        stationary = _stationary_polynomial(
+            variance_coefficients,
+            piece.coefficients_ohms_per_celsius,
+        )
+        stationary_degree = len(stationary) - 1
+        maximum_stationary_degree = max(maximum_stationary_degree, stationary_degree)
+        lower_local = piece.minimum_temperature_c - piece.local_origin_temperature_c
+        upper_local = piece.maximum_temperature_c - piece.local_origin_temperature_c
+        roots = _stationary_roots_in_interval(
+            stationary,
+            lower_local,
+            upper_local,
+        )
+        stationary_root_count += len(roots)
+
+        lower_side: Literal["point", "right_limit"] = (
+            "point" if piece_index == 0 else "right_limit"
+        )
+        upper_side: Literal["point", "left_limit"] = (
+            "point" if piece_index == len(pieces) - 1 else "left_limit"
+        )
+        for temperature_c, side in (
+            (piece.minimum_temperature_c, lower_side),
+            (piece.maximum_temperature_c, upper_side),
+        ):
+            evaluations.append(
+                (
+                    _predicted_temperature_variance_at_piece_temperature(
+                        covariance,
+                        piece,
+                        temperature_c,
+                    ),
+                    _MaximumUncertaintyLocation(temperature_c, side),
+                )
+            )
+
+        for root in roots:
+            temperature_c = piece.local_origin_temperature_c + root
+            evaluations.append(
+                (
+                    _predicted_temperature_variance_at_piece_temperature(
+                        covariance,
+                        piece,
+                        temperature_c,
+                    ),
+                    _MaximumUncertaintyLocation(temperature_c, "point"),
+                )
+            )
+
+    maximum_variance = max(value for value, _ in evaluations)
+    locations = tuple(
+        location for value, location in evaluations if value == maximum_variance
+    )
+    return _MaximumPredictedTemperatureUncertainty(
+        status="established",
+        maximum_standard_uncertainty_c=math.sqrt(maximum_variance),
+        maximum_variance_c2=maximum_variance,
+        locations=locations,
+        method=_MAXIMUM_UNCERTAINTY_METHOD,
+        reason=None,
+        analytical_piece_count=len(pieces),
+        stationary_root_count=stationary_root_count,
+        maximum_stationary_polynomial_degree=maximum_stationary_degree,
     )

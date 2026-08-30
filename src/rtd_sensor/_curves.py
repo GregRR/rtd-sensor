@@ -431,10 +431,11 @@ def _polynomial_roots_in_interval(
 
     The recursive derivative partition follows Rolle's theorem: roots of the
     derivative divide the interval into regions on which the polynomial is
-    monotonic, so each region contains at most one sign-changing root. This
-    is used only during model construction to locate derivative extrema for
-    monotonicity validation; conversion itself remains a simple bounded
-    bisection on a curve already proven strictly increasing.
+    monotonic, so each region contains at most one sign-changing root. Package
+    model validation uses this to locate derivative extrema, and experiment-
+    design diagnostics reuse the same bounded method for analytical stationary
+    polynomials. Conversion itself remains a simple bounded bisection on a curve
+    already proven strictly increasing.
     """
     polynomial = _trim_polynomial(coefficients)
     degree = len(polynomial) - 1
